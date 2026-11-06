@@ -53,12 +53,6 @@ final class KaiSidekickHotkeyMonitor {
         }
     }
 
-    func requestRightCommandPermission() {
-        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
-        installModifierMonitors()
-    }
-
     func hotKeyPressed() {
         let token = hotKeyGesture.press(at: ProcessInfo.processInfo.systemUptime)
         scheduleHoldTimer { monitor in monitor.hotKeyGesture.holdTimerFired(token: token) }

@@ -3,10 +3,11 @@
 // Run with: swift run KaiLocalAIChecks
 import Foundation
 @testable import KaiLocalAI
+import AppKit
 import CoreGraphics
 import ImageIO
 @testable import KaiActions
-import KaiCapture
+@testable import KaiCapture
 @testable import KaiLocalData
 import KaiNotchCore
 
@@ -492,6 +493,16 @@ check("a temperature reaches the request only when given") {
     return (cold?["options"] as? [String: Any])?["temperature"] as? Double == 0 && plain?["options"] == nil
 }
 
+check("a placeholder signature and its sign-off are removed from a draft") {
+    KaiReplyPrompt.removingPlaceholderSignature("Hi Ana,\n\nThursday works.\n\nBest,\n\n[Your Name]") == "Hi Ana,\n\nThursday works."
+        && KaiReplyPrompt.removingPlaceholderSignature("Thursday works.\n[Name]") == "Thursday works."
+}
+
+check("real sign-offs and other placeholders stay in a draft") {
+    KaiReplyPrompt.removingPlaceholderSignature("Thursday works.\n\nBest,\nJose") == "Thursday works.\n\nBest,\nJose"
+        && KaiReplyPrompt.removingPlaceholderSignature("Can we meet at [time]?") == "Can we meet at [time]?"
+}
+
 check("a composed reply puts the draft first and quotes the original") {
     let body = KaiMailReplyBody.compose(draft: "Sure.", source: sampleEmail)
     return body.hasPrefix("Sure.\n\n") && body.contains("Ana Ruiz <ana@example.com> wrote:") && body.contains("> Can we meet Tuesday?")
@@ -501,8 +512,6 @@ check("a reply action's recipient comes from the message, and it's shown on the 
     let action = KaiProposedAction.mailReply(reference: KaiMailMessageReference(id: "1", mailbox: "INBOX", account: "Work"), recipient: "Ana <a@example.com>", subject: "Lunch", body: "Sure.")
     return action.details.first?.label == "To" && action.details.first?.value == "Ana <a@example.com>"
 }
-
-// MARK: Scripts and Spotlight on this Mac
 
 func compiles(_ script: String) -> Bool {
     let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".scpt")
@@ -515,6 +524,78 @@ func compiles(_ script: String) -> Bool {
     process.waitUntilExit()
     return process.terminationStatus == 0
 }
+
+// MARK: Permissions
+
+check("Allow All asks only for what hasn't been asked, with system-dialog steps first") {
+    let statuses: [KaiPermission: KaiPermissionStatus] = [
+        .accessibility: .notRequested, .mailAutomation: .notRequested, .microphone: .granted,
+        .speech: .denied, .screenRecording: .notRequested, .calendar: .notRequested,
+    ]
+    let plan = KaiPermissionPlan.requestsForAllowAll(statuses: statuses)
+    return plan == [.mailAutomation, .calendar, .accessibility, .screenRecording]
+}
+
+check("every permission has a reason and its own Settings page") {
+    KaiPermission.allCases.allSatisfy { !$0.reason.isEmpty && !$0.title.isEmpty && $0.settingsURL != nil }
+}
+
+check("a row offers Allow, Open Settings or nothing, depending on status") {
+    KaiPermissionPlan.rowAction(for: .notRequested) == .request
+        && KaiPermissionPlan.rowAction(for: .denied) == .openSettings
+        && KaiPermissionPlan.rowAction(for: .granted) == .none
+}
+
+check("the missing count ignores granted permissions and unknown ones count as missing") {
+    KaiPermissionPlan.missingCount(statuses: [.accessibility: .granted, .microphone: .denied]) == KaiPermission.allCases.count - 1
+}
+
+// MARK: Writing into other apps
+
+func item(_ text: String, _ pasteboard: NSPasteboard) { pasteboard.clearContents(); pasteboard.setString(text, forType: .string) }
+
+check("borrowing the pasteboard restores what was there, including other types") {
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("ai.kai.checks.\(UUID().uuidString)"))
+    defer { pasteboard.releaseGlobally() }
+    pasteboard.clearContents()
+    let original = NSPasteboardItem()
+    original.setString("user's clipboard", forType: .string)
+    original.setData(Data([9, 8, 7]), forType: NSPasteboard.PasteboardType("ai.kai.custom"))
+    pasteboard.writeObjects([original])
+    let saved = KaiPasteboardSnapshot(pasteboard)
+    item("the draft", pasteboard)
+    let during = pasteboard.string(forType: .string)
+    saved.restore(to: pasteboard)
+    return during == "the draft"
+        && pasteboard.string(forType: .string) == "user's clipboard"
+        && pasteboard.data(forType: NSPasteboard.PasteboardType("ai.kai.custom")) == Data([9, 8, 7])
+}
+
+check("the pasteboard isn't restored over something the user copied meanwhile") {
+    let pasteboard = NSPasteboard(name: NSPasteboard.Name("ai.kai.checks.\(UUID().uuidString)"))
+    defer { pasteboard.releaseGlobally() }
+    item("old", pasteboard)
+    let saved = KaiPasteboardSnapshot(pasteboard)
+    item("the draft", pasteboard)
+    let afterDraft = pasteboard.changeCount
+    item("copied just now", pasteboard)
+    saved.restore(to: pasteboard, ifChangeCountIs: afterDraft)
+    return pasteboard.string(forType: .string) == "copied just now"
+}
+
+check("only text-like roles count as somewhere to write") {
+    KaiFocusProbe.isEditable(role: "AXTextArea", settable: true) && KaiFocusProbe.isEditable(role: "AXTextField", settable: true)
+        && KaiFocusProbe.isEditable(role: "AXComboBox", settable: true)
+        && !KaiFocusProbe.isEditable(role: "AXButton", settable: true)
+        && !KaiFocusProbe.isEditable(role: "AXTextArea", settable: false)
+        && !KaiFocusProbe.isEditable(role: nil, settable: true)
+}
+
+check("the reply script can open a reply without setting its text") {
+    KaiMailReplyScript.source.contains("is not \"\"") && compiles(KaiMailReplyScript.source)
+}
+
+// MARK: Scripts and Spotlight on this Mac
 
 check("the Mail script compiles against Mail's dictionary") { compiles(KaiMailSource.script(limit: 5)) }
 check("the mail draft script compiles and has no send command") {

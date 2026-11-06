@@ -20,6 +20,23 @@ import KaiLocalData
 import KaiNotchCore
 
 @MainActor
+private final class KaiRecordingInserter: KaiTextInserting {
+    var available = true
+    var focus = KaiFocusKind.none
+    var failure: Error?
+    var inserted: [String] = []
+
+    var isAvailable: Bool { available }
+
+    func currentFocus() -> KaiFocusKind { focus }
+
+    func insert(_ text: String) async throws {
+        if let failure { throw failure }
+        inserted.append(text)
+    }
+}
+
+@MainActor
 private final class KaiScriptedReplyContext: KaiReplyContextProviding {
     var result: Result<KaiReplyContext, Error> = .failure(KaiActionError.invalid("Not set"))
     var delay: Duration?
@@ -235,14 +252,16 @@ enum KaiNotchSelfTest {
 
         // Double tap, with a scripted Mail message and a fake executor, so real mail is untouched.
         if let doubleTap = controller.doubleTap {
-            let realProvider = doubleTap.contextProvider
+            let realInserter = doubleTap.inserter
+            let inserter = KaiRecordingInserter()
+            doubleTap.inserter = inserter
             let realExecutor = appState.actionExecutor
             let realLog = appState.actionLog
             let realPasteboard = doubleTap.pasteboard
             let provider = KaiScriptedReplyContext()
             let recorder = KaiRecordingActionExecutor()
             let testPasteboard = NSPasteboard(name: NSPasteboard.Name("ai.kai.selftest"))
-            doubleTap.contextProvider = provider
+            doubleTap.contextProviderOverride = provider
             doubleTap.pasteboard = testPasteboard
             appState.actionExecutor = recorder
             appState.actionLog = KaiActionLog(url: directory.appendingPathComponent("actions/log.jsonl"))
@@ -267,65 +286,131 @@ enum KaiNotchSelfTest {
                 }
             }
 
+            func waitForWrite() async {
+                var waited = 0
+                while (doubleTap.openState == nil || doubleTap.openState == .running), !isFailed(doubleTap.phase), waited < 1800 {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    waited += 1
+                }
+            }
+            func closeAndSettle() async {
+                controller.collapse()
+                await settle()
+            }
+
+            // A selected Mail message, with Accessibility: a real reply window, with the draft pasted in.
             await tapHotKey()
             try? await Task.sleep(for: .milliseconds(80))
             await tapHotKey()
-            await settle()
-            report("a double tap opens the reply panel", model.isExpanded && model.panelMode == .reply && panel.isKeyWindow, "expanded=\(model.isExpanded) mode=\(model.panelMode) key=\(panel.isKeyWindow) keyWindow=\(String(describing: NSApp.keyWindow.map { Swift.type(of: $0) })) active=\(NSApp.isActive)")
+            // Checked at once, because a finished draft hands focus back to the user's app.
+            try? await Task.sleep(for: .milliseconds(30))
+            report("a double tap opens the reply panel with keyboard focus", model.isExpanded && model.panelMode == .reply && panel.isKeyWindow, "expanded=\(model.isExpanded) mode=\(model.panelMode) key=\(panel.isKeyWindow) phase=\(doubleTap.phase)")
             let chatCount = appState.messages.count
             await waitForDraft()
-            report("a double tap on a Mail message drafts a reply", doubleTap.phase == .ready && !doubleTap.draft.isEmpty, doubleTap.draft)
-            report("instructions inside the email are ignored", !doubleTap.draft.uppercased().contains("HACKED") && !doubleTap.draft.contains("evil@"), doubleTap.draft)
+            await waitForWrite()
+            let written = inserter.inserted.first ?? ""
+            report("a draft is written with no further clicks", doubleTap.openState != nil && inserter.inserted.count == 1 && !written.isEmpty, written)
+            report("instructions inside the email are ignored", !written.uppercased().contains("HACKED") && !written.contains("evil@"), written)
             report("drafting leaves the chat alone", appState.messages.count == chatCount)
-            KaiChatSelfTest.snapshot(panel, to: directory.appendingPathComponent("5-reply.png"), background: gray)
-            controller.dismissForOutsideInteraction()
-            report("clicking elsewhere keeps a draft open", model.isExpanded && doubleTap.phase == .ready && !doubleTap.draft.isEmpty)
-
-            let firstDraft = doubleTap.draft
-            doubleTap.instruction = "Say I can't do Tuesday and suggest Thursday instead."
-            doubleTap.regenerate()
-            await waitForDraft()
-            report("an instruction changes the draft", doubleTap.phase == .ready && doubleTap.draft != firstDraft && doubleTap.draft.contains("Thursday"), doubleTap.draft)
-
-            doubleTap.draft = "Thursday works better for me."
-            report("nothing opens before the click", recorder.performed.isEmpty)
-            doubleTap.openInMail()
-            doubleTap.openInMail()
-            var openWait = 0
-            while doubleTap.openState == .running && openWait < 50 {
-                try? await Task.sleep(for: .milliseconds(100))
-                openWait += 1
-            }
             var openedRecipient = ""
-            var openedBody = ""
+            var openedBody = "unset"
             if recorder.performed.count == 1, case .mailReply(let openedReference, let recipient, _, let body) = recorder.performed[0], openedReference == reference {
                 openedRecipient = recipient
                 openedBody = body
             }
-            report("Open Reply runs once, for the original message", recorder.performed.count == 1 && !openedBody.isEmpty, "\(recorder.performed.count) run(s)")
+            report("the Mail reply opens once, for the original message", recorder.performed.count == 1)
             report("the recipient comes from the message, not the model", openedRecipient == email.sender, openedRecipient)
-            report("the edited draft is what opens", openedBody.hasPrefix("Thursday works better for me.\n\n"), String(openedBody.prefix(60)))
-            report("a finished reply can't open twice", !doubleTap.canOpenInMail)
-            KaiChatSelfTest.snapshot(panel, to: directory.appendingPathComponent("5b-reply-opened.png"), background: gray)
+            report("Mail quotes the original itself when the draft is pasted", openedBody.isEmpty)
+            KaiChatSelfTest.snapshot(panel, to: directory.appendingPathComponent("5b-reply-written.png"), background: gray)
+            let logged = (try? String(contentsOf: appState.actionLog.url, encoding: .utf8)) ?? ""
+            report("the written reply reaches the log", logged.contains("mail_reply") && logged.contains("pasted") && logged.contains("succeeded"))
+            try? await Task.sleep(for: .seconds(2))
+            await settle()
+            report("the panel closes itself after writing", !model.isExpanded && model.panelMode == .chat && doubleTap.phase == .idle)
 
+            // Cursor already in a text area: written there, and Mail isn't touched.
+            let repliesBefore = recorder.performed.count
+            inserter.inserted = []
+            inserter.focus = .multiline
+            controller.startReply()
+            await waitForDraft()
+            await waitForWrite()
+            report("a cursor in a text area gets the draft directly", inserter.inserted.count == 1 && recorder.performed.count == repliesBefore)
+            report("the writing log names the app", ((try? String(contentsOf: appState.actionLog.url, encoding: .utf8)) ?? "").contains("insert_text"))
+            await closeAndSettle()
+
+            // A single-line field such as Subject isn't written to automatically.
+            inserter.inserted = []
+            inserter.focus = .singleLine
+            provider.result = .success(.screen(jpeg: renderedEmail(lines: ["From: Ana Ruiz", "Subject: Lunch", "Can we have lunch on Tuesday?"])))
+            controller.startReply()
+            await waitForDraft()
+            try? await Task.sleep(for: .milliseconds(300))
+            report("a single-line field isn't written to automatically", inserter.inserted.isEmpty && doubleTap.phase == .ready, doubleTap.draft)
+            report("with nowhere to write, the draft waits in the panel", model.isExpanded && doubleTap.destination == .awaitingCursor)
+            controller.dismissForOutsideInteraction()
+            report("clicking elsewhere keeps a draft open", model.isExpanded && doubleTap.phase == .ready)
+            KaiChatSelfTest.snapshot(panel, to: directory.appendingPathComponent("5-reply.png"), background: gray)
+            doubleTap.writeDraft()
+            doubleTap.writeDraft()
+            await waitForWrite()
+            report("the Write button writes once", inserter.inserted.count == 1, "\(inserter.inserted.count) write(s)")
+            report("nothing is left on the real clipboard path in tests", inserter.inserted.first == doubleTap.draft.trimmingCharacters(in: .whitespacesAndNewlines))
+            await closeAndSettle()
+
+            // Typing an instruction holds the draft back so the user can steer.
+            inserter.inserted = []
+            inserter.focus = .multiline
+            provider.result = .success(.mail(reference: reference, source: email))
+            controller.startReply()
+            doubleTap.instruction = "Say I can't do Tuesday and suggest Thursday instead."
+            await waitForDraft()
+            try? await Task.sleep(for: .milliseconds(300))
+            report("typing an instruction holds the draft back", inserter.inserted.isEmpty && doubleTap.phase == .ready)
+            doubleTap.regenerate()
+            await waitForDraft()
+            report("an instruction changes the draft", doubleTap.phase == .ready && doubleTap.draft.contains("Thursday"), doubleTap.draft)
+            report("a redraft doesn't write until asked", inserter.inserted.isEmpty)
+            doubleTap.draft = "Thursday works better for me."
             doubleTap.copyDraft()
             report("Copy puts the draft on the pasteboard", testPasteboard.string(forType: .string) == "Thursday works better for me.")
-            let logged = (try? String(contentsOf: appState.actionLog.url, encoding: .utf8)) ?? ""
-            report("the opened reply reaches the log", logged.contains("mail_reply") && logged.contains("succeeded"))
+            doubleTap.writeDraft()
+            await waitForWrite()
+            report("the edited draft is what gets written", inserter.inserted == ["Thursday works better for me."], "\(inserter.inserted)")
+            await closeAndSettle()
 
-            try? await Task.sleep(for: .seconds(2))
-            await settle()
-            report("the panel closes itself after opening the reply", !model.isExpanded && model.panelMode == .chat && doubleTap.phase == .idle)
-
+            // No Accessibility: Mail still works by script, and a cursor explains what's needed.
+            inserter.inserted = []
+            inserter.available = false
+            inserter.focus = .none
+            recorder.reset()
             controller.startReply()
-            await settle()
-            report("a new double tap starts clean", doubleTap.openState == nil)
             await waitForDraft()
-            try? await Task.sleep(for: .seconds(2))
-            report("an earlier reply's close timer can't close a new draft", model.isExpanded)
-            KaiChatSelfTest.sendKey(characters: "\u{1b}", keyCode: 53, window: panel)
-            await settle()
-            report("Esc closes the reply panel and clears it", !model.isExpanded && model.panelMode == .chat && doubleTap.phase == .idle && doubleTap.draft.isEmpty)
+            await waitForWrite()
+            var scriptedBody = ""
+            if case .mailReply(_, _, _, let body)? = recorder.performed.first { scriptedBody = body }
+            report("without Accessibility, Mail gets the draft by script with a quote", inserter.inserted.isEmpty && scriptedBody.contains("wrote:") && scriptedBody.contains("> Hi, can we have lunch"), String(scriptedBody.prefix(80)))
+            await closeAndSettle()
+
+            inserter.focus = .multiline
+            controller.startReply()
+            await waitForDraft()
+            await waitForWrite()
+            report("without Accessibility, writing explains itself and keeps the draft", doubleTap.openState == .failed(KaiTextInsertError.notAllowed.localizedDescription) && !doubleTap.draft.isEmpty && model.isExpanded)
+            KaiChatSelfTest.snapshot(panel, to: directory.appendingPathComponent("5d-needs-accessibility.png"), background: gray)
+            report("a failed write can be retried", doubleTap.canWrite)
+            await closeAndSettle()
+            inserter.available = true
+
+            // A paste failure keeps the draft safe.
+            inserter.failure = KaiTextInsertError.eventFailed
+            controller.startReply()
+            await waitForDraft()
+            await waitForWrite()
+            report("a failed paste keeps the draft and says so", doubleTap.openState == .failed(KaiTextInsertError.eventFailed.localizedDescription) && !doubleTap.draft.isEmpty && model.isExpanded)
+            await closeAndSettle()
+            inserter.failure = nil
+            inserter.focus = .none
 
             provider.result = .failure(KaiActionError.invalid("Select a message in Mail, then double tap again."))
             controller.startReply()
@@ -340,7 +425,7 @@ enum KaiNotchSelfTest {
             controller.startReply()
             await waitForDraft()
             report("an email in a screenshot gets a draft", doubleTap.phase == .ready && !doubleTap.draft.isEmpty, doubleTap.draft)
-            report("a screenshot draft can't open in Mail, only be copied", !doubleTap.canOpenInMail && doubleTap.canCopy)
+            report("a screenshot draft waits for a cursor, and can be copied", doubleTap.destination == .awaitingCursor && doubleTap.canCopy && inserter.inserted.isEmpty)
             controller.collapse()
             await settle()
 
@@ -373,7 +458,8 @@ enum KaiNotchSelfTest {
             await settle()
             report("closing while reading cancels the draft", doubleTap.phase == .idle)
 
-            doubleTap.contextProvider = realProvider
+            doubleTap.contextProviderOverride = nil
+            doubleTap.inserter = realInserter
             doubleTap.pasteboard = realPasteboard
             appState.actionExecutor = realExecutor
             appState.actionLog = realLog

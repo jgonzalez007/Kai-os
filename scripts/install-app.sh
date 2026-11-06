@@ -22,7 +22,8 @@ done
 
 cp "$BIN_DIR/Kai OS" "$CONTENTS/MacOS/Kai OS"
 cp "Kai OS macOS/Info.plist" "$CONTENTS/Info.plist"
-codesign --force --sign - "$APP"
+read -r SIGNING_SHA SIGNING_KEYCHAIN <<< "$(scripts/setup-signing.sh)"
+codesign --force --sign "$SIGNING_SHA" --keychain "$SIGNING_KEYCHAIN" --identifier ai.kai "$APP"
 
 open "$APP"
 sleep 2

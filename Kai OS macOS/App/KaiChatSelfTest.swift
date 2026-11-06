@@ -20,11 +20,28 @@ import KaiCapture
 import KaiLocalAI
 import KaiLocalData
 
+@MainActor
+private final class KaiScriptedPermissions: KaiPermissionProviding {
+    var granted = Set<KaiPermission>()
+    var requested: [KaiPermission] = []
+
+    func status(of permission: KaiPermission) async -> KaiPermissionStatus {
+        granted.contains(permission) ? .granted : .notRequested
+    }
+
+    func request(_ permission: KaiPermission) async {
+        requested.append(permission)
+        granted.insert(permission)
+    }
+}
+
 final class KaiRecordingActionExecutor: KaiActionPerforming, @unchecked Sendable {
     private let lock = NSLock()
     private var recorded: [KaiProposedAction] = []
 
     var performed: [KaiProposedAction] { lock.withLock { recorded } }
+
+    func reset() { lock.withLock { recorded = [] } }
 
     func perform(_ action: KaiProposedAction) async throws -> String {
         lock.withLock { recorded.append(action) }
@@ -53,8 +70,12 @@ enum KaiChatSelfTest {
 
         try? await Task.sleep(for: .seconds(2))
         NSApp.activate(ignoringOtherApps: true)
+        // macOS restores a window the user minimized as minimized.
+        NSApp.windows.filter(\.isMiniaturized).forEach { $0.deminiaturize(nil) }
+        try? await Task.sleep(for: .seconds(1))
         guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) else {
-            log.append("FAIL  no visible main window")
+            let windows = NSApp.windows.map { "\(Swift.type(of: $0)) visible=\($0.isVisible) main=\($0.canBecomeMain) mini=\($0.isMiniaturized) frame=\($0.frame)" }
+            log.append("FAIL  no visible main window — hidden=\(NSApp.isHidden) active=\(NSApp.isActive) windows=\(windows)")
             finish(log: log, failures: 1, directory: directory)
         }
         window.makeKeyAndOrderFront(nil)
@@ -225,6 +246,50 @@ enum KaiChatSelfTest {
         appState.actionExecutor = realExecutor
         appState.actionLog = realLog
         snapshot(window, to: directory.appendingPathComponent("2e-card-done.png"))
+
+        // The Permissions screen, with a scripted provider so no real prompt appears.
+        let permissions = KaiPermissionsModel.shared
+        let realPermissions = permissions.provider
+        let realOnGranted = permissions.onGranted
+        let scriptedPermissions = KaiScriptedPermissions()
+        permissions.provider = scriptedPermissions
+        permissions.onGranted = nil
+        await permissions.refresh()
+        appState.activeSidebar = "Permissions"
+        try? await Task.sleep(for: .milliseconds(500))
+        snapshot(window, to: directory.appendingPathComponent("6-permissions.png"))
+        report("the Permissions screen lists every permission as off to begin with", permissions.missingCount == KaiPermission.allCases.count)
+        permissions.requestAll()
+        await waitUntil(seconds: 5) { !permissions.isRequestingAll }
+        report("Allow All asks once for each, with Settings-based ones last", scriptedPermissions.requested.count == KaiPermission.allCases.count && Set(scriptedPermissions.requested.suffix(2)) == [.accessibility, .screenRecording], scriptedPermissions.requested.map(\.rawValue).joined(separator: ", "))
+        report("granted permissions update the screen", permissions.missingCount == 0)
+        scriptedPermissions.requested = []
+        permissions.requestAll()
+        await waitUntil(seconds: 5) { !permissions.isRequestingAll }
+        report("Allow All doesn't ask again for what's granted", scriptedPermissions.requested.isEmpty)
+        try? await Task.sleep(for: .milliseconds(300))
+        snapshot(window, to: directory.appendingPathComponent("6b-permissions-granted.png"))
+        permissions.provider = realPermissions
+        permissions.onGranted = realOnGranted
+        await permissions.refresh()
+
+        // A real paste into Kai's own chat field, only if macOS already allows it.
+        let realInserter = KaiPasteInserter()
+        if realInserter.isAvailable {
+            appState.activeSidebar = "Chat"
+            try? await Task.sleep(for: .milliseconds(600))
+            appState.chatDraft = ""
+            NSApp.activate(ignoringOtherApps: true)
+            try? await Task.sleep(for: .milliseconds(300))
+            let before = NSPasteboard.general.string(forType: .string)
+            try? await realInserter.insert("kai paste probe")
+            try? await Task.sleep(for: .milliseconds(300))
+            report("a real paste reaches a real text field", appState.chatDraft.contains("kai paste probe"), appState.chatDraft)
+            report("a real paste restores the clipboard", NSPasteboard.general.string(forType: .string) == before)
+            appState.chatDraft = ""
+        } else {
+            log.append("INFO  Accessibility isn't granted here, so the real paste check was skipped")
+        }
 
         appState.activeSidebar = "Mail"
         try? await Task.sleep(for: .milliseconds(500))

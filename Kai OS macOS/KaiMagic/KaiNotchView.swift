@@ -182,11 +182,6 @@ private struct KaiNotchReplyContent: View {
         }
     }
 
-    private var isMailReply: Bool {
-        if case .mail = doubleTap.context { return true }
-        return false
-    }
-
     @ViewBuilder
     private var actionRow: some View {
         HStack(spacing: 8) {
@@ -196,14 +191,13 @@ private struct KaiNotchReplyContent: View {
                 .disabled(!doubleTap.canCopy)
             Spacer()
             outcome
-            if isMailReply {
-                // No keyboard shortcut: pressing Return in the instruction field must never open it.
-                Button("Open Reply in Mail") { doubleTap.openInMail() }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!doubleTap.canOpenInMail)
-            } else if doubleTap.phase == .ready {
-                Text("Copy this into your email.").font(.caption).foregroundStyle(.secondary)
+            if doubleTap.destination == .awaitingCursor && doubleTap.phase == .ready && doubleTap.openState == nil {
+                Text("Click in your reply box, then:").font(.caption).foregroundStyle(.secondary)
             }
+            // No keyboard shortcut: pressing Return in the instruction field must only redraft.
+            Button(doubleTap.writeButtonTitle) { doubleTap.writeDraft() }
+                .buttonStyle(.borderedProminent)
+                .disabled(!doubleTap.canWrite)
         }
     }
 
