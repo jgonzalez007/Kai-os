@@ -1,0 +1,11 @@
+//
+//  KaiSourceHealth.swift
+//  Kai OS macOS
+//
+//  Source health
+//  Copyright © 2026 Kai OS Labs. All rights reserved.
+//
+
+import Foundation
+import SwiftUI
+

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scheme
+   name="Kai OS"
+   buildActionReference="BFC6E13F-A1B2-4C3D-9E5F-6A7B8C9D0E1F"
+   runActionReference="BFC6E13F-A1B2-4C3D-9E5F-6A7B8C9D0E1F">
+   <buildAction
+      buildArguments="YES"
+      parallelizeBuild="YES">
+      <buildableArtifactPlatformInterfaceItem
+         artifactTarget="BFC6E13F-A1B2-4C3D-9E5F-6A7B8C9D0E1F">
+      </buildableArtifactPlatformInterfaceItem>
+   </buildAction>
+   <runAction
+      launchTarget="BFC6E13F-A1B2-4C3D-9E5F-6A7B8C9D0E1F"
+      useLanguage="YES">
+   </runAction>
+</scheme>

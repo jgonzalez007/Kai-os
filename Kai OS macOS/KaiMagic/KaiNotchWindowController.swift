@@ -1,0 +1,247 @@
+//
+//  KaiNotchWindowController.swift
+//  Kai OS macOS
+//
+//  Owns the always-on-top panel at the notch. The panel never activates the app, so the
+//  user's current app stays frontmost while they talk to Kai.
+//
+
+import AppKit
+import Combine
+import KaiNotchCore
+import SwiftUI
+
+@MainActor
+final class KaiNotchModel: ObservableObject {
+    enum Activity: Equatable {
+        case idle, running, done, failed
+    }
+
+    @Published var isExpanded = false { didSet { onSurfaceChange?() } }
+    @Published var isHovering = false { didSet { onSurfaceChange?() } }
+    @Published var activity = Activity.idle { didSet { onSurfaceChange?() } }
+    @Published var layout: KaiNotchLayout?
+    @Published var draft = ""
+
+    var onSurfaceChange: (() -> Void)?
+
+    var surface: KaiNotchSurface {
+        if isExpanded { return .expanded }
+        return isHovering || activity != .idle ? .peek : .closed
+    }
+}
+
+final class KaiNotchPanel: NSPanel {
+    var onCancel: (() -> Void)?
+
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+
+    override func cancelOperation(_ sender: Any?) {
+        onCancel?()
+    }
+}
+
+/// Uses an always-active tracking area, because hover must work while another app is frontmost.
+final class KaiNotchHostingView<Content: View>: NSHostingView<Content> {
+    var onHoverChange: ((Bool) -> Void)?
+    private var hoverArea: NSTrackingArea?
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverArea { removeTrackingArea(hoverArea) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.activeAlways, .mouseEnteredAndExited, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(area)
+        hoverArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        onHoverChange?(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        onHoverChange?(false)
+    }
+}
+
+@MainActor
+final class KaiNotchWindowController: NSObject, NSWindowDelegate {
+    static let shared = KaiNotchWindowController()
+
+    private static let shrinkDelay: Duration = .milliseconds(400)
+    private static let doneFlourish: Duration = .milliseconds(1500)
+    private static let failedFlourish: Duration = .seconds(5)
+
+    let model = KaiNotchModel()
+    private(set) var panel: KaiNotchPanel?
+
+    private var appState: AppState?
+    private var cancellables = Set<AnyCancellable>()
+    private var clickMonitor: Any?
+    private var screenObserver: NSObjectProtocol?
+    private var shrinkTask: Task<Void, Never>?
+    private var flourishTask: Task<Void, Never>?
+    private var started = false
+
+    func start(appState: AppState) {
+        guard !started else { return }
+        started = true
+        self.appState = appState
+        model.onSurfaceChange = { [weak self] in self?.applySurface() }
+        appState.$isProcessing
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] isProcessing in self?.processingChanged(isProcessing) }
+            .store(in: &cancellables)
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshLayout() }
+        }
+        // Clicks in other apps close the panel. Mouse monitors need no permission.
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            MainActor.assumeIsolated { self?.collapse() }
+        }
+        KaiSidekickHotkeyMonitor.shared.start { [weak self] in self?.toggle() }
+        applyEnabledPreference()
+    }
+
+    func applyEnabledPreference() {
+        if KaiNotchPreferences.isEnabled {
+            if panel == nil { makePanel() }
+            refreshLayout()
+            panel?.orderFrontRegardless()
+        } else {
+            collapse()
+            panel?.orderOut(nil)
+        }
+    }
+
+    func toggle() {
+        guard KaiNotchPreferences.isEnabled else { return }
+        if model.isExpanded { collapse() } else { expand() }
+    }
+
+    func expand() {
+        guard let panel, !model.isExpanded else { return }
+        model.isExpanded = true
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    func collapse() {
+        guard let panel, model.isExpanded else { return }
+        model.isExpanded = false
+        // Reordering hands keyboard focus back to the frontmost app without flicker.
+        panel.orderOut(nil)
+        panel.orderFrontRegardless()
+        syncHoverWithCursor()
+    }
+
+    func openMainWindow() {
+        collapse()
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            // Reopening the running app makes SwiftUI create a new window.
+            NSWorkspace.shared.open(Bundle.main.bundleURL)
+        }
+    }
+
+    func windowDidResignKey(_ notification: Notification) {
+        collapse()
+    }
+
+    private func makePanel() {
+        guard let appState else { return }
+        let panel = KaiNotchPanel(
+            contentRect: .zero,
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isFloatingPanel = true
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
+        panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.isMovable = false
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.delegate = self
+        panel.onCancel = { [weak self] in self?.collapse() }
+
+        let hosting = KaiNotchHostingView(
+            rootView: KaiNotchView(model: model, appState: appState, controller: self)
+        )
+        hosting.sizingOptions = []
+        hosting.onHoverChange = { [weak self] hovering in self?.model.isHovering = hovering }
+        panel.contentView = hosting
+        self.panel = panel
+    }
+
+    private func refreshLayout() {
+        model.layout = KaiNotchSpace.currentLayout()
+        guard let panel, let layout = model.layout else { return }
+        shrinkTask?.cancel()
+        panel.setFrame(layout.frame(for: model.surface), display: true)
+    }
+
+    /// The window grows at once so the animation has room, and shrinks after it ends so the
+    /// empty part of the window never blocks clicks on the menu bar for long.
+    private func applySurface() {
+        guard let panel, let layout = model.layout else { return }
+        let target = layout.frame(for: model.surface)
+        guard target != panel.frame else { return }
+        shrinkTask?.cancel()
+        if panel.frame.contains(target) {
+            shrinkTask = Task { [weak self] in
+                try? await Task.sleep(for: Self.shrinkDelay)
+                guard !Task.isCancelled else { return }
+                self?.panel?.setFrame(target, display: true)
+                self?.syncHoverWithCursor()
+            }
+        } else {
+            panel.setFrame(target, display: true)
+        }
+    }
+
+    private func syncHoverWithCursor() {
+        guard let layout = model.layout else { return }
+        // Two extra points on top, because the cursor can rest on the screen's very top edge.
+        let region = layout.frame(for: .closed).insetBy(dx: 0, dy: -2)
+        let inside = region.contains(NSEvent.mouseLocation)
+        if model.isHovering != inside { model.isHovering = inside }
+    }
+
+    private func processingChanged(_ isProcessing: Bool) {
+        flourishTask?.cancel()
+        if isProcessing {
+            model.activity = .running
+            return
+        }
+        guard let last = appState?.messages.last, !last.isUser else {
+            model.activity = .idle
+            return
+        }
+        model.activity = last.kind == .error ? .failed : .done
+        let duration = last.kind == .error ? Self.failedFlourish : Self.doneFlourish
+        flourishTask = Task { [weak self] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self?.model.activity = .idle
+        }
+    }
+}
