@@ -2,9 +2,9 @@
 //  KaiSidekickHotkeyMonitor.swift
 //  Kai OS macOS
 //
-//  Two ways to toggle the notch. Control-Option-Space uses a Carbon hotkey, which needs no
-//  permission. Tapping right Command needs Accessibility, because macOS withholds global
-//  keyboard events from untrusted apps.
+//  Two keys open the notch: tap to toggle, hold to talk. Control-Option-Space uses a Carbon
+//  hotkey, which needs no permission. Right Command needs Accessibility, because macOS
+//  withholds global keyboard events from untrusted apps.
 //
 
 import AppKit
@@ -19,11 +19,12 @@ final class KaiSidekickHotkeyMonitor {
     /// The device-specific right Command bit in an event's raw modifier flags.
     private static let rightCommandMask: UInt = 0x10
 
-    private var onToggle: (() -> Void)?
+    private var onAction: ((KaiHoldGesture.Action) -> Void)?
     private var hotKey: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
     private var monitors: [Any] = []
-    private var gesture = KaiModifierGesture()
+    private var hotKeyGesture = KaiHoldGesture()
+    private var rightCommandGesture = KaiHoldGesture()
     private var activationObserver: NSObjectProtocol?
     private var monitoredWhileTrusted = false
 
@@ -33,8 +34,8 @@ final class KaiSidekickHotkeyMonitor {
 
     private init() {}
 
-    func start(onToggle: @escaping () -> Void) {
-        self.onToggle = onToggle
+    func start(onAction: @escaping (KaiHoldGesture.Action) -> Void) {
+        self.onAction = onAction
         registerHotKey()
         installModifierMonitors()
         // Monitors installed before the permission was granted may stay silent, so they are
@@ -57,19 +58,43 @@ final class KaiSidekickHotkeyMonitor {
         installModifierMonitors()
     }
 
+    func hotKeyPressed() {
+        let token = hotKeyGesture.press(at: ProcessInfo.processInfo.systemUptime)
+        scheduleHoldTimer { monitor in monitor.hotKeyGesture.holdTimerFired(token: token) }
+    }
+
+    func hotKeyReleased() {
+        onAction?(hotKeyGesture.release(at: ProcessInfo.processInfo.systemUptime))
+    }
+
+    private func scheduleHoldTimer(_ fire: @escaping (KaiSidekickHotkeyMonitor) -> KaiHoldGesture.Action) {
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(KaiHoldGesture.holdThreshold))
+            guard let self else { return }
+            self.onAction?(fire(self))
+        }
+    }
+
     private func registerHotKey() {
         guard hotKey == nil else { return }
-        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        var eventTypes = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased)),
+        ]
         let installStatus = InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, _, _ in
+            { _, event, _ in
+                let pressed = event.map { GetEventKind($0) == UInt32(kEventHotKeyPressed) } ?? false
                 DispatchQueue.main.async {
-                    MainActor.assumeIsolated { KaiSidekickHotkeyMonitor.shared.onToggle?() }
+                    MainActor.assumeIsolated {
+                        let monitor = KaiSidekickHotkeyMonitor.shared
+                        if pressed { monitor.hotKeyPressed() } else { monitor.hotKeyReleased() }
+                    }
                 }
                 return noErr
             },
-            1,
-            &eventType,
+            eventTypes.count,
+            &eventTypes,
             nil,
             &eventHandler
         )
@@ -105,13 +130,14 @@ final class KaiSidekickHotkeyMonitor {
 
     private func handle(_ event: NSEvent) {
         guard event.type == .flagsChanged, Int(event.keyCode) == kVK_RightCommand else {
-            gesture.interrupt()
+            onAction?(rightCommandGesture.interrupt())
             return
         }
         if event.modifierFlags.rawValue & Self.rightCommandMask != 0 {
-            gesture.press(at: event.timestamp)
-        } else if gesture.release(at: event.timestamp) {
-            onToggle?()
+            let token = rightCommandGesture.press(at: event.timestamp)
+            scheduleHoldTimer { monitor in monitor.rightCommandGesture.holdTimerFired(token: token) }
+        } else {
+            onAction?(rightCommandGesture.release(at: event.timestamp))
         }
     }
 }

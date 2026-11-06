@@ -36,6 +36,8 @@
     <true/>
     <key>NSAppleEventsUsageDescription</key>
     <string>Kai OS reads your Apple Mail inbox and Apple Notes so the assistant can answer questions about them. It never changes them.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Kai OS turns your speech into text on this Mac when you hold the talk key.</string>
     <key>NSContactsUsageDescription</key>
     <string>Kai OS needs access to your contacts to help with replies.</string>
     <key>NSCalendarsUsageDescription</key>
@@ -62,6 +64,6 @@
     <key>NSAccessibilityUsageDescription</key>
     <string>Kai OS needs accessibility access for computer-use automation.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Kai OS uses your microphone for voice commands.</string>
+    <string>Kai OS listens only while you hold the talk key or the mic button is on.</string>
 </dict>
 </plist>

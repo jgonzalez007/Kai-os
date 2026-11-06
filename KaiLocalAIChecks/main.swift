@@ -4,6 +4,8 @@
 import Foundation
 @testable import KaiLocalAI
 import CoreGraphics
+import ImageIO
+import KaiCapture
 @testable import KaiLocalData
 import KaiNotchCore
 
@@ -131,30 +133,113 @@ check("the expanded frame never leaves a narrow screen") {
     return screen.contains(narrow.frame(for: .expanded))
 }
 
-// MARK: Right Command gesture
+// MARK: Hold gesture
 
-check("a quick press and release is a tap") {
-    var gesture = KaiModifierGesture()
-    gesture.press(at: 10)
-    return gesture.release(at: 10.1)
+check("a quick press and release toggles") {
+    var gesture = KaiHoldGesture()
+    _ = gesture.press(at: 10)
+    return gesture.release(at: 10.1) == .toggle
 }
 
-check("a long hold is not a tap") {
-    var gesture = KaiModifierGesture()
-    gesture.press(at: 10)
-    return !gesture.release(at: 10.6)
+check("reaching the hold threshold begins a hold, and release ends it") {
+    var gesture = KaiHoldGesture()
+    let token = gesture.press(at: 10)
+    let began = gesture.holdTimerFired(token: token)
+    return began == .beginHold && gesture.release(at: 11) == .endHold
 }
 
-check("a key chord such as Command-C is not a tap") {
-    var gesture = KaiModifierGesture()
-    gesture.press(at: 10)
-    gesture.interrupt()
-    return !gesture.release(at: 10.1)
+check("a slow release that missed its timer does nothing") {
+    var gesture = KaiHoldGesture()
+    _ = gesture.press(at: 10)
+    return gesture.release(at: 10.6) == .none
 }
 
-check("a release with no press is not a tap") {
-    var gesture = KaiModifierGesture()
-    return !gesture.release(at: 10)
+check("a chord before the threshold does nothing, and its timer stays silent") {
+    var gesture = KaiHoldGesture()
+    let token = gesture.press(at: 10)
+    let interrupted = gesture.interrupt()
+    let fired = gesture.holdTimerFired(token: token)
+    return interrupted == .none && fired == .none && gesture.release(at: 10.1) == .none
+}
+
+check("a chord during a hold cancels it") {
+    var gesture = KaiHoldGesture()
+    let token = gesture.press(at: 10)
+    _ = gesture.holdTimerFired(token: token)
+    return gesture.interrupt() == .cancelHold && gesture.release(at: 11) == .none
+}
+
+check("a timer from an earlier press can't begin a hold on a later press") {
+    var gesture = KaiHoldGesture()
+    let old = gesture.press(at: 10)
+    _ = gesture.release(at: 10.1)
+    _ = gesture.press(at: 10.2)
+    return gesture.holdTimerFired(token: old) == .none
+}
+
+check("a release with no press does nothing") {
+    var gesture = KaiHoldGesture()
+    return gesture.release(at: 10) == .none
+}
+
+// MARK: Images
+
+func solidImage(width: Int, height: Int) -> CGImage? {
+    let context = CGContext(
+        data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )
+    context?.setFillColor(CGColor(red: 0.2, green: 0.4, blue: 0.8, alpha: 1))
+    context?.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    return context?.makeImage()
+}
+
+func pixelSize(ofJPEG data: Data) -> CGSize? {
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+          let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+    return CGSize(width: image.width, height: image.height)
+}
+
+check("a large screenshot shrinks to the long-edge limit and keeps its shape") {
+    guard let image = solidImage(width: 3456, height: 2234),
+          let jpeg = KaiScreenImage.jpegData(from: image, maxLongEdge: 1600),
+          let size = pixelSize(ofJPEG: jpeg) else { return false }
+    return size.width == 1600 && abs(size.height - 1034) <= 1
+}
+
+check("a small image is never enlarged") {
+    guard let image = solidImage(width: 400, height: 300),
+          let jpeg = KaiScreenImage.jpegData(from: image, maxLongEdge: 1600),
+          let size = pixelSize(ofJPEG: jpeg) else { return false }
+    return size == CGSize(width: 400, height: 300)
+}
+
+check("an image message encodes as base64 under images") {
+    let message = KaiOllamaMessage(role: "user", content: "what's this?", images: [Data([1, 2, 3])])
+    let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(message)) as? [String: Any]
+    return json?["images"] as? [String] == ["AQID"]
+}
+
+check("a text message omits images") {
+    let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(KaiOllamaMessage(role: "user", content: "hi"))) as? [String: Any]
+    return json?["images"] == nil
+}
+
+check("model info reports vision support, assuming it when capabilities are missing") {
+    let body = #"""
+    {"models":[
+      {"name":"seeing","capabilities":["completion","vision"]},
+      {"name":"blind","capabilities":["completion"]},
+      {"name":"older"},
+      {"name":"embedder","capabilities":["embedding"]}
+    ]}
+    """#
+    let info = try KaiOllamaClient.parseChatModelInfo(Data(body.utf8))
+    return info == [
+        KaiOllamaModelInfo(name: "seeing", supportsVision: true),
+        KaiOllamaModelInfo(name: "blind", supportsVision: false),
+        KaiOllamaModelInfo(name: "older", supportsVision: true),
+    ]
 }
 
 // MARK: Assistant tools

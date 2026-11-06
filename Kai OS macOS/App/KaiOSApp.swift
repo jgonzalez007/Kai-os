@@ -9,6 +9,7 @@
 import SwiftUI
 import Foundation
 import AppKit
+import KaiCapture
 import KaiLocalAI
 import KaiLocalData
 
@@ -31,13 +32,16 @@ struct Message: Identifiable, Equatable {
     var kind: Kind
     /// What the assistant is doing right now, such as running a tool.
     var status: String?
+    /// A JPEG the user attached to this message.
+    var imageData: Data?
 
-    init(id: String = UUID().uuidString, text: String = "", isUser: Bool = false, timestamp: Date = Date(), kind: Kind = .chat) {
+    init(id: String = UUID().uuidString, text: String = "", isUser: Bool = false, timestamp: Date = Date(), kind: Kind = .chat, imageData: Data? = nil) {
         self.id = id
         self.text = text
         self.isUser = isUser
         self.timestamp = timestamp
         self.kind = kind
+        self.imageData = imageData
     }
 }
 
@@ -111,6 +115,9 @@ final class AppState: ObservableObject {
     @Published var messages: [Message] = []
     @Published var chatDraft = ""
     @Published var chatModels: [String] = []
+    @Published var modelInfo: [KaiOllamaModelInfo] = []
+    @Published var pendingScreenshot: Data?
+    @Published var isCapturingScreen = false
     @Published var selectedModel: String = UserDefaults.standard.string(forKey: AppState.chatModelDefaultsKey) ?? "" {
         didSet { UserDefaults.standard.set(selectedModel, forKey: AppState.chatModelDefaultsKey) }
     }
@@ -322,15 +329,57 @@ final class AppState: ObservableObject {
     // MARK: Chat
 
     func refreshChatModels() async throws {
-        let models = try await ollama.listChatModels()
+        modelInfo = try await ollama.listChatModels()
+        let models = modelInfo.map(\.name)
         chatModels = models
         if !models.contains(selectedModel) { selectedModel = models.first ?? "" }
+    }
+
+    var selectedModelSupportsVision: Bool {
+        modelInfo.first { $0.name == selectedModel }?.supportsVision ?? true
+    }
+
+    /// Captures only the display under the cursor, and only because the user asked for it here.
+    func attachScreen() {
+        guard !isCapturingScreen else { return }
+        guard selectedModelSupportsVision else {
+            postError("\(selectedModel) can't read images. Choose a model with vision to attach your screen.")
+            return
+        }
+        guard KaiScreenGrabber.hasPermission else {
+            KaiScreenGrabber.requestPermission()
+            postError(KaiScreenCaptureError.needsPermission.localizedDescription)
+            return
+        }
+        isCapturingScreen = true
+        Task {
+            defer { isCapturingScreen = false }
+            do {
+                pendingScreenshot = try await KaiScreenGrabber.capture(
+                    displayID: Self.displayUnderCursor(),
+                    excludingBundleIdentifier: Bundle.main.bundleIdentifier
+                )
+            } catch {
+                postError(error.localizedDescription)
+            }
+        }
+    }
+
+    func postError(_ text: String) {
+        messages.append(Message(text: text, kind: .error))
+    }
+
+    private static func displayUnderCursor() -> CGDirectDisplayID? {
+        let cursor = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { $0.frame.contains(cursor) } ?? NSScreen.main
+        return (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
     }
 
     func sendMessage(text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isProcessing else { return }
-        messages.append(Message(text: trimmed, isUser: true))
+        messages.append(Message(text: trimmed, isUser: true, imageData: pendingScreenshot))
+        pendingScreenshot = nil
         let reply = Message()
         let history = conversationForModel()
         messages.append(reply)
@@ -348,6 +397,7 @@ final class AppState: ObservableObject {
         activeReplyID = nil
         isProcessing = false
         messages = [Self.welcomeMessage()]
+        pendingScreenshot = nil
     }
 
     private func streamReply(replyID: String, history: [KaiOllamaMessage]) async {
@@ -419,8 +469,17 @@ final class AppState: ObservableObject {
         )
         let turns = messages
             .filter { $0.kind == .chat && !$0.text.isEmpty }
-            .map { KaiOllamaMessage(role: $0.isUser ? "user" : "assistant", content: $0.text) }
-        return [system] + turns
+        return [system] + turns.map { message in
+            // Only the newest message keeps its image, because resending every screenshot
+            // would slow each later reply on a local model.
+            if let image = message.imageData {
+                if message.id == turns.last?.id {
+                    return KaiOllamaMessage(role: "user", content: message.text, images: [image])
+                }
+                return KaiOllamaMessage(role: "user", content: message.text + "\n[A screenshot was attached here, but it's no longer available.]")
+            }
+            return KaiOllamaMessage(role: message.isUser ? "user" : "assistant", content: message.text)
+        }
     }
 
     private func updateMessage(id: String, _ change: (inout Message) -> Void) {
@@ -704,6 +763,7 @@ struct ChatView: View {
                 }
             }
             Divider()
+            KaiPendingScreenshotChip().padding(.horizontal).padding(.top, 8)
             HStack(spacing: 8) {
                 TextField("Ask Kai OS...", text: $appState.chatDraft, axis: .vertical)
                     .lineLimit(1...6)
@@ -712,6 +772,7 @@ struct ChatView: View {
                     .padding(10)
                     .background(RoundedRectangle(cornerRadius: 10).fill(Color(.controlBackgroundColor)))
                     .onSubmit(send)
+                KaiAttachScreenButton()
                 if appState.isProcessing {
                     Button(action: appState.cancelReply) {
                         Image(systemName: "stop.circle.fill").font(.title2).foregroundStyle(.red)
@@ -771,6 +832,43 @@ struct ChatView: View {
     }
 }
 
+struct KaiAttachScreenButton: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        Button(action: appState.attachScreen) {
+            if appState.isCapturingScreen {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: appState.pendingScreenshot == nil ? "camera.viewfinder" : "checkmark.rectangle.fill")
+                    .font(.title3)
+                    .foregroundStyle(appState.pendingScreenshot == nil ? Color.secondary : Color.blue)
+            }
+        }
+        .buttonStyle(.plain)
+        .help("Attach a screenshot of this display to your next message")
+    }
+}
+
+struct KaiPendingScreenshotChip: View {
+    @EnvironmentObject var appState: AppState
+
+    var body: some View {
+        if let data = appState.pendingScreenshot, let image = NSImage(data: data) {
+            HStack(spacing: 8) {
+                Image(nsImage: image).resizable().scaledToFit().frame(height: 36).cornerRadius(4)
+                Text("Screen attached").font(.caption).foregroundStyle(.secondary)
+                Button { appState.pendingScreenshot = nil } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Remove the screenshot")
+                Spacer()
+            }
+        }
+    }
+}
+
 struct MessageBubbleView: View {
     let message: Message
 
@@ -784,6 +882,9 @@ struct MessageBubbleView: View {
             if message.isUser {
                 Spacer(minLength: 60)
                 VStack(alignment: .trailing, spacing: 4) {
+                    if let data = message.imageData, let image = NSImage(data: data) {
+                        Image(nsImage: image).resizable().scaledToFit().frame(maxWidth: 240, maxHeight: 160).cornerRadius(8)
+                    }
                     Text(message.text)
                         .textSelection(.enabled)
                         .foregroundStyle(.white)

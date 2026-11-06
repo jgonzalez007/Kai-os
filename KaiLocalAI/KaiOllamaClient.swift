@@ -84,18 +84,31 @@ public struct KaiOllamaMessage: Codable, Equatable, Sendable {
     public let content: String
     public let toolCalls: [KaiOllamaToolCall]?
     public let toolName: String?
+    /// Encoded as base64 strings, which is the form Ollama expects.
+    public let images: [Data]?
 
     private enum CodingKeys: String, CodingKey {
-        case role, content
+        case role, content, images
         case toolCalls = "tool_calls"
         case toolName = "tool_name"
     }
 
-    public init(role: String, content: String, toolCalls: [KaiOllamaToolCall]? = nil, toolName: String? = nil) {
+    public init(role: String, content: String, toolCalls: [KaiOllamaToolCall]? = nil, toolName: String? = nil, images: [Data]? = nil) {
         self.role = role
         self.content = content
         self.toolCalls = toolCalls
         self.toolName = toolName
+        self.images = images
+    }
+}
+
+public struct KaiOllamaModelInfo: Equatable, Sendable {
+    public let name: String
+    public let supportsVision: Bool
+
+    public init(name: String, supportsVision: Bool) {
+        self.name = name
+        self.supportsVision = supportsVision
     }
 }
 
@@ -245,8 +258,9 @@ public struct KaiOllamaClient: Sendable {
         )
     }
 
-    /// Older Ollama versions omit `capabilities`, so a model without the field is kept.
-    static func parseChatModels(_ data: Data) throws -> [String] {
+    /// Older Ollama versions omit `capabilities`, so a model without the field is kept and
+    /// assumed to handle images. If it can't, Ollama reports that when the image is sent.
+    static func parseChatModelInfo(_ data: Data) throws -> [KaiOllamaModelInfo] {
         struct Tags: Decodable {
             struct Model: Decodable {
                 let name: String
@@ -256,12 +270,16 @@ public struct KaiOllamaClient: Sendable {
         }
         return try JSONDecoder().decode(Tags.self, from: data).models
             .filter { $0.capabilities?.contains("completion") ?? true }
-            .map(\.name)
+            .map { KaiOllamaModelInfo(name: $0.name, supportsVision: $0.capabilities?.contains("vision") ?? true) }
+    }
+
+    static func parseChatModels(_ data: Data) throws -> [String] {
+        try parseChatModelInfo(data).map(\.name)
     }
 
     // MARK: Network
 
-    public func listChatModels() async throws -> [String] {
+    public func listChatModels() async throws -> [KaiOllamaModelInfo] {
         let url = baseURL.appendingPathComponent("api/tags")
         var request = URLRequest(url: url)
         request.timeoutInterval = 5
@@ -270,7 +288,7 @@ public struct KaiOllamaClient: Sendable {
             if let status = (response as? HTTPURLResponse)?.statusCode, status != 200 {
                 throw KaiOllamaError.http(status: status, message: String(decoding: data, as: UTF8.self))
             }
-            return try Self.parseChatModels(data)
+            return try Self.parseChatModelInfo(data)
         } catch let error as URLError {
             throw mapped(error)
         }

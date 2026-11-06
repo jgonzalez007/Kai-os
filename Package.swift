@@ -18,6 +18,10 @@ let package = Package(
             path: "KaiLocalAI"
         ),
         .target(
+            name: "KaiCapture",
+            path: "KaiCapture"
+        ),
+        .target(
             name: "KaiLocalData",
             path: "KaiLocalData"
         ),
@@ -27,13 +31,13 @@ let package = Package(
         ),
         .executableTarget(
             name: "KaiOS",
-            dependencies: ["KaiLocalAI", "KaiLocalData", "KaiNotchCore"],
+            dependencies: ["KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore"],
             path: "Kai OS macOS",
             exclude: ["Info.plist", "Info.plist.template"]
         ),
         .executableTarget(
             name: "KaiLocalAIChecks",
-            dependencies: ["KaiLocalAI", "KaiLocalData", "KaiNotchCore"],
+            dependencies: ["KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore"],
             path: "KaiLocalAIChecks"
         )
     ]

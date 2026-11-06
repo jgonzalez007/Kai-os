@@ -315,7 +315,7 @@ Kai OS macOS/
 ### Phase 7: Wire Up Missing Features (Days 20-25)
 **Goal:** Connect the dots — stubs become real.
 
-**Status (2026-11-06):** Most modules are still empty stubs, and the "Built" and "Complete" labels elsewhere in this plan predate that audit. Working and tested: local chat through Ollama, the notch panel, read-only Apple Calendar, Mail and Notes, Spotlight search, and assistant tools over those sources. `Kai OS macOS/KaiSources`, `KaiIngestion` and `StubFrameworks.swift` are not used by these features. Calendar, Mail and Notes still need a first test with real permissions on the user's Mac.
+**Status (2026-11-06):** Most modules are still empty stubs, and the "Built" and "Complete" labels elsewhere in this plan predate that audit. Working and tested: local chat through Ollama, the notch panel, read-only Apple Calendar, Mail and Notes, Spotlight search, and assistant tools over those sources. Also working: user-triggered screen capture sent to a vision model, and hold-to-talk with on-device speech recognition, whose real microphone path still needs a first test on the user's Mac. Computer-use remains unbuilt. `Kai OS macOS/KaiSources`, `KaiIngestion` and `StubFrameworks.swift` are not used by these features. Calendar, Mail and Notes still need a first test with real permissions on the user's Mac.
 
 - [ ] 7.1 Wire ChatGPT endpoint (OpenAI Responses API) in LocalFallback
 - [ ] 7.2 Wire Claude endpoint (Anthropic Messages API) in LocalFallback
