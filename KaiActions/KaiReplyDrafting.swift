@@ -58,6 +58,29 @@ public enum KaiReplyPrompt {
         ]
     }
 
+    /// Drafts go straight into real emails, so a "[Your Name]" sign-off must not survive.
+    /// Mail adds the user's own signature. Placeholders for real decisions stay in the text.
+    public static func removingPlaceholderSignature(_ draft: String) -> String {
+        var lines = draft.components(separatedBy: "\n")
+        func dropTrailingBlanks() {
+            while lines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true { lines.removeLast() }
+        }
+        dropTrailingBlanks()
+        guard let last = lines.last?.trimmingCharacters(in: .whitespaces),
+              last.range(of: #"^\[[^\]]*name[^\]]*\]$"#, options: [.regularExpression, .caseInsensitive]) != nil else {
+            return draft
+        }
+        lines.removeLast()
+        dropTrailingBlanks()
+        let signOffs = ["best", "best regards", "regards", "kind regards", "thanks", "thank you", "cheers", "sincerely"]
+        if let signOff = lines.last?.trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: ",!."))).lowercased(),
+           signOffs.contains(signOff) {
+            lines.removeLast()
+            dropTrailingBlanks()
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// Only a clear NO stops the draft, so an odd answer can't block a real email.
     public static func checkSaysNoEmail(_ answer: String) -> Bool {
         answer.trimmingCharacters(in: .whitespacesAndNewlines).uppercased().hasPrefix("NO")
@@ -117,7 +140,7 @@ enum KaiMailReplyScript {
             end if
             if theMessage is missing value then error "Kai couldn't find that message in Mail. Copy the draft instead."
             set theReply to reply theMessage with opening window
-            set content of theReply to replyBody
+            if replyBody is not "" then set content of theReply to replyBody
             activate
         end tell
     end run

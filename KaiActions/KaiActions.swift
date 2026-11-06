@@ -29,6 +29,9 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
     case calendarEvent(title: String, start: Date, minutes: Int, location: String)
     case mailDraft(to: [String], subject: String, body: String)
     case mailReply(reference: KaiMailMessageReference, recipient: String, subject: String, body: String)
+    /// Text written at the cursor in another app. Only ever created by the user's own double
+    /// tap, never proposed by the model, and carried out by the app's text inserter.
+    case insertText(app: String, text: String)
     case notification(title: String, body: String, at: Date)
 
     public var kindName: String {
@@ -36,6 +39,7 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
         case .calendarEvent: return "calendar_event"
         case .mailDraft: return "mail_draft"
         case .mailReply: return "mail_reply"
+        case .insertText: return "insert_text"
         case .notification: return "notification"
         }
     }
@@ -45,6 +49,7 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
         case .calendarEvent: return "Add to Calendar"
         case .mailDraft: return "Open a Mail Draft"
         case .mailReply: return "Open a Reply in Mail"
+        case .insertText: return "Write at the Cursor"
         case .notification: return "Schedule a Notification"
         }
     }
@@ -54,6 +59,7 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
         case .calendarEvent: return "calendar.badge.plus"
         case .mailDraft: return "square.and.pencil"
         case .mailReply: return "arrowshape.turn.up.left"
+        case .insertText: return "text.cursor"
         case .notification: return "bell.badge"
         }
     }
@@ -73,6 +79,8 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
             return [("To", to.joined(separator: ", ")), ("Subject", subject), ("Body", body)]
         case .mailReply(_, let recipient, let subject, let body):
             return [("To", recipient), ("Subject", subject), ("Body", body)]
+        case .insertText(let app, let text):
+            return [("App", app), ("Text", text)]
         case .notification(let title, let body, let date):
             var rows = [("Title", title), ("When", date.formatted(date: .complete, time: .shortened))]
             if !body.isEmpty { rows.append(("Text", body)) }
@@ -279,6 +287,8 @@ public struct KaiSystemActionExecutor: KaiActionPerforming {
             return try await openMailDraft(to: to, subject: subject, body: body)
         case .mailReply(let reference, _, _, let body):
             return try await openMailReply(reference: reference, body: body)
+        case .insertText:
+            throw KaiActionError.failed("Writing at the cursor is handled by the text inserter.")
         case .notification(let title, let body, let date):
             return try await scheduleNotification(title: title, body: body, date: date)
         }

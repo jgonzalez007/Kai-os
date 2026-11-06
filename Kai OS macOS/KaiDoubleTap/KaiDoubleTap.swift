@@ -2,9 +2,10 @@
 //  KaiDoubleTap.swift
 //  Kai OS macOS
 //
-//  Double tap the talk key to draft a reply to the email in front of you. In Mail it reads
-//  the selected message. Anywhere else it reads the email from a screenshot. Nothing is sent:
-//  the user edits the draft, then opens it as a Mail reply or copies it.
+//  Double tap the talk key to reply to the email in front of you. In Mail it reads the
+//  selected message. Anywhere else it reads the email from a screenshot. The draft is then
+//  written into the email itself: at the cursor if it's in a text area, or into a new Mail
+//  reply. Nothing is ever sent, so the user reviews it there and sends it themselves.
 //
 
 import AppKit
@@ -24,16 +25,28 @@ protocol KaiReplyContextProviding {
     func currentContext() async throws -> KaiReplyContext
 }
 
+/// Where a finished draft goes, decided from where the user's cursor was when they double tapped.
+enum KaiReplyDestination: Equatable {
+    case cursor
+    case mailReply
+    /// Nowhere to write yet: the user clicks into a reply box and presses Write.
+    case awaitingCursor
+}
+
 @MainActor
 struct KaiSystemReplyContextProvider: KaiReplyContextProviding {
     let appState: AppState
+    let cursorIsInTextArea: Bool
 
     func currentContext() async throws -> KaiReplyContext {
         if appState.frontmostBundleIdentifier == "com.apple.mail" {
-            guard let email = try await KaiMailSelection.selectedEmail() else {
+            if let email = try await KaiMailSelection.selectedEmail() {
+                return .mail(reference: email.reference, source: email.source)
+            }
+            // A compose window can hold a reply with no message selected behind it.
+            guard cursorIsInTextArea else {
                 throw KaiActionError.invalid("Select a message in Mail, then double tap again.")
             }
-            return .mail(reference: email.reference, source: email.source)
         }
         guard appState.selectedModelSupportsVision else {
             throw KaiActionError.invalid("\(appState.selectedModel) can't read images. Open the email in Apple Mail, or choose a model with vision.")
@@ -64,29 +77,41 @@ final class KaiDoubleTapController: ObservableObject {
     /// The result of opening the current draft in Mail.
     @Published private(set) var openState: KaiActionCard.State?
 
-    var contextProvider: any KaiReplyContextProviding
+    @Published private(set) var destination = KaiReplyDestination.awaitingCursor
+
+    /// Set by the self-test; the real provider is built per double tap from the cursor's state.
+    var contextProviderOverride: (any KaiReplyContextProviding)?
+    var inserter: any KaiTextInserting = KaiPasteInserter()
     var pasteboard = NSPasteboard.general
 
     private let appState: AppState
     private let ollama = KaiOllamaClient()
     private var task: Task<Void, Never>?
     private var emailCheckPassed = false
+    private var writesAutomatically = true
     private var closeTask: Task<Void, Never>?
 
-    /// Called shortly after a reply opens in Mail, so the panel clears the way to its window.
+    /// Called shortly after the draft is written, so the panel clears the way to the email.
     var onReplyOpened: (() -> Void)?
 
     init(appState: AppState) {
         self.appState = appState
-        contextProvider = KaiSystemReplyContextProvider(appState: appState)
     }
 
-    var canOpenInMail: Bool {
-        guard phase == .ready, case .mail = context, !trimmedDraft.isEmpty else { return false }
+    /// Called before writing at the cursor, so keyboard focus returns to the user's app.
+    var onReleaseFocus: (() -> Void)?
+
+    var canWrite: Bool {
+        guard phase == .ready, !trimmedDraft.isEmpty else { return false }
         switch openState {
         case .none, .failed: return true
         default: return false
         }
+    }
+
+    var writeButtonTitle: String {
+        if destination == .mailReply { return "Write in Mail Reply" }
+        return "Write at Cursor"
     }
 
     var canCopy: Bool { phase == .ready && !trimmedDraft.isEmpty }
@@ -96,11 +121,22 @@ final class KaiDoubleTapController: ObservableObject {
     func start() {
         cancel()
         phase = .reading
+        // Read now, before the panel opens and takes keyboard focus.
+        let focus = inserter.currentFocus()
+        let provider = contextProviderOverride ?? KaiSystemReplyContextProvider(appState: appState, cursorIsInTextArea: focus == .multiline)
+        writesAutomatically = true
         task = Task {
             do {
-                let context = try await contextProvider.currentContext()
+                let context = try await provider.currentContext()
                 guard !Task.isCancelled else { return }
                 self.context = context
+                if focus == .multiline {
+                    destination = .cursor
+                } else if case .mail = context {
+                    destination = .mailReply
+                } else {
+                    destination = .awaitingCursor
+                }
                 await generate(from: context, previousDraft: nil)
             } catch {
                 if !Task.isCancelled { phase = .failed(error.localizedDescription) }
@@ -112,6 +148,7 @@ final class KaiDoubleTapController: ObservableObject {
     func regenerate() {
         guard let context, phase != .reading else { return }
         let previous = instruction.isEmpty ? nil : trimmedDraft
+        writesAutomatically = false
         task?.cancel()
         // Set before the task starts, so nothing can edit or open the old draft in between.
         phase = .drafting
@@ -124,6 +161,7 @@ final class KaiDoubleTapController: ObservableObject {
         closeTask?.cancel()
         closeTask = nil
         emailCheckPassed = false
+        destination = .awaitingCursor
         phase = .idle
         context = nil
         draft = ""
@@ -164,10 +202,13 @@ final class KaiDoubleTapController: ObservableObject {
                 draft = text.trimmingCharacters(in: .whitespacesAndNewlines)
             }
             if Task.isCancelled { return }
+            draft = KaiReplyPrompt.removingPlaceholderSignature(draft)
             if draft.isEmpty {
                 phase = .failed("The model returned an empty draft. Try again.")
             } else {
                 phase = .ready
+                // Typing an instruction means the user wants to steer, so the draft waits.
+                if writesAutomatically && instruction.isEmpty && destination != .awaitingCursor { writeDraft() }
             }
         } catch is CancellationError {
             return
@@ -184,42 +225,99 @@ final class KaiDoubleTapController: ObservableObject {
         return text
     }
 
-    /// Runs only from the user's click on the button beside the text they've just read.
-    func openInMail() {
-        guard canOpenInMail, case .mail(let reference, let source) = context else { return }
+    /// Writes the draft into the email. It stays unsent there for the user to review.
+    func writeDraft() {
+        guard canWrite else { return }
+        if destination == .mailReply, case .mail(let reference, let source) = context {
+            writeMailReply(reference: reference, source: source)
+        } else {
+            writeAtCursor()
+        }
+    }
+
+    private func writeAtCursor() {
+        let text = trimmedDraft
+        guard inserter.isAvailable else {
+            openState = .failed(KaiTextInsertError.notAllowed.localizedDescription)
+            return
+        }
+        let frontmost = NSWorkspace.shared.frontmostApplication
+        var card = KaiActionCard(action: .insertText(app: frontmost?.localizedName ?? "Unknown", text: text))
+        _ = card.approve()
+        openState = .running
+        guard record("approved", card: card) else { return }
+        onReleaseFocus?()
+        Task {
+            // Gives the window server time to return keyboard focus before pasting.
+            try? await Task.sleep(for: .milliseconds(200))
+            do {
+                try await inserter.insert(text)
+                finishWrite(&card, .succeeded("Written into your email. Review it and send it yourself."))
+            } catch {
+                finishWrite(&card, .failed(error.localizedDescription))
+            }
+        }
+    }
+
+    /// With Accessibility, Mail composes the reply and quotes the original itself, and the
+    /// draft is pasted above that. Without it, the script fills in the whole message.
+    private func writeMailReply(reference: KaiMailMessageReference, source: KaiEmailDraftSource) {
+        let text = trimmedDraft
+        let pastes = inserter.isAvailable
         var card = KaiActionCard(action: .mailReply(
             reference: reference,
             recipient: source.sender,
             subject: source.subject,
-            body: KaiMailReplyBody.compose(draft: trimmedDraft, source: source)
+            body: pastes ? "" : KaiMailReplyBody.compose(draft: text, source: source)
         ))
         _ = card.approve()
         openState = .running
-        let log = appState.actionLog
+        guard record("approved", card: card) else { return }
         let executor = appState.actionExecutor
-        do {
-            // An action that can't be recorded doesn't run.
-            try log.record(event: "approved", card: card, detail: nil)
-        } catch {
-            openState = .failed("The action log couldn't be written, so nothing was done.")
-            return
-        }
+        onReleaseFocus?()
         Task {
             do {
                 let detail = try await executor.perform(card.action)
-                card.finish(.succeeded(detail))
-                try? log.record(event: "succeeded", card: card, detail: detail)
-                openState = .succeeded(detail)
-                closeTask = Task { [weak self] in
-                    try? await Task.sleep(for: .milliseconds(1500))
-                    guard !Task.isCancelled else { return }
-                    self?.onReplyOpened?()
+                if pastes {
+                    // Mail needs a moment to open the reply and put the cursor in its body.
+                    try? await Task.sleep(for: .milliseconds(900))
+                    try await inserter.insert(text)
+                    try? appState.actionLog.record(event: "pasted", card: card, detail: text)
                 }
+                finishWrite(&card, .succeeded(detail))
             } catch {
-                card.finish(.failed(error.localizedDescription))
-                try? log.record(event: "failed", card: card, detail: error.localizedDescription)
-                openState = .failed(error.localizedDescription)
+                finishWrite(&card, .failed(error.localizedDescription))
             }
+        }
+    }
+
+    /// An action that can't be recorded doesn't run.
+    private func record(_ event: String, card: KaiActionCard) -> Bool {
+        do {
+            try appState.actionLog.record(event: event, card: card, detail: nil)
+            return true
+        } catch {
+            openState = .failed("The action log couldn't be written, so nothing was done.")
+            return false
+        }
+    }
+
+    private func finishWrite(_ card: inout KaiActionCard, _ outcome: KaiActionCard.State) {
+        card.finish(outcome)
+        switch outcome {
+        case .succeeded(let detail):
+            try? appState.actionLog.record(event: "succeeded", card: card, detail: detail)
+            openState = outcome
+            closeTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(1500))
+                guard !Task.isCancelled else { return }
+                self?.onReplyOpened?()
+            }
+        case .failed(let detail):
+            try? appState.actionLog.record(event: "failed", card: card, detail: detail)
+            openState = outcome
+        case .pending, .running, .declined:
+            break
         }
     }
 

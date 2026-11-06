@@ -113,6 +113,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         self.appState = appState
         doubleTap = KaiDoubleTapController(appState: appState)
         doubleTap?.onReplyOpened = { [weak self] in self?.collapse() }
+        doubleTap?.onReleaseFocus = { [weak self] in self?.releaseKeyboardFocus() }
         model.onSurfaceChange = { [weak self] in self?.applySurface() }
         appState.$isProcessing
             .dropFirst()
@@ -182,9 +183,16 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     func startReply() {
         guard KaiNotchPreferences.isEnabled else { return }
         cancelVoice()
+        doubleTap?.start()
         model.panelMode = .reply
         expand()
-        doubleTap?.start()
+    }
+
+    /// Hands keyboard focus back to the frontmost app while the panel stays on screen.
+    func releaseKeyboardFocus() {
+        guard let panel, panel.isKeyWindow else { return }
+        panel.orderOut(nil)
+        panel.orderFrontRegardless()
     }
 
     // MARK: Voice

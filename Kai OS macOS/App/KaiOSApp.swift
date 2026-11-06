@@ -125,7 +125,7 @@ final class AppState: ObservableObject {
     @Published var selectedModel: String = UserDefaults.standard.string(forKey: AppState.chatModelDefaultsKey) ?? "" {
         didSet { UserDefaults.standard.set(selectedModel, forKey: AppState.chatModelDefaultsKey) }
     }
-    @Published var activeSidebar: String = "Chat"
+    @Published var activeSidebar: String = KaiPermissionsModel.shouldShowOnLaunch ? "Permissions" : "Chat"
     @Published var isProcessing = false
     @Published var themeMode: String = UserDefaults.standard.string(forKey: AppState.themeDefaultsKey) ?? "auto" {
         didSet { UserDefaults.standard.set(themeMode, forKey: AppState.themeDefaultsKey) }
@@ -226,6 +226,24 @@ final class AppState: ObservableObject {
         mailState = .disconnected
         mailMessages = []
         unreadCount = 0
+    }
+
+    /// Granting access on the Permissions screen is the user's consent, so there's no second step.
+    func permissionGranted(_ permission: KaiPermission) {
+        switch permission {
+        case .mailAutomation:
+            UserDefaults.standard.set(true, forKey: Self.mailConnectedKey)
+            mailConnected = true
+            mailState = .connected
+        case .notesAutomation:
+            UserDefaults.standard.set(true, forKey: Self.notesConnectedKey)
+            notesConnected = true
+            notesState = .connected
+        case .calendar:
+            refreshCalendar()
+        default:
+            break
+        }
     }
 
     func connectNotes() {
@@ -1096,7 +1114,7 @@ struct SettingsView: View {
                     if KaiSidekickHotkeyMonitor.shared.isRightCommandAvailable {
                         Text("Enabled").foregroundStyle(.secondary)
                     } else {
-                        Button("Enable…") { KaiSidekickHotkeyMonitor.shared.requestRightCommandPermission() }
+                        Button("Open Permissions") { appState.activeSidebar = "Permissions" }
                     }
                 }
             }
@@ -1181,11 +1199,15 @@ struct KaiOSApp: App {
 final class KaiAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         KaiNotchWindowController.shared.start(appState: AppState.shared)
+        let permissions = KaiPermissionsModel.shared
+        permissions.onGranted = { AppState.shared.permissionGranted($0) }
+        Task { await permissions.refresh() }
     }
 }
 
 struct KaiMainView: View {
     @EnvironmentObject var appState: AppState
+    @ObservedObject private var permissions = KaiPermissionsModel.shared
 
     private var selection: Binding<String?> {
         Binding(
@@ -1203,6 +1225,7 @@ struct KaiMainView: View {
             case "Mail": MailView()
             case "Notes": NotesView()
             case "Settings": SettingsView()
+            case "Permissions": KaiPermissionsView(permissions: permissions)
             default: ChatView()
             }
         }
@@ -1244,6 +1267,7 @@ struct KaiMainView: View {
                 }
             }
             Section {
+                Label("Permissions", systemImage: "lock.shield").badge(permissions.missingCount).tag("Permissions")
                 Label("Preferences", systemImage: "gearshape").tag("Settings")
             }
         }.listStyle(.sidebar)
