@@ -14,7 +14,39 @@
 import AppKit
 import Combine
 import Foundation
+import KaiCapture
 import KaiNotchCore
+
+@MainActor
+private final class KaiScriptedVoiceEngine: KaiVoiceEngine {
+    var authorized = true
+    var authorizationRequests = 0
+    var started = false
+    var cancelled = false
+    var finalText = ""
+    private var onPartial: (@MainActor (String) -> Void)?
+
+    var isAuthorized: Bool { authorized }
+
+    func requestAuthorization() async -> Bool {
+        authorizationRequests += 1
+        return false
+    }
+
+    func start(onPartial: @escaping @MainActor (String) -> Void) throws {
+        started = true
+        cancelled = false
+        self.onPartial = onPartial
+    }
+
+    func emitPartial(_ text: String) {
+        onPartial?(text)
+    }
+
+    func finish() async -> String { finalText }
+
+    func cancel() { cancelled = true }
+}
 
 @MainActor
 enum KaiNotchSelfTest {
@@ -106,6 +138,67 @@ enum KaiNotchSelfTest {
         KaiChatSelfTest.sendKey(characters: "\u{1b}", keyCode: 53, window: panel)
         await settle()
         report("Esc closes the panel", !model.isExpanded && panel.frame == layout.frame(for: .closed), "\(panel.frame)")
+
+        // Voice flow, with a scripted engine and the real hold timer.
+        let realEngine = controller.voiceEngine
+        let fake = KaiScriptedVoiceEngine()
+        controller.voiceEngine = fake
+        fake.finalText = "Reply with only the word plum."
+        let monitor = KaiSidekickHotkeyMonitor.shared
+        monitor.hotKeyPressed()
+        try? await Task.sleep(for: .milliseconds(150))
+        report("a hotkey press under the threshold doesn't start listening", model.voicePhase == .idle && !model.isExpanded)
+        try? await Task.sleep(for: .milliseconds(300))
+        report("holding the hotkey starts listening", fake.started && model.voicePhase == .listening)
+        report("holding the hotkey opens the panel", model.isExpanded)
+        fake.emitPartial("Reply with only")
+        report("partial speech appears in the field", model.draft == "Reply with only", model.draft)
+        await settle()
+        KaiChatSelfTest.snapshot(panel, to: directory.appendingPathComponent("3b-listening.png"), background: gray)
+        monitor.hotKeyReleased()
+        await settle()
+        report("releasing sends what was heard", appState.messages.contains { $0.isUser && $0.text == fake.finalText })
+        report("the field clears after sending", model.draft.isEmpty, model.draft)
+        report("voice returns to idle", model.voicePhase == .idle)
+        var voiceWait = 0
+        while appState.isProcessing && voiceWait < 1200 {
+            try? await Task.sleep(for: .milliseconds(100))
+            voiceWait += 1
+        }
+        let plum = appState.messages.last?.text.lowercased() ?? ""
+        report("the model answers the spoken message", plum.contains("plum"), plum)
+
+        monitor.hotKeyPressed()
+        try? await Task.sleep(for: .milliseconds(50))
+        monitor.hotKeyReleased()
+        await settle()
+        report("a quick hotkey tap still toggles the panel", !model.isExpanded)
+
+        let sentBefore = appState.messages.filter(\.isUser).count
+        fake.started = false
+        controller.beginVoice()
+        report("voice can start again", fake.started)
+        fake.emitPartial("never mind")
+        controller.collapse()
+        await settle()
+        report("closing the panel cancels listening", fake.cancelled && model.voicePhase == .idle && model.draft.isEmpty)
+        report("a cancelled recording sends nothing", appState.messages.filter(\.isUser).count == sentBefore)
+
+        fake.finalText = "   "
+        controller.beginVoice()
+        controller.endVoice()
+        await settle()
+        report("silence sends nothing and says so", appState.messages.filter(\.isUser).count == sentBefore && appState.messages.last?.kind == .error, appState.messages.last?.text ?? "")
+        controller.collapse()
+        await settle()
+
+        fake.authorized = false
+        controller.beginVoice()
+        await settle()
+        report("missing permission asks instead of listening", fake.authorizationRequests == 1 && model.voicePhase == .idle)
+        controller.collapse()
+        await settle()
+        controller.voiceEngine = realEngine
 
         // Failure state, driven through the same signals a failed reply produces.
         appState.isProcessing = true

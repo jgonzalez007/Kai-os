@@ -12,7 +12,10 @@
 
 #if DEBUG
 import AppKit
+import AVFoundation
 import Foundation
+import Speech
+import KaiCapture
 import KaiLocalAI
 import KaiLocalData
 
@@ -46,6 +49,8 @@ enum KaiChatSelfTest {
         snapshot(window, to: directory.appendingPathComponent("1-launch.png"))
 
         report("the chat field has focus at launch", window.firstResponder is NSTextView, "\(String(describing: window.firstResponder.map { Swift.type(of: $0) }))")
+        let recognizer = SFSpeechRecognizer()
+        log.append("INFO  on-device speech: \(recognizer?.supportsOnDeviceRecognition == true), locale \(recognizer?.locale.identifier ?? "none"), speech permission \(SFSpeechRecognizer.authorizationStatus().rawValue), mic permission \(AVCaptureDevice.authorizationStatus(for: .audio).rawValue)")
         report("a local chat model was discovered", !appState.selectedModel.isEmpty, appState.selectedModel)
 
         // Typing and Return through the real text field.
@@ -110,6 +115,39 @@ enum KaiChatSelfTest {
         report("the reply uses the tool's result", toolReply.contains(probe.path), toolReply)
         snapshot(window, to: directory.appendingPathComponent("2b-tool.png"))
 
+        // Vision, with a generated image: capturing the real screen needs a permission prompt.
+        appState.pendingScreenshot = wordImage("KIWI")
+        report("a screenshot waits for the next message", appState.pendingScreenshot != nil)
+        appState.sendMessage(text: "What single word is written in this image? Reply with only that word.")
+        report("sending consumes the attachment", appState.pendingScreenshot == nil)
+        report("the message keeps its image", appState.messages.last { $0.isUser }?.imageData != nil)
+        await waitForReply(appState: appState, seconds: 180)
+        let visionReply = appState.messages.last?.text ?? ""
+        report("the model reads the attached image", visionReply.uppercased().contains("KIWI"), visionReply)
+        snapshot(window, to: directory.appendingPathComponent("2c-vision.png"))
+        appState.sendMessage(text: "Reply with only the word ready.")
+        await waitForReply(appState: appState, seconds: 120)
+        report("a later message still works after an image", appState.messages.last?.kind == .chat, appState.messages.last?.text ?? "")
+
+        if !KaiScreenGrabber.hasPermission {
+            let result: String
+            do {
+                _ = try await KaiScreenGrabber.capture(displayID: nil, excludingBundleIdentifier: nil)
+                result = "captured"
+            } catch {
+                result = error.localizedDescription
+            }
+            report("capture without permission explains itself", result == KaiScreenCaptureError.needsPermission.localizedDescription, result)
+        } else {
+            // Only the size is checked, and the image is discarded, so nothing on screen is kept.
+            appState.attachScreen()
+            await waitUntil(seconds: 20) { !appState.isCapturingScreen }
+            let size = appState.pendingScreenshot?.count ?? 0
+            let longEdge = appState.pendingScreenshot.flatMap { NSImage(data: $0)?.representations.first }.map { max($0.pixelsWide, $0.pixelsHigh) } ?? 0
+            report("a real screen capture attaches a resized image", size > 0 && longEdge == KaiScreenImage.defaultMaxLongEdge, "\(size) bytes, long edge \(longEdge)")
+            appState.pendingScreenshot = nil
+        }
+
         appState.activeSidebar = "Mail"
         try? await Task.sleep(for: .milliseconds(500))
         snapshot(window, to: directory.appendingPathComponent("3-mail.png"))
@@ -121,6 +159,21 @@ enum KaiChatSelfTest {
 
         try? FileManager.default.removeItem(at: probe)
         finish(log: log, failures: failures, directory: directory)
+    }
+
+    private static func wordImage(_ word: String) -> Data? {
+        let image = NSImage(size: NSSize(width: 600, height: 240), flipped: false) { rect in
+            NSColor.white.setFill()
+            rect.fill()
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.boldSystemFont(ofSize: 120),
+                .foregroundColor: NSColor.black,
+            ]
+            (word as NSString).draw(at: NSPoint(x: 60, y: 50), withAttributes: attributes)
+            return true
+        }
+        guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff) else { return nil }
+        return bitmap.representation(using: .jpeg, properties: [:])
     }
 
     private static func waitForReply(appState: AppState, seconds: Double) async {

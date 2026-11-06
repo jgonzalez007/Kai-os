@@ -8,6 +8,7 @@
 
 import AppKit
 import Combine
+import KaiCapture
 import KaiNotchCore
 import SwiftUI
 
@@ -16,6 +17,12 @@ final class KaiNotchModel: ObservableObject {
     enum Activity: Equatable {
         case idle, running, done, failed
     }
+
+    enum VoicePhase: Equatable {
+        case idle, listening, transcribing
+    }
+
+    @Published var voicePhase = VoicePhase.idle
 
     @Published var isExpanded = false { didSet { onSurfaceChange?() } }
     @Published var isHovering = false { didSet { onSurfaceChange?() } }
@@ -82,6 +89,8 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     private static let failedFlourish: Duration = .seconds(5)
 
     let model = KaiNotchModel()
+    /// Replaced by the self-test, which has no microphone permission to rely on.
+    var voiceEngine: any KaiVoiceEngine = KaiSpeechTranscriber()
     private(set) var panel: KaiNotchPanel?
 
     private var appState: AppState?
@@ -113,7 +122,15 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             MainActor.assumeIsolated { self?.collapse() }
         }
-        KaiSidekickHotkeyMonitor.shared.start { [weak self] in self?.toggle() }
+        KaiSidekickHotkeyMonitor.shared.start { [weak self] action in
+            switch action {
+            case .none: break
+            case .toggle: self?.toggle()
+            case .beginHold: self?.beginVoice()
+            case .endHold: self?.endVoice()
+            case .cancelHold: self?.cancelVoice()
+            }
+        }
         applyEnabledPreference()
     }
 
@@ -141,11 +158,68 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
 
     func collapse() {
         guard let panel, model.isExpanded else { return }
+        cancelVoice()
         model.isExpanded = false
         // Reordering hands keyboard focus back to the frontmost app without flicker.
         panel.orderOut(nil)
         panel.orderFrontRegardless()
         syncHoverWithCursor()
+    }
+
+    // MARK: Voice
+
+    func toggleVoice() {
+        if model.voicePhase == .listening { endVoice() } else { beginVoice() }
+    }
+
+    func beginVoice() {
+        guard KaiNotchPreferences.isEnabled, model.voicePhase == .idle, let appState else { return }
+        expand()
+        guard voiceEngine.isAuthorized else {
+            Task {
+                // The prompts take longer than a key hold, so the user talks on the next try.
+                if await voiceEngine.requestAuthorization() {
+                    appState.postError("Microphone is ready. Hold the talk key again and speak.")
+                } else {
+                    appState.postError("Kai OS needs Microphone and Speech Recognition permission. Turn them on in System Settings → Privacy & Security.")
+                }
+            }
+            return
+        }
+        do {
+            model.draft = ""
+            model.voicePhase = .listening
+            try voiceEngine.start { [weak self] text in self?.model.draft = text }
+        } catch {
+            model.voicePhase = .idle
+            appState.postError(error.localizedDescription)
+        }
+    }
+
+    /// Sends what was heard. If a reply is still running, the text waits in the field instead.
+    func endVoice() {
+        guard model.voicePhase == .listening, let appState else { return }
+        model.voicePhase = .transcribing
+        Task {
+            let text = await voiceEngine.finish().trimmingCharacters(in: .whitespacesAndNewlines)
+            model.voicePhase = .idle
+            if text.isEmpty {
+                model.draft = ""
+                appState.postError("I didn't catch that. Hold the talk key and try again.")
+            } else if appState.isProcessing {
+                model.draft = text
+            } else {
+                model.draft = ""
+                appState.sendMessage(text: text)
+            }
+        }
+    }
+
+    func cancelVoice() {
+        guard model.voicePhase == .listening else { return }
+        voiceEngine.cancel()
+        model.voicePhase = .idle
+        model.draft = ""
     }
 
     func openMainWindow() {

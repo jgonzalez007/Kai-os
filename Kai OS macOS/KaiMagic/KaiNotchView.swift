@@ -112,6 +112,7 @@ private struct KaiNotchPanelContent: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .defaultScrollAnchor(.bottom)
+            KaiPendingScreenshotChip().environmentObject(appState)
             input
         }
         .padding(.top, topInset + 8)
@@ -136,15 +137,32 @@ private struct KaiNotchPanelContent: View {
         }
     }
 
+    private var placeholder: String {
+        switch model.voicePhase {
+        case .idle: return "Ask Kai..."
+        case .listening: return "Listening…"
+        case .transcribing: return "Finishing…"
+        }
+    }
+
     private var input: some View {
         HStack(spacing: 8) {
-            TextField("Ask Kai...", text: $model.draft, axis: .vertical)
+            TextField(placeholder, text: $model.draft, axis: .vertical)
                 .lineLimit(1...4)
                 .textFieldStyle(.plain)
                 .focused($inputFocused)
                 .padding(10)
                 .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
                 .onSubmit(send)
+            KaiAttachScreenButton().environmentObject(appState)
+            Button(action: controller.toggleVoice) {
+                Image(systemName: model.voicePhase == .listening ? "mic.fill" : "mic")
+                    .font(.title3)
+                    .foregroundStyle(model.voicePhase == .listening ? Color.red : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.voicePhase == .transcribing)
+            .help(model.voicePhase == .listening ? "Stop and send" : "Talk")
             if appState.isProcessing {
                 Button(action: appState.cancelReply) {
                     Image(systemName: "stop.circle.fill").font(.title2).foregroundStyle(.red)
@@ -163,7 +181,7 @@ private struct KaiNotchPanelContent: View {
     }
 
     private func send() {
-        guard canSend, !appState.isProcessing else { return }
+        guard canSend, !appState.isProcessing, model.voicePhase == .idle else { return }
         appState.sendMessage(text: model.draft)
         model.draft = ""
         inputFocused = true
