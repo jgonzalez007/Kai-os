@@ -1,0 +1,41 @@
+{
+  "capacity" : 3,
+  "signals" : [
+    {
+      "value" : "true",
+      "key" : "com.apple.security.device.calendar-write"
+    },
+    {
+      "value" : "true",
+      "key" : "com.apple.security.device.calendar"
+    },
+    {
+      "value" : "true",
+      "key" : "com.apple.security.files.user-selected.read-write"
+    },
+    {
+      "value" : "true",
+      "key" : "com.apple.security.files.downloads.read-write"
+    },
+    {
+      "value" : "true",
+      "key" : "com.apple.security.personal-information.addressbook"
+    },
+    {
+      "value" : "true",
+      "key" : "com.apple.security.personal-information.photos-library"
+    },
+    {
+      "value" : "true",
+      "key" : "com.apple.security.device.camera"
+    },
+    {
+      "value" : "true",
+      "key" : "com.apple.security.device.microphone"
+    },
+    {
+      "value" : "true",
+      "key" : "com.apple.security.automation.apple-events"
+    }
+  ]
+}

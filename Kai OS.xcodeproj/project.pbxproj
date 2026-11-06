@@ -1,0 +1,1804 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+	BF00000001 /* App/KaiAppAwareness.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003E8; /* App/KaiAppAwareness.swift */; };
+	BF00000002 /* App/KaiAppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003E9; /* App/KaiAppState.swift */; };
+	BF00000003 /* App/KaiDockPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003EA; /* App/KaiDockPolicy.swift */; };
+	BF00000004 /* App/KaiHomeWindowOpening.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003EB; /* App/KaiHomeWindowOpening.swift */; };
+	BF00000005 /* App/KaiLaunchPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003EC; /* App/KaiLaunchPresentation.swift */; };
+	BF00000006 /* App/KaiMainNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003ED; /* App/KaiMainNavigation.swift */; };
+	BF00000007 /* App/KaiMainWindowCloseGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003EE; /* App/KaiMainWindowCloseGuard.swift */; };
+	BF00000008 /* App/KaiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003EF; /* App/KaiOSApp.swift */; };
+	BF00000009 /* App/KaiPersonalSetupProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003F0; /* App/KaiPersonalSetupProgress.swift */; };
+	BF0000000A /* App/main.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003F1; /* App/main.swift */; };
+	BF0000000B /* KaiCloud/KaiChatGPTRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003F2; /* KaiCloud/KaiChatGPTRecovery.swift */; };
+	BF0000000C /* KaiCloud/KaiClaudeCLI.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003F3; /* KaiCloud/KaiClaudeCLI.swift */; };
+	BF0000000D /* KaiCloud/KaiConnectorCensus.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003F4; /* KaiCloud/KaiConnectorCensus.swift */; };
+	BF0000000E /* KaiCloud/KaiConnectorLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003F5; /* KaiCloud/KaiConnectorLinks.swift */; };
+	BF0000000F /* KaiCloud/KaiConnectorRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003F6; /* KaiCloud/KaiConnectorRegistry.swift */; };
+	BF00000010 /* KaiCloud/KaiFrontierRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003F7; /* KaiCloud/KaiFrontierRun.swift */; };
+	BF00000011 /* KaiCloud/KaiHosted/KaiHostedInference.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003F8; /* KaiCloud/KaiHosted/KaiHostedInference.swift */; };
+	BF00000012 /* KaiCloud/KaiHosted/KaiHostedInferenceClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003F9; /* KaiCloud/KaiHosted/KaiHostedInferenceClient.swift */; };
+	BF00000013 /* KaiCloud/KaiHosted/KaiSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003FA; /* KaiCloud/KaiHosted/KaiSetup.swift */; };
+	BF00000014 /* KaiCloud/KaiHostedToolPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003FB; /* KaiCloud/KaiHostedToolPolicy.swift */; };
+	BF00000015 /* KaiCloud/KaiHostedVaultFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003FC; /* KaiCloud/KaiHostedVaultFiles.swift */; };
+	BF00000016 /* KaiCloud/KaiHostedVaultToolServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003FD; /* KaiCloud/KaiHostedVaultToolServer.swift */; };
+	BF00000017 /* KaiCloud/KaiLocalMCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003FE; /* KaiCloud/KaiLocalMCPServer.swift */; };
+	BF00000018 /* KaiCloud/KaiLoginLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000003FF; /* KaiCloud/KaiLoginLink.swift */; };
+	BF00000019 /* KaiCloud/KaiLoopbackHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000400; /* KaiCloud/KaiLoopbackHTTP.swift */; };
+	BF0000001A /* KaiCloud/KaiMCPCallEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000401; /* KaiCloud/KaiMCPCallEvidence.swift */; };
+	BF0000001B /* KaiCloud/KaiMirrorClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000402; /* KaiCloud/KaiMirrorClient.swift */; };
+	BF0000001C /* KaiCloud/KaiModelBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000403; /* KaiCloud/KaiModelBackend.swift */; };
+	BF0000001D /* KaiCloud/KaiResponsesTranslator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000404; /* KaiCloud/KaiResponsesTranslator.swift */; };
+	BF0000001E /* KaiCloud/KaiRunWatchdog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000405; /* KaiCloud/KaiRunWatchdog.swift */; };
+	BF0000001F /* KaiConnectors/Hosted/KaiHostedConnectorAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000406; /* KaiConnectors/Hosted/KaiHostedConnectorAuth.swift */; };
+	BF00000020 /* KaiConnectors/Hosted/KaiHostedConnectorClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000407; /* KaiConnectors/Hosted/KaiHostedConnectorClient.swift */; };
+	BF00000021 /* KaiConnectors/Hosted/KaiHostedConnectorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000408; /* KaiConnectors/Hosted/KaiHostedConnectorModels.swift */; };
+	BF00000022 /* KaiConnectors/Hosted/KaiHostedConnectorToolServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000409; /* KaiConnectors/Hosted/KaiHostedConnectorToolServer.swift */; };
+	BF00000023 /* KaiConnectors/KaiDirectMCPAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000040A; /* KaiConnectors/KaiDirectMCPAuth.swift */; };
+	BF00000024 /* KaiConnectors/KaiDirectMCPCallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000040B; /* KaiConnectors/KaiDirectMCPCallback.swift */; };
+	BF00000025 /* KaiConnectors/KaiDirectMCPConnections.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000040C; /* KaiConnectors/KaiDirectMCPConnections.swift */; };
+	BF00000026 /* KaiConnectors/KaiDirectMCPHTTP.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000040D; /* KaiConnectors/KaiDirectMCPHTTP.swift */; };
+	BF00000027 /* KaiConnectors/KaiDirectMCPIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000040E; /* KaiConnectors/KaiDirectMCPIdentity.swift */; };
+	BF00000028 /* KaiConnectors/KaiDirectMCPModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000040F; /* KaiConnectors/KaiDirectMCPModels.swift */; };
+	BF00000029 /* KaiConnectors/KaiDirectMCPProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000410; /* KaiConnectors/KaiDirectMCPProbe.swift */; };
+	BF0000002A /* KaiConnectors/KaiDirectMCPResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000411; /* KaiConnectors/KaiDirectMCPResult.swift */; };
+	BF0000002B /* KaiConnectors/KaiDirectMCPRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000412; /* KaiConnectors/KaiDirectMCPRuntime.swift */; };
+	BF0000002C /* KaiConnectors/KaiDirectMCPSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000413; /* KaiConnectors/KaiDirectMCPSession.swift */; };
+	BF0000002D /* KaiConnectors/KaiDirectMCPStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000414; /* KaiConnectors/KaiDirectMCPStore.swift */; };
+	BF0000002E /* KaiDiagonstics/KaiAgentRunDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000415; /* KaiDiagonstics/KaiAgentRunDiagnostics.swift */; };
+	BF0000002F /* KaiDiagonstics/KaiAnalytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000416; /* KaiDiagonstics/KaiAnalytics.swift */; };
+	BF00000030 /* KaiDiagonstics/KaiBuildIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000417; /* KaiDiagonstics/KaiBuildIdentity.swift */; };
+	BF00000031 /* KaiDiagonstics/KaiCaptureDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000418; /* KaiDiagonstics/KaiCaptureDiagnostics.swift */; };
+	BF00000032 /* KaiDiagonstics/KaiChildProcessDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000419; /* KaiDiagonstics/KaiChildProcessDiagnostics.swift */; };
+	BF00000033 /* KaiDiagonstics/KaiComputerUseCheckProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000041A; /* KaiDiagonstics/KaiComputerUseCheckProbe.swift */; };
+	BF00000034 /* KaiDiagonstics/KaiComputerUseCheckReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000041B; /* KaiDiagonstics/KaiComputerUseCheckReport.swift */; };
+	BF00000035 /* KaiDiagonstics/KaiComputerUseDiagnosticConsent.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000041C; /* KaiDiagonstics/KaiComputerUseDiagnosticConsent.swift */; };
+	BF00000036 /* KaiDiagonstics/KaiComputerUseDiagnosticPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000041D; /* KaiDiagonstics/KaiComputerUseDiagnosticPolicy.swift */; };
+	BF00000037 /* KaiDiagonstics/KaiComputerUseDoctor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000041E; /* KaiDiagonstics/KaiComputerUseDoctor.swift */; };
+	BF00000038 /* KaiDiagonstics/KaiComputerUseReportUpload.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000041F; /* KaiDiagonstics/KaiComputerUseReportUpload.swift */; };
+	BF00000039 /* KaiDiagonstics/KaiConnectorClassificationDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000420; /* KaiDiagonstics/KaiConnectorClassificationDiagnostics.swift */; };
+	BF0000003A /* KaiDiagonstics/KaiCrashReporting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000421; /* KaiDiagonstics/KaiCrashReporting.swift */; };
+	BF0000003B /* KaiDiagonstics/KaiDiagnosticEventBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000422; /* KaiDiagonstics/KaiDiagnosticEventBudget.swift */; };
+	BF0000003C /* KaiDiagonstics/KaiDiagnosticExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000423; /* KaiDiagonstics/KaiDiagnosticExport.swift */; };
+	BF0000003D /* KaiDiagonstics/KaiDiagnosticHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000424; /* KaiDiagonstics/KaiDiagnosticHistory.swift */; };
+	BF0000003E /* KaiDiagonstics/KaiDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000425; /* KaiDiagonstics/KaiDiagnostics.swift */; };
+	BF0000003F /* KaiDiagonstics/KaiExecutorScoreboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000426; /* KaiDiagonstics/KaiExecutorScoreboard.swift */; };
+	BF00000040 /* KaiDiagonstics/KaiLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000427; /* KaiDiagonstics/KaiLog.swift */; };
+	BF00000041 /* KaiDiagonstics/KaiNativeComputerUseErrorLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000428; /* KaiDiagonstics/KaiNativeComputerUseErrorLog.swift */; };
+	BF00000042 /* KaiDiagonstics/KaiNativeComputerUseFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000429; /* KaiDiagonstics/KaiNativeComputerUseFailure.swift */; };
+	BF00000043 /* KaiDiagonstics/KaiSentryHangPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000042A; /* KaiDiagonstics/KaiSentryHangPolicy.swift */; };
+	BF00000044 /* KaiDiagonstics/KaiSidekickDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000042B; /* KaiDiagonstics/KaiSidekickDiagnostics.swift */; };
+	BF00000045 /* KaiDiagonstics/KaiSourceHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000042C; /* KaiDiagonstics/KaiSourceHealth.swift */; };
+	BF00000046 /* KaiDoubleTap/KaiCaretLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000042D; /* KaiDoubleTap/KaiCaretLocator.swift */; };
+	BF00000047 /* KaiDoubleTap/KaiCaretSwirl.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000042E; /* KaiDoubleTap/KaiCaretSwirl.swift */; };
+	BF00000048 /* KaiDoubleTap/KaiDoubleTap.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000042F; /* KaiDoubleTap/KaiDoubleTap.swift */; };
+	BF00000049 /* KaiDoubleTap/KaiDoubleTapInference.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000430; /* KaiDoubleTap/KaiDoubleTapInference.swift */; };
+	BF0000004A /* KaiDoubleTap/KaiDoubleTapKnowledge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000431; /* KaiDoubleTap/KaiDoubleTapKnowledge.swift */; };
+	BF0000004B /* KaiDoubleTap/KaiDoubleTapProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000432; /* KaiDoubleTap/KaiDoubleTapProvider.swift */; };
+	BF0000004C /* KaiDoubleTap/KaiDoubleTapSetupNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000433; /* KaiDoubleTap/KaiDoubleTapSetupNotice.swift */; };
+	BF0000004D /* KaiDoubleTap/WritingStyleSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000434; /* KaiDoubleTap/WritingStyleSetupView.swift */; };
+	BF0000004E /* KaiDriver/KaiComputerUseBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000435; /* KaiDriver/KaiComputerUseBackend.swift */; };
+	BF0000004F /* KaiDriver/KaiComputerUseSafety.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000436; /* KaiDriver/KaiComputerUseSafety.swift */; };
+	BF00000050 /* KaiDriver/KaiComputerUseSandbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000437; /* KaiDriver/KaiComputerUseSandbox.swift */; };
+	BF00000051 /* KaiDriver/KaiComputerUseSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000438; /* KaiDriver/KaiComputerUseSetup.swift */; };
+	BF00000052 /* KaiDriver/KaiCuaDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000439; /* KaiDriver/KaiCuaDriver.swift */; };
+	BF00000053 /* KaiDriver/KaiCuaDriverHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000043A; /* KaiDriver/KaiCuaDriverHost.swift */; };
+	BF00000054 /* KaiDriver/KaiCuaDriverSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000043B; /* KaiDriver/KaiCuaDriverSetup.swift */; };
+	BF00000055 /* KaiDriver/KaiCuaDriverSkill.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000043C; /* KaiDriver/KaiCuaDriverSkill.swift */; };
+	BF00000056 /* KaiDriver/KaiDependencyDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000043D; /* KaiDriver/KaiDependencyDownload.swift */; };
+	BF00000057 /* KaiDriver/KaiMultiStepPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000043E; /* KaiDriver/KaiMultiStepPlanner.swift */; };
+	BF00000058 /* KaiDriver/KaiNativeComputerUseServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000043F; /* KaiDriver/KaiNativeComputerUseServer.swift */; };
+	BF00000059 /* KaiDriver/KaiNativePermissionReadiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000440; /* KaiDriver/KaiNativePermissionReadiness.swift */; };
+	BF0000005A /* KaiDriver/KaiOpenAIComputerUse.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000441; /* KaiDriver/KaiOpenAIComputerUse.swift */; };
+	BF0000005B /* KaiDriver/KaiOpenAIComputerUseProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000442; /* KaiDriver/KaiOpenAIComputerUseProbe.swift */; };
+	BF0000005C /* KaiDriver/KaiOpenAIComputerUseRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000443; /* KaiDriver/KaiOpenAIComputerUseRuntime.swift */; };
+	BF0000005D /* KaiDriver/KaiOpenAIComputerUseSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000444; /* KaiDriver/KaiOpenAIComputerUseSession.swift */; };
+	BF0000005E /* KaiDriver/KaiOpenAIComputerUseSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000445; /* KaiDriver/KaiOpenAIComputerUseSetup.swift */; };
+	BF0000005F /* KaiDriver/KaiSessionReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000446; /* KaiDriver/KaiSessionReplay.swift */; };
+	BF00000060 /* KaiDriver/KaiTaskStateMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000447; /* KaiDriver/KaiTaskStateMachine.swift */; };
+	BF00000061 /* KaiEngine/KaiEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000448; /* KaiEngine/KaiEngine.swift */; };
+	BF00000062 /* KaiEngine/KaiFallback.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000449; /* KaiEngine/KaiFallback.swift */; };
+	BF00000063 /* KaiEngine/ModelDownload.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000044A; /* KaiEngine/ModelDownload.swift */; };
+	BF00000064 /* KaiEngine/ModelLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000044B; /* KaiEngine/ModelLocator.swift */; };
+	BF00000065 /* KaiEngine/PIIScan.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000044C; /* KaiEngine/PIIScan.swift */; };
+	BF00000066 /* KaiEngine/SpeculativeDecoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000044D; /* KaiEngine/SpeculativeDecoding.swift */; };
+	BF00000067 /* KaiEngine/Triage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000044E; /* KaiEngine/Triage.swift */; };
+	BF00000068 /* KaiIngestion/BatchScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000044F; /* KaiIngestion/BatchScheduler.swift */; };
+	BF00000069 /* KaiIngestion/CalendarRetryCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000450; /* KaiIngestion/CalendarRetryCache.swift */; };
+	BF0000006A /* KaiIngestion/Connector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000451; /* KaiIngestion/Connector.swift */; };
+	BF0000006B /* KaiIngestion/Connectors/AppleCalendarConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000452; /* KaiIngestion/Connectors/AppleCalendarConnector.swift */; };
+	BF0000006C /* KaiIngestion/Connectors/AppleMailConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000453; /* KaiIngestion/Connectors/AppleMailConnector.swift */; };
+	BF0000006D /* KaiIngestion/Connectors/ChatConnectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000454; /* KaiIngestion/Connectors/ChatConnectors.swift */; };
+	BF0000006E /* KaiIngestion/Connectors/FilesConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000455; /* KaiIngestion/Connectors/FilesConnector.swift */; };
+	BF0000006F /* KaiIngestion/Connectors/GmailConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000456; /* KaiIngestion/Connectors/GmailConnector.swift */; };
+	BF00000070 /* KaiIngestion/Connectors/GoogleCalendarConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000457; /* KaiIngestion/Connectors/GoogleCalendarConnector.swift */; };
+	BF00000071 /* KaiIngestion/Connectors/NotesConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000458; /* KaiIngestion/Connectors/NotesConnector.swift */; };
+	BF00000072 /* KaiIngestion/Connectors/OutlookCalendarConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000459; /* KaiIngestion/Connectors/OutlookCalendarConnector.swift */; };
+	BF00000073 /* KaiIngestion/Connectors/SiYuanConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000045A; /* KaiIngestion/Connectors/SiYuanConnector.swift */; };
+	BF00000074 /* KaiIngestion/CycleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000045B; /* KaiIngestion/CycleStore.swift */; };
+	BF00000075 /* KaiIngestion/DeprecationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000045C; /* KaiIngestion/DeprecationManager.swift */; };
+	BF00000076 /* KaiIngestion/FactoryReset.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000045D; /* KaiIngestion/FactoryReset.swift */; };
+	BF00000077 /* KaiIngestion/InitialAnalysisRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000045E; /* KaiIngestion/InitialAnalysisRecovery.swift */; };
+	BF00000078 /* KaiIngestion/ItemKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000045F; /* KaiIngestion/ItemKey.swift */; };
+	BF00000079 /* KaiIngestion/IterativeRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000460; /* KaiIngestion/IterativeRun.swift */; };
+	BF0000007A /* KaiIngestion/LifetimeStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000461; /* KaiIngestion/LifetimeStats.swift */; };
+	BF0000007B /* KaiIngestion/PipelineActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000462; /* KaiIngestion/PipelineActivity.swift */; };
+	BF0000007C /* KaiIngestion/ProcessingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000463; /* KaiIngestion/ProcessingCoordinator.swift */; };
+	BF0000007D /* KaiIngestion/ProcessingPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000464; /* KaiIngestion/ProcessingPlan.swift */; };
+	BF0000007E /* KaiIngestion/ProcessingRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000465; /* KaiIngestion/ProcessingRun.swift */; };
+	BF0000007F /* KaiIngestion/ProgressTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000466; /* KaiIngestion/ProgressTracker.swift */; };
+	BF00000080 /* KaiIngestion/RunProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000467; /* KaiIngestion/RunProgress.swift */; };
+	BF00000081 /* KaiIngestion/RunSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000468; /* KaiIngestion/RunSource.swift */; };
+	BF00000082 /* KaiIngestion/SQLitePool.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000469; /* KaiIngestion/SQLitePool.swift */; };
+	BF00000083 /* KaiMagic/KaiCommandCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000046A; /* KaiMagic/KaiCommandCoordinator.swift */; };
+	BF00000084 /* KaiMagic/KaiCommandRunModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000046B; /* KaiMagic/KaiCommandRunModel.swift */; };
+	BF00000085 /* KaiMagic/KaiMicrophoneEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000046C; /* KaiMagic/KaiMicrophoneEngine.swift */; };
+	BF00000086 /* KaiMagic/KaiNotchPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000046D; /* KaiMagic/KaiNotchPreferences.swift */; };
+	BF00000087 /* KaiMagic/KaiNotchShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000046E; /* KaiMagic/KaiNotchShape.swift */; };
+	BF00000088 /* KaiMagic/KaiNotchSpace.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000046F; /* KaiMagic/KaiNotchSpace.swift */; };
+	BF00000089 /* KaiMagic/KaiNotchWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000470; /* KaiMagic/KaiNotchWindowController.swift */; };
+	BF0000008A /* KaiMagic/KaiQuickTranscriptionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000471; /* KaiMagic/KaiQuickTranscriptionEngine.swift */; };
+	BF0000008B /* KaiMagic/KaiScreenCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000472; /* KaiMagic/KaiScreenCapture.swift */; };
+	BF0000008C /* KaiMagic/KaiSidekickAttentionPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000473; /* KaiMagic/KaiSidekickAttentionPolicy.swift */; };
+	BF0000008D /* KaiMagic/KaiSidekickCardContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000474; /* KaiMagic/KaiSidekickCardContext.swift */; };
+	BF0000008E /* KaiMagic/KaiSidekickContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000475; /* KaiMagic/KaiSidekickContext.swift */; };
+	BF0000008F /* KaiMagic/KaiSidekickConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000476; /* KaiMagic/KaiSidekickConversation.swift */; };
+	BF00000090 /* KaiMagic/KaiSidekickConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000477; /* KaiMagic/KaiSidekickConversationStore.swift */; };
+	BF00000091 /* KaiMagic/KaiSidekickDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000478; /* KaiMagic/KaiSidekickDiscovery.swift */; };
+	BF00000092 /* KaiMagic/KaiSidekickHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000479; /* KaiMagic/KaiSidekickHistory.swift */; };
+	BF00000093 /* KaiMagic/KaiSidekickHotkeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000047A; /* KaiMagic/KaiSidekickHotkeyMonitor.swift */; };
+	BF00000094 /* KaiMagic/KaiSidekickInstructionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000047B; /* KaiMagic/KaiSidekickInstructionStore.swift */; };
+	BF00000095 /* KaiMagic/KaiSidekickInteraction.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000047C; /* KaiMagic/KaiSidekickInteraction.swift */; };
+	BF00000096 /* KaiMagic/KaiSidekickPersonalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000047D; /* KaiMagic/KaiSidekickPersonalization.swift */; };
+	BF00000097 /* KaiMagic/KaiSidekickRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000047E; /* KaiMagic/KaiSidekickRecovery.swift */; };
+	BF00000098 /* KaiMagic/KaiSidekickRecoveryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000047F; /* KaiMagic/KaiSidekickRecoveryView.swift */; };
+	BF00000099 /* KaiMagic/KaiSidekickTaskEnd.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000480; /* KaiMagic/KaiSidekickTaskEnd.swift */; };
+	BF0000009A /* KaiMagic/KaiSidekickTaskSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000481; /* KaiMagic/KaiSidekickTaskSummary.swift */; };
+	BF0000009B /* KaiMagic/KaiSidekickToolServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000482; /* KaiMagic/KaiSidekickToolServer.swift */; };
+	BF0000009C /* KaiMagic/KaiSpeechAnalyzerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000483; /* KaiMagic/KaiSpeechAnalyzerEngine.swift */; };
+	BF0000009D /* KaiMagic/KaiSpinningLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000484; /* KaiMagic/KaiSpinningLogo.swift */; };
+	BF0000009E /* KaiMagic/KaiVoiceCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000485; /* KaiMagic/KaiVoiceCapture.swift */; };
+	BF0000009F /* KaiProactive/GiftLetter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000486; /* KaiProactive/GiftLetter.swift */; };
+	BF000000A0 /* KaiProactive/KaiProactive.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000487; /* KaiProactive/KaiProactive.swift */; };
+	BF000000A1 /* KaiProactive/KaiProactiveCycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000488; /* KaiProactive/KaiProactiveCycle.swift */; };
+	BF000000A2 /* KaiProactive/KaiProactiveExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000489; /* KaiProactive/KaiProactiveExecutor.swift */; };
+	BF000000A3 /* KaiProactive/KaiProactiveExecutorOverhaul.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000048A; /* KaiProactive/KaiProactiveExecutorOverhaul.swift */; };
+	BF000000A4 /* KaiProactive/KaiProactiveResearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000048B; /* KaiProactive/KaiProactiveResearch.swift */; };
+	BF000000A5 /* KaiProactive/KaiProactiveScheduling.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000048C; /* KaiProactive/KaiProactiveScheduling.swift */; };
+	BF000000A6 /* KaiProactive/ResearchToolServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000048D; /* KaiProactive/ResearchToolServer.swift */; };
+	BF000000A7 /* KaiProactive/VaultMergeCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000048E; /* KaiProactive/VaultMergeCheckpoint.swift */; };
+	BF000000A8 /* KaiScheduling/KaiLoginItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000048F; /* KaiScheduling/KaiLoginItem.swift */; };
+	BF000000A9 /* KaiScheduling/KaiOvernightCaution.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000490; /* KaiScheduling/KaiOvernightCaution.swift */; };
+	BF000000AA /* KaiScheduling/KaiOvernightScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000491; /* KaiScheduling/KaiOvernightScheduler.swift */; };
+	BF000000AB /* KaiScheduling/KaiPowerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000492; /* KaiScheduling/KaiPowerState.swift */; };
+	BF000000AC /* KaiScheduling/KaiServiceRegistration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000493; /* KaiScheduling/KaiServiceRegistration.swift */; };
+	BF000000AD /* KaiScheduling/KaiWakeHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000494; /* KaiScheduling/KaiWakeHelper.swift */; };
+	BF000000AE /* KaiScheduling/KaiWakeHelperClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000495; /* KaiScheduling/KaiWakeHelperClient.swift */; };
+	BF000000AF /* KaiScheduling/KaiWakeHelperMaintenance.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000496; /* KaiScheduling/KaiWakeHelperMaintenance.swift */; };
+	BF000000B0 /* KaiScheduling/KaiWakeHelperProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000497; /* KaiScheduling/KaiWakeHelperProtocol.swift */; };
+	BF000000B1 /* KaiSources/KaiAddressBookNames.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000498; /* KaiSources/KaiAddressBookNames.swift */; };
+	BF000000B2 /* KaiSources/KaiAppleCalendarSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000499; /* KaiSources/KaiAppleCalendarSource.swift */; };
+	BF000000B3 /* KaiSources/KaiAppleMailMIME.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000049A; /* KaiSources/KaiAppleMailMIME.swift */; };
+	BF000000B4 /* KaiSources/KaiAppleMailResearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000049B; /* KaiSources/KaiAppleMailResearch.swift */; };
+	BF000000B5 /* KaiSources/KaiAppleMailResearchAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000049C; /* KaiSources/KaiAppleMailResearchAccess.swift */; };
+	BF000000B6 /* KaiSources/KaiAppleMailSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000049D; /* KaiSources/KaiAppleMailSource.swift */; };
+	BF000000B7 /* KaiSources/KaiCalendarConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000049E; /* KaiSources/KaiCalendarConnect.swift */; };
+	BF000000B8 /* KaiSources/KaiCalendarContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000049F; /* KaiSources/KaiCalendarContext.swift */; };
+	BF000000B9 /* KaiSources/KaiCalendarEventTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004A0; /* KaiSources/KaiCalendarEventTime.swift */; };
+	BF000000BA /* KaiSources/KaiChatWindowing.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004A1; /* KaiSources/KaiChatWindowing.swift */; };
+	BF000000BB /* KaiSources/KaiConnectorReadFailure.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004A2; /* KaiSources/KaiConnectorReadFailure.swift */; };
+	BF000000BC /* KaiSources/KaiDataSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004A3; /* KaiSources/KaiDataSource.swift */; };
+	BF000000BD /* KaiSources/KaiEventKitBackgroundFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004A4; /* KaiSources/KaiEventKitBackgroundFetch.swift */; };
+	BF000000BE /* KaiSources/KaiFilesSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004A5; /* KaiSources/KaiFilesSource.swift */; };
+	BF000000BF /* KaiSources/KaiGmailConnect.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004A6; /* KaiSources/KaiGmailConnect.swift */; };
+	BF000000C0 /* KaiSources/KaiGmailReadState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004A7; /* KaiSources/KaiGmailReadState.swift */; };
+	BF000000C1 /* KaiSources/KaiGoogleSourceRead.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004A8; /* KaiSources/KaiGoogleSourceRead.swift */; };
+	BF000000C2 /* KaiSources/KaiGranolaResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004A9; /* KaiSources/KaiGranolaResponse.swift */; };
+	BF000000C3 /* KaiSources/KaiGranolaSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004AA; /* KaiSources/KaiGranolaSource.swift */; };
+	BF000000C4 /* KaiSources/KaiHostedConnectorReadState.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004AB; /* KaiSources/KaiHostedConnectorReadState.swift */; };
+	BF000000C5 /* KaiSources/KaiHostedConnectorSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004AC; /* KaiSources/KaiHostedConnectorSource.swift */; };
+	BF000000C6 /* KaiSources/KaiLocalWritingSamples.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004AD; /* KaiSources/KaiLocalWritingSamples.swift */; };
+	BF000000C7 /* KaiSources/KaiMCPSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004AE; /* KaiSources/KaiMCPSource.swift */; };
+	BF000000C8 /* KaiSources/KaiMCPSourceEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004AF; /* KaiSources/KaiMCPSourceEvidence.swift */; };
+	BF000000C9 /* KaiSources/KaiMCPSourceIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004B0; /* KaiSources/KaiMCPSourceIdentity.swift */; };
+	BF000000CA /* KaiSources/KaiMCPSourceModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004B1; /* KaiSources/KaiMCPSourceModel.swift */; };
+	BF000000CB /* KaiSources/KaiMCPSourcePrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004B2; /* KaiSources/KaiMCPSourcePrompts.swift */; };
+	BF000000CC /* KaiSources/KaiMCPStandard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004B3; /* KaiSources/KaiMCPStandard.swift */; };
+	BF000000CD /* KaiUpdates/KaiUpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004B4; /* KaiUpdates/KaiUpdateManager.swift */; };
+	BF000000CE /* KaiVault/CorpusSlicer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004B5; /* KaiVault/CorpusSlicer.swift */; };
+	BF000000CF /* KaiVault/KaiKnowledgeGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004B6; /* KaiVault/KaiKnowledgeGraph.swift */; };
+	BF000000D0 /* KaiVault/KaiRAG.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004B7; /* KaiVault/KaiRAG.swift */; };
+	BF000000D1 /* KaiVault/KaiVaultCrossRef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004B8; /* KaiVault/KaiVaultCrossRef.swift */; };
+	BF000000D2 /* KaiVault/KaiVaultGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004B9; /* KaiVault/KaiVaultGenerator.swift */; };
+	BF000000D3 /* KaiVault/KaiVaultPrivacy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004BA; /* KaiVault/KaiVaultPrivacy.swift */; };
+	BF000000D4 /* KaiVault/KaiVaultSelective.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004BB; /* KaiVault/KaiVaultSelective.swift */; };
+	BF000000D5 /* KaiVault/KaiVaultSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004BC; /* KaiVault/KaiVaultSync.swift */; };
+	BF000000D6 /* KaiVault/KaiVaultVersioning.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004BD; /* KaiVault/KaiVaultVersioning.swift */; };
+	BF000000D7 /* KaiVault/KaiVectorStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004BE; /* KaiVault/KaiVectorStore.swift */; };
+	BF000000D8 /* KaiVault/VaultActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004BF; /* KaiVault/VaultActivity.swift */; };
+	BF000000D9 /* KaiVault/VaultSliceCheckpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004C0; /* KaiVault/VaultSliceCheckpoint.swift */; };
+	BF000000DA /* KaiVault/VaultValidation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004C1; /* KaiVault/VaultValidation.swift */; };
+	BF000000DB /* KaiVault/WritingStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004C2; /* KaiVault/WritingStyle.swift */; };
+	BF000000DC /* Tests/KaiBatchSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004C3; /* Tests/KaiBatchSchedulerTests.swift */; };
+	BF000000DD /* Tests/KaiConnectorClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004C4; /* Tests/KaiConnectorClassificationTests.swift */; };
+	BF000000DE /* Tests/KaiConnectorCurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004C5; /* Tests/KaiConnectorCurationTests.swift */; };
+	BF000000DF /* Tests/KaiConnectorErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004C6; /* Tests/KaiConnectorErrorTests.swift */; };
+	BF000000E0 /* Tests/KaiConnectorLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004C7; /* Tests/KaiConnectorLab.swift */; };
+	BF000000E1 /* Tests/KaiConnectorReadAudit.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004C8; /* Tests/KaiConnectorReadAudit.swift */; };
+	BF000000E2 /* Tests/KaiConnectorReliabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004C9; /* Tests/KaiConnectorReliabilityTests.swift */; };
+	BF000000E3 /* Tests/KaiConnectorSetupLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004CA; /* Tests/KaiConnectorSetupLab.swift */; };
+	BF000000E4 /* Tests/KaiDirectMCPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004CB; /* Tests/KaiDirectMCPTests.swift */; };
+	BF000000E5 /* Tests/KaiFullAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004CC; /* Tests/KaiFullAcceptanceTests.swift */; };
+	BF000000E6 /* Tests/KaiGranolaCurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004CD; /* Tests/KaiGranolaCurationTests.swift */; };
+	BF000000E7 /* Tests/KaiHostedConnectorLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004CE; /* Tests/KaiHostedConnectorLab.swift */; };
+	BF000000E8 /* Tests/KaiLegacyCommandRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004CF; /* Tests/KaiLegacyCommandRouter.swift */; };
+	BF000000E9 /* Tests/KaiLegacyConnectorClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004D0; /* Tests/KaiLegacyConnectorClassifier.swift */; };
+	BF000000EA /* Tests/KaiMirrorAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004D1; /* Tests/KaiMirrorAcceptanceTests.swift */; };
+	BF000000EB /* Tests/KaiNativeComputerUseLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004D2; /* Tests/KaiNativeComputerUseLab.swift */; };
+	BF000000EC /* Tests/KaiNotionCurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004D3; /* Tests/KaiNotionCurationTests.swift */; };
+	BF000000ED /* Tests/KaiOutlookCalendarContentFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004D4; /* Tests/KaiOutlookCalendarContentFixtures.swift */; };
+	BF000000EE /* Tests/KaiOutlookCalendarCurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004D5; /* Tests/KaiOutlookCalendarCurationTests.swift */; };
+	BF000000EF /* Tests/KaiOutlookCurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004D6; /* Tests/KaiOutlookCurationTests.swift */; };
+	BF000000F0 /* Tests/KaiPIIScanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004D7; /* Tests/KaiPIIScanTests.swift */; };
+	BF000000F1 /* Tests/KaiPersonalSetupHomeLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004D8; /* Tests/KaiPersonalSetupHomeLab.swift */; };
+	BF000000F2 /* Tests/KaiPersonalSetupSourcesLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004D9; /* Tests/KaiPersonalSetupSourcesLab.swift */; };
+	BF000000F3 /* Tests/KaiProgressTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004DA; /* Tests/KaiProgressTrackerTests.swift */; };
+	BF000000F4 /* Tests/KaiRunProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004DB; /* Tests/KaiRunProgressTests.swift */; };
+	BF000000F5 /* Tests/KaiSQLitePoolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004DC; /* Tests/KaiSQLitePoolTests.swift */; };
+	BF000000F6 /* Tests/KaiSelfTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004DD; /* Tests/KaiSelfTest.swift */; };
+	BF000000F7 /* Tests/KaiSidekickActivityLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004DE; /* Tests/KaiSidekickActivityLab.swift */; };
+	BF000000F8 /* Tests/KaiSidekickAppLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004DF; /* Tests/KaiSidekickAppLab.swift */; };
+	BF000000F9 /* Tests/KaiSidekickBackendLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004E0; /* Tests/KaiSidekickBackendLab.swift */; };
+	BF000000FA /* Tests/KaiSidekickLiveWorkflowLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004E1; /* Tests/KaiSidekickLiveWorkflowLab.swift */; };
+	BF000000FB /* Tests/KaiSidekickNativeNotchLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004E2; /* Tests/KaiSidekickNativeNotchLab.swift */; };
+	BF000000FC /* Tests/KaiSidekickPolishLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004E3; /* Tests/KaiSidekickPolishLab.swift */; };
+	BF000000FD /* Tests/KaiSidekickTranscriptStressLab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004E4; /* Tests/KaiSidekickTranscriptStressLab.swift */; };
+	BF000000FE /* Tests/KaiSidekickUILab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004E5; /* Tests/KaiSidekickUILab.swift */; };
+	BF000000FF /* Tests/KaiSidekickUIRecording.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004E6; /* Tests/KaiSidekickUIRecording.swift */; };
+	BF00000100 /* Tests/KaiSlackActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004E7; /* Tests/KaiSlackActionTests.swift */; };
+	BF00000101 /* Tests/KaiSlackContentFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004E8; /* Tests/KaiSlackContentFixtures.swift */; };
+	BF00000102 /* Tests/KaiSlackCurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004E9; /* Tests/KaiSlackCurationTests.swift */; };
+	BF00000103 /* Tests/KaiSlackDenialAudit.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004EA; /* Tests/KaiSlackDenialAudit.swift */; };
+	BF00000104 /* Tests/KaiWakeAcceptanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004EB; /* Tests/KaiWakeAcceptanceTests.swift */; };
+	BF00000105 /* Tests/KaiWritingStyleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004EC; /* Tests/KaiWritingStyleTests.swift */; };
+	BF00000106 /* Tests/TestCase.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004ED; /* Tests/TestCase.swift */; };
+	BF00000107 /* Views/Dev/KaiDevPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004EE; /* Views/Dev/KaiDevPanel.swift */; };
+	BF00000108 /* Views/Dev/KaiDevTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004EF; /* Views/Dev/KaiDevTools.swift */; };
+	BF00000109 /* Views/KaiAccessibilitySupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004F0; /* Views/KaiAccessibilitySupport.swift */; };
+	BF0000010A /* Views/KaiAppleCalendarConnectSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004F1; /* Views/KaiAppleCalendarConnectSheet.swift */; };
+	BF0000010B /* Views/KaiAppleMailPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004F2; /* Views/KaiAppleMailPicker.swift */; };
+	BF0000010C /* Views/KaiBackButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004F3; /* Views/KaiBackButtonStyle.swift */; };
+	BF0000010D /* Views/KaiBriefing.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004F4; /* Views/KaiBriefing.swift */; };
+	BF0000010E /* Views/KaiBriefingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004F5; /* Views/KaiBriefingCard.swift */; };
+	BF0000010F /* Views/KaiCautionCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004F6; /* Views/KaiCautionCapsule.swift */; };
+	BF00000110 /* Views/KaiChatGPTSignInSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004F7; /* Views/KaiChatGPTSignInSheet.swift */; };
+	BF00000111 /* Views/KaiChatPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004F8; /* Views/KaiChatPicker.swift */; };
+	BF00000112 /* Views/KaiCloudConnectSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004F9; /* Views/KaiCloudConnectSheet.swift */; };
+	BF00000113 /* Views/KaiCodexSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004FA; /* Views/KaiCodexSetupView.swift */; };
+	BF00000114 /* Views/KaiComputerUseUpdateNotice.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004FB; /* Views/KaiComputerUseUpdateNotice.swift */; };
+	BF00000115 /* Views/KaiConnectAIsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004FC; /* Views/KaiConnectAIsView.swift */; };
+	BF00000116 /* Views/KaiConnectorActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004FD; /* Views/KaiConnectorActionButton.swift */; };
+	BF00000117 /* Views/KaiConnectorLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004FE; /* Views/KaiConnectorLogo.swift */; };
+	BF00000118 /* Views/KaiDarkModeSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR000004FF; /* Views/KaiDarkModeSupport.swift */; };
+	BF00000119 /* Views/KaiFileThumbnail.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000500; /* Views/KaiFileThumbnail.swift */; };
+	BF0000011A /* Views/KaiFrontierEnginePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000501; /* Views/KaiFrontierEnginePicker.swift */; };
+	BF0000011B /* Views/KaiFrontierEngineTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000502; /* Views/KaiFrontierEngineTab.swift */; };
+	BF0000011C /* Views/KaiGiftShareImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000503; /* Views/KaiGiftShareImage.swift */; };
+	BF0000011D /* Views/KaiGlowButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000504; /* Views/KaiGlowButton.swift */; };
+	BF0000011E /* Views/KaiGlowProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000505; /* Views/KaiGlowProgressBar.swift */; };
+	BF0000011F /* Views/KaiHomeFeatureShowcases.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000506; /* Views/KaiHomeFeatureShowcases.swift */; };
+	BF00000120 /* Views/KaiHomePersonalSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000507; /* Views/KaiHomePersonalSetup.swift */; };
+	BF00000121 /* Views/KaiHomePopovers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000508; /* Views/KaiHomePopovers.swift */; };
+	BF00000122 /* Views/KaiHomeShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000509; /* Views/KaiHomeShortcuts.swift */; };
+	BF00000123 /* Views/KaiHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000050A; /* Views/KaiHomeView.swift */; };
+	BF00000124 /* Views/KaiInferencePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000050B; /* Views/KaiInferencePanel.swift */; };
+	BF00000125 /* Views/KaiInternationalization.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000050C; /* Views/KaiInternationalization.swift */; };
+	BF00000126 /* Views/KaiKnowledgeSourcePill.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000050D; /* Views/KaiKnowledgeSourcePill.swift */; };
+	BF00000127 /* Views/KaiKnowledgeSourcesPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000050E; /* Views/KaiKnowledgeSourcesPicker.swift */; };
+	BF00000128 /* Views/KaiLetterBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000050F; /* Views/KaiLetterBody.swift */; };
+	BF00000129 /* Views/KaiLetterPaper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000510; /* Views/KaiLetterPaper.swift */; };
+	BF0000012A /* Views/KaiLoginLinkButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000511; /* Views/KaiLoginLinkButton.swift */; };
+	BF0000012B /* Views/KaiMenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000512; /* Views/KaiMenuBarView.swift */; };
+	BF0000012C /* Views/KaiModelDownloadWhisper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000513; /* Views/KaiModelDownloadWhisper.swift */; };
+	BF0000012D /* Views/KaiModelSelectionDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000514; /* Views/KaiModelSelectionDesign.swift */; };
+	BF0000012E /* Views/KaiOrb.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000515; /* Views/KaiOrb.swift */; };
+	BF0000012F /* Views/KaiPermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000516; /* Views/KaiPermissionsView.swift */; };
+	BF00000130 /* Views/KaiPlanEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000517; /* Views/KaiPlanEditor.swift */; };
+	BF00000131 /* Views/KaiProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000518; /* Views/KaiProcessingView.swift */; };
+	BF00000132 /* Views/KaiProcessingWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000519; /* Views/KaiProcessingWindowView.swift */; };
+	BF00000133 /* Views/KaiPromptBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000051A; /* Views/KaiPromptBar.swift */; };
+	BF00000134 /* Views/KaiRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000051B; /* Views/KaiRootView.swift */; };
+	BF00000135 /* Views/KaiTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000051C; /* Views/KaiTheme.swift */; };
+	BF00000136 /* Views/KaiUsagePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000051D; /* Views/KaiUsagePresentation.swift */; };
+	BF00000137 /* Views/Knowledge/KaiKnowledgeGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000051E; /* Views/Knowledge/KaiKnowledgeGraphView.swift */; };
+	BF00000138 /* Views/Knowledge/KaiKnowledgeReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000051F; /* Views/Knowledge/KaiKnowledgeReader.swift */; };
+	BF00000139 /* Views/Knowledge/KaiKnowledgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000520; /* Views/Knowledge/KaiKnowledgeView.swift */; };
+	BF0000013A /* Views/Onboarding/KaiOnboardingProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000521; /* Views/Onboarding/KaiOnboardingProgress.swift */; };
+	BF0000013B /* Views/Onboarding/KaiOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000522; /* Views/Onboarding/KaiOnboardingView.swift */; };
+	BF0000013C /* Views/Settings/KaiSettingsAbout.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000523; /* Views/Settings/KaiSettingsAbout.swift */; };
+	BF0000013D /* Views/Settings/KaiSettingsKeyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000524; /* Views/Settings/KaiSettingsKeyboard.swift */; };
+	BF0000013E /* Views/Settings/KaiSettingsKnowledge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000525; /* Views/Settings/KaiSettingsKnowledge.swift */; };
+	BF0000013F /* Views/Settings/KaiSettingsPrivacy.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000526; /* Views/Settings/KaiSettingsPrivacy.swift */; };
+	BF00000140 /* Views/Settings/KaiSettingsProactive.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000527; /* Views/Settings/KaiSettingsProactive.swift */; };
+	BF00000141 /* Views/Settings/KaiSettingsSidekick.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000528; /* Views/Settings/KaiSettingsSidekick.swift */; };
+	BF00000142 /* Views/Settings/KaiSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR00000529; /* Views/Settings/KaiSettingsView.swift */; };
+	BF00000143 /* Views/Sidekick/KaiSidekickStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000052A; /* Views/Sidekick/KaiSidekickStyle.swift */; };
+	BF00000144 /* Views/Sidekick/KaiSidekickView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FR0000052B; /* Views/Sidekick/KaiSidekickView.swift */; };
+
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+	FR000003E8 /* App/KaiAppAwareness.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAppAwareness.swift"; path = "App/KaiAppAwareness.swift"; sourceTree = "<group>"; };
+	FR000003E9 /* App/KaiAppState.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAppState.swift"; path = "App/KaiAppState.swift"; sourceTree = "<group>"; };
+	FR000003EA /* App/KaiDockPolicy.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDockPolicy.swift"; path = "App/KaiDockPolicy.swift"; sourceTree = "<group>"; };
+	FR000003EB /* App/KaiHomeWindowOpening.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHomeWindowOpening.swift"; path = "App/KaiHomeWindowOpening.swift"; sourceTree = "<group>"; };
+	FR000003EC /* App/KaiLaunchPresentation.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLaunchPresentation.swift"; path = "App/KaiLaunchPresentation.swift"; sourceTree = "<group>"; };
+	FR000003ED /* App/KaiMainNavigation.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMainNavigation.swift"; path = "App/KaiMainNavigation.swift"; sourceTree = "<group>"; };
+	FR000003EE /* App/KaiMainWindowCloseGuard.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMainWindowCloseGuard.swift"; path = "App/KaiMainWindowCloseGuard.swift"; sourceTree = "<group>"; };
+	FR000003EF /* App/KaiOSApp.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOSApp.swift"; path = "App/KaiOSApp.swift"; sourceTree = "<group>"; };
+	FR000003F0 /* App/KaiPersonalSetupProgress.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiPersonalSetupProgress.swift"; path = "App/KaiPersonalSetupProgress.swift"; sourceTree = "<group>"; };
+	FR000003F1 /* App/main.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "main.swift"; path = "App/main.swift"; sourceTree = "<group>"; };
+	FR000003F2 /* KaiCloud/KaiChatGPTRecovery.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiChatGPTRecovery.swift"; path = "KaiCloud/KaiChatGPTRecovery.swift"; sourceTree = "<group>"; };
+	FR000003F3 /* KaiCloud/KaiClaudeCLI.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiClaudeCLI.swift"; path = "KaiCloud/KaiClaudeCLI.swift"; sourceTree = "<group>"; };
+	FR000003F4 /* KaiCloud/KaiConnectorCensus.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorCensus.swift"; path = "KaiCloud/KaiConnectorCensus.swift"; sourceTree = "<group>"; };
+	FR000003F5 /* KaiCloud/KaiConnectorLinks.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorLinks.swift"; path = "KaiCloud/KaiConnectorLinks.swift"; sourceTree = "<group>"; };
+	FR000003F6 /* KaiCloud/KaiConnectorRegistry.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorRegistry.swift"; path = "KaiCloud/KaiConnectorRegistry.swift"; sourceTree = "<group>"; };
+	FR000003F7 /* KaiCloud/KaiFrontierRun.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiFrontierRun.swift"; path = "KaiCloud/KaiFrontierRun.swift"; sourceTree = "<group>"; };
+	FR000003F8 /* KaiCloud/KaiHosted/KaiHostedInference.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedInference.swift"; path = "KaiCloud/KaiHosted/KaiHostedInference.swift"; sourceTree = "<group>"; };
+	FR000003F9 /* KaiCloud/KaiHosted/KaiHostedInferenceClient.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedInferenceClient.swift"; path = "KaiCloud/KaiHosted/KaiHostedInferenceClient.swift"; sourceTree = "<group>"; };
+	FR000003FA /* KaiCloud/KaiHosted/KaiSetup.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSetup.swift"; path = "KaiCloud/KaiHosted/KaiSetup.swift"; sourceTree = "<group>"; };
+	FR000003FB /* KaiCloud/KaiHostedToolPolicy.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedToolPolicy.swift"; path = "KaiCloud/KaiHostedToolPolicy.swift"; sourceTree = "<group>"; };
+	FR000003FC /* KaiCloud/KaiHostedVaultFiles.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedVaultFiles.swift"; path = "KaiCloud/KaiHostedVaultFiles.swift"; sourceTree = "<group>"; };
+	FR000003FD /* KaiCloud/KaiHostedVaultToolServer.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedVaultToolServer.swift"; path = "KaiCloud/KaiHostedVaultToolServer.swift"; sourceTree = "<group>"; };
+	FR000003FE /* KaiCloud/KaiLocalMCPServer.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLocalMCPServer.swift"; path = "KaiCloud/KaiLocalMCPServer.swift"; sourceTree = "<group>"; };
+	FR000003FF /* KaiCloud/KaiLoginLink.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLoginLink.swift"; path = "KaiCloud/KaiLoginLink.swift"; sourceTree = "<group>"; };
+	FR00000400 /* KaiCloud/KaiLoopbackHTTP.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLoopbackHTTP.swift"; path = "KaiCloud/KaiLoopbackHTTP.swift"; sourceTree = "<group>"; };
+	FR00000401 /* KaiCloud/KaiMCPCallEvidence.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMCPCallEvidence.swift"; path = "KaiCloud/KaiMCPCallEvidence.swift"; sourceTree = "<group>"; };
+	FR00000402 /* KaiCloud/KaiMirrorClient.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMirrorClient.swift"; path = "KaiCloud/KaiMirrorClient.swift"; sourceTree = "<group>"; };
+	FR00000403 /* KaiCloud/KaiModelBackend.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiModelBackend.swift"; path = "KaiCloud/KaiModelBackend.swift"; sourceTree = "<group>"; };
+	FR00000404 /* KaiCloud/KaiResponsesTranslator.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiResponsesTranslator.swift"; path = "KaiCloud/KaiResponsesTranslator.swift"; sourceTree = "<group>"; };
+	FR00000405 /* KaiCloud/KaiRunWatchdog.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiRunWatchdog.swift"; path = "KaiCloud/KaiRunWatchdog.swift"; sourceTree = "<group>"; };
+	FR00000406 /* KaiConnectors/Hosted/KaiHostedConnectorAuth.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedConnectorAuth.swift"; path = "KaiConnectors/Hosted/KaiHostedConnectorAuth.swift"; sourceTree = "<group>"; };
+	FR00000407 /* KaiConnectors/Hosted/KaiHostedConnectorClient.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedConnectorClient.swift"; path = "KaiConnectors/Hosted/KaiHostedConnectorClient.swift"; sourceTree = "<group>"; };
+	FR00000408 /* KaiConnectors/Hosted/KaiHostedConnectorModels.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedConnectorModels.swift"; path = "KaiConnectors/Hosted/KaiHostedConnectorModels.swift"; sourceTree = "<group>"; };
+	FR00000409 /* KaiConnectors/Hosted/KaiHostedConnectorToolServer.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedConnectorToolServer.swift"; path = "KaiConnectors/Hosted/KaiHostedConnectorToolServer.swift"; sourceTree = "<group>"; };
+	FR0000040A /* KaiConnectors/KaiDirectMCPAuth.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPAuth.swift"; path = "KaiConnectors/KaiDirectMCPAuth.swift"; sourceTree = "<group>"; };
+	FR0000040B /* KaiConnectors/KaiDirectMCPCallback.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPCallback.swift"; path = "KaiConnectors/KaiDirectMCPCallback.swift"; sourceTree = "<group>"; };
+	FR0000040C /* KaiConnectors/KaiDirectMCPConnections.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPConnections.swift"; path = "KaiConnectors/KaiDirectMCPConnections.swift"; sourceTree = "<group>"; };
+	FR0000040D /* KaiConnectors/KaiDirectMCPHTTP.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPHTTP.swift"; path = "KaiConnectors/KaiDirectMCPHTTP.swift"; sourceTree = "<group>"; };
+	FR0000040E /* KaiConnectors/KaiDirectMCPIdentity.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPIdentity.swift"; path = "KaiConnectors/KaiDirectMCPIdentity.swift"; sourceTree = "<group>"; };
+	FR0000040F /* KaiConnectors/KaiDirectMCPModels.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPModels.swift"; path = "KaiConnectors/KaiDirectMCPModels.swift"; sourceTree = "<group>"; };
+	FR00000410 /* KaiConnectors/KaiDirectMCPProbe.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPProbe.swift"; path = "KaiConnectors/KaiDirectMCPProbe.swift"; sourceTree = "<group>"; };
+	FR00000411 /* KaiConnectors/KaiDirectMCPResult.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPResult.swift"; path = "KaiConnectors/KaiDirectMCPResult.swift"; sourceTree = "<group>"; };
+	FR00000412 /* KaiConnectors/KaiDirectMCPRuntime.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPRuntime.swift"; path = "KaiConnectors/KaiDirectMCPRuntime.swift"; sourceTree = "<group>"; };
+	FR00000413 /* KaiConnectors/KaiDirectMCPSession.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPSession.swift"; path = "KaiConnectors/KaiDirectMCPSession.swift"; sourceTree = "<group>"; };
+	FR00000414 /* KaiConnectors/KaiDirectMCPStore.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPStore.swift"; path = "KaiConnectors/KaiDirectMCPStore.swift"; sourceTree = "<group>"; };
+	FR00000415 /* KaiDiagonstics/KaiAgentRunDiagnostics.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAgentRunDiagnostics.swift"; path = "KaiDiagonstics/KaiAgentRunDiagnostics.swift"; sourceTree = "<group>"; };
+	FR00000416 /* KaiDiagonstics/KaiAnalytics.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAnalytics.swift"; path = "KaiDiagonstics/KaiAnalytics.swift"; sourceTree = "<group>"; };
+	FR00000417 /* KaiDiagonstics/KaiBuildIdentity.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiBuildIdentity.swift"; path = "KaiDiagonstics/KaiBuildIdentity.swift"; sourceTree = "<group>"; };
+	FR00000418 /* KaiDiagonstics/KaiCaptureDiagnostics.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCaptureDiagnostics.swift"; path = "KaiDiagonstics/KaiCaptureDiagnostics.swift"; sourceTree = "<group>"; };
+	FR00000419 /* KaiDiagonstics/KaiChildProcessDiagnostics.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiChildProcessDiagnostics.swift"; path = "KaiDiagonstics/KaiChildProcessDiagnostics.swift"; sourceTree = "<group>"; };
+	FR0000041A /* KaiDiagonstics/KaiComputerUseCheckProbe.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseCheckProbe.swift"; path = "KaiDiagonstics/KaiComputerUseCheckProbe.swift"; sourceTree = "<group>"; };
+	FR0000041B /* KaiDiagonstics/KaiComputerUseCheckReport.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseCheckReport.swift"; path = "KaiDiagonstics/KaiComputerUseCheckReport.swift"; sourceTree = "<group>"; };
+	FR0000041C /* KaiDiagonstics/KaiComputerUseDiagnosticConsent.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseDiagnosticConsent.swift"; path = "KaiDiagonstics/KaiComputerUseDiagnosticConsent.swift"; sourceTree = "<group>"; };
+	FR0000041D /* KaiDiagonstics/KaiComputerUseDiagnosticPolicy.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseDiagnosticPolicy.swift"; path = "KaiDiagonstics/KaiComputerUseDiagnosticPolicy.swift"; sourceTree = "<group>"; };
+	FR0000041E /* KaiDiagonstics/KaiComputerUseDoctor.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseDoctor.swift"; path = "KaiDiagonstics/KaiComputerUseDoctor.swift"; sourceTree = "<group>"; };
+	FR0000041F /* KaiDiagonstics/KaiComputerUseReportUpload.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseReportUpload.swift"; path = "KaiDiagonstics/KaiComputerUseReportUpload.swift"; sourceTree = "<group>"; };
+	FR00000420 /* KaiDiagonstics/KaiConnectorClassificationDiagnostics.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorClassificationDiagnostics.swift"; path = "KaiDiagonstics/KaiConnectorClassificationDiagnostics.swift"; sourceTree = "<group>"; };
+	FR00000421 /* KaiDiagonstics/KaiCrashReporting.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCrashReporting.swift"; path = "KaiDiagonstics/KaiCrashReporting.swift"; sourceTree = "<group>"; };
+	FR00000422 /* KaiDiagonstics/KaiDiagnosticEventBudget.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDiagnosticEventBudget.swift"; path = "KaiDiagonstics/KaiDiagnosticEventBudget.swift"; sourceTree = "<group>"; };
+	FR00000423 /* KaiDiagonstics/KaiDiagnosticExport.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDiagnosticExport.swift"; path = "KaiDiagonstics/KaiDiagnosticExport.swift"; sourceTree = "<group>"; };
+	FR00000424 /* KaiDiagonstics/KaiDiagnosticHistory.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDiagnosticHistory.swift"; path = "KaiDiagonstics/KaiDiagnosticHistory.swift"; sourceTree = "<group>"; };
+	FR00000425 /* KaiDiagonstics/KaiDiagnostics.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDiagnostics.swift"; path = "KaiDiagonstics/KaiDiagnostics.swift"; sourceTree = "<group>"; };
+	FR00000426 /* KaiDiagonstics/KaiExecutorScoreboard.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiExecutorScoreboard.swift"; path = "KaiDiagonstics/KaiExecutorScoreboard.swift"; sourceTree = "<group>"; };
+	FR00000427 /* KaiDiagonstics/KaiLog.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLog.swift"; path = "KaiDiagonstics/KaiLog.swift"; sourceTree = "<group>"; };
+	FR00000428 /* KaiDiagonstics/KaiNativeComputerUseErrorLog.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiNativeComputerUseErrorLog.swift"; path = "KaiDiagonstics/KaiNativeComputerUseErrorLog.swift"; sourceTree = "<group>"; };
+	FR00000429 /* KaiDiagonstics/KaiNativeComputerUseFailure.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiNativeComputerUseFailure.swift"; path = "KaiDiagonstics/KaiNativeComputerUseFailure.swift"; sourceTree = "<group>"; };
+	FR0000042A /* KaiDiagonstics/KaiSentryHangPolicy.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSentryHangPolicy.swift"; path = "KaiDiagonstics/KaiSentryHangPolicy.swift"; sourceTree = "<group>"; };
+	FR0000042B /* KaiDiagonstics/KaiSidekickDiagnostics.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickDiagnostics.swift"; path = "KaiDiagonstics/KaiSidekickDiagnostics.swift"; sourceTree = "<group>"; };
+	FR0000042C /* KaiDiagonstics/KaiSourceHealth.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSourceHealth.swift"; path = "KaiDiagonstics/KaiSourceHealth.swift"; sourceTree = "<group>"; };
+	FR0000042D /* KaiDoubleTap/KaiCaretLocator.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCaretLocator.swift"; path = "KaiDoubleTap/KaiCaretLocator.swift"; sourceTree = "<group>"; };
+	FR0000042E /* KaiDoubleTap/KaiCaretSwirl.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCaretSwirl.swift"; path = "KaiDoubleTap/KaiCaretSwirl.swift"; sourceTree = "<group>"; };
+	FR0000042F /* KaiDoubleTap/KaiDoubleTap.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDoubleTap.swift"; path = "KaiDoubleTap/KaiDoubleTap.swift"; sourceTree = "<group>"; };
+	FR00000430 /* KaiDoubleTap/KaiDoubleTapInference.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDoubleTapInference.swift"; path = "KaiDoubleTap/KaiDoubleTapInference.swift"; sourceTree = "<group>"; };
+	FR00000431 /* KaiDoubleTap/KaiDoubleTapKnowledge.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDoubleTapKnowledge.swift"; path = "KaiDoubleTap/KaiDoubleTapKnowledge.swift"; sourceTree = "<group>"; };
+	FR00000432 /* KaiDoubleTap/KaiDoubleTapProvider.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDoubleTapProvider.swift"; path = "KaiDoubleTap/KaiDoubleTapProvider.swift"; sourceTree = "<group>"; };
+	FR00000433 /* KaiDoubleTap/KaiDoubleTapSetupNotice.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDoubleTapSetupNotice.swift"; path = "KaiDoubleTap/KaiDoubleTapSetupNotice.swift"; sourceTree = "<group>"; };
+	FR00000434 /* KaiDoubleTap/WritingStyleSetupView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "WritingStyleSetupView.swift"; path = "KaiDoubleTap/WritingStyleSetupView.swift"; sourceTree = "<group>"; };
+	FR00000435 /* KaiDriver/KaiComputerUseBackend.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseBackend.swift"; path = "KaiDriver/KaiComputerUseBackend.swift"; sourceTree = "<group>"; };
+	FR00000436 /* KaiDriver/KaiComputerUseSafety.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseSafety.swift"; path = "KaiDriver/KaiComputerUseSafety.swift"; sourceTree = "<group>"; };
+	FR00000437 /* KaiDriver/KaiComputerUseSandbox.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseSandbox.swift"; path = "KaiDriver/KaiComputerUseSandbox.swift"; sourceTree = "<group>"; };
+	FR00000438 /* KaiDriver/KaiComputerUseSetup.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseSetup.swift"; path = "KaiDriver/KaiComputerUseSetup.swift"; sourceTree = "<group>"; };
+	FR00000439 /* KaiDriver/KaiCuaDriver.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCuaDriver.swift"; path = "KaiDriver/KaiCuaDriver.swift"; sourceTree = "<group>"; };
+	FR0000043A /* KaiDriver/KaiCuaDriverHost.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCuaDriverHost.swift"; path = "KaiDriver/KaiCuaDriverHost.swift"; sourceTree = "<group>"; };
+	FR0000043B /* KaiDriver/KaiCuaDriverSetup.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCuaDriverSetup.swift"; path = "KaiDriver/KaiCuaDriverSetup.swift"; sourceTree = "<group>"; };
+	FR0000043C /* KaiDriver/KaiCuaDriverSkill.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCuaDriverSkill.swift"; path = "KaiDriver/KaiCuaDriverSkill.swift"; sourceTree = "<group>"; };
+	FR0000043D /* KaiDriver/KaiDependencyDownload.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDependencyDownload.swift"; path = "KaiDriver/KaiDependencyDownload.swift"; sourceTree = "<group>"; };
+	FR0000043E /* KaiDriver/KaiMultiStepPlanner.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMultiStepPlanner.swift"; path = "KaiDriver/KaiMultiStepPlanner.swift"; sourceTree = "<group>"; };
+	FR0000043F /* KaiDriver/KaiNativeComputerUseServer.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiNativeComputerUseServer.swift"; path = "KaiDriver/KaiNativeComputerUseServer.swift"; sourceTree = "<group>"; };
+	FR00000440 /* KaiDriver/KaiNativePermissionReadiness.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiNativePermissionReadiness.swift"; path = "KaiDriver/KaiNativePermissionReadiness.swift"; sourceTree = "<group>"; };
+	FR00000441 /* KaiDriver/KaiOpenAIComputerUse.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOpenAIComputerUse.swift"; path = "KaiDriver/KaiOpenAIComputerUse.swift"; sourceTree = "<group>"; };
+	FR00000442 /* KaiDriver/KaiOpenAIComputerUseProbe.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOpenAIComputerUseProbe.swift"; path = "KaiDriver/KaiOpenAIComputerUseProbe.swift"; sourceTree = "<group>"; };
+	FR00000443 /* KaiDriver/KaiOpenAIComputerUseRuntime.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOpenAIComputerUseRuntime.swift"; path = "KaiDriver/KaiOpenAIComputerUseRuntime.swift"; sourceTree = "<group>"; };
+	FR00000444 /* KaiDriver/KaiOpenAIComputerUseSession.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOpenAIComputerUseSession.swift"; path = "KaiDriver/KaiOpenAIComputerUseSession.swift"; sourceTree = "<group>"; };
+	FR00000445 /* KaiDriver/KaiOpenAIComputerUseSetup.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOpenAIComputerUseSetup.swift"; path = "KaiDriver/KaiOpenAIComputerUseSetup.swift"; sourceTree = "<group>"; };
+	FR00000446 /* KaiDriver/KaiSessionReplay.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSessionReplay.swift"; path = "KaiDriver/KaiSessionReplay.swift"; sourceTree = "<group>"; };
+	FR00000447 /* KaiDriver/KaiTaskStateMachine.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiTaskStateMachine.swift"; path = "KaiDriver/KaiTaskStateMachine.swift"; sourceTree = "<group>"; };
+	FR00000448 /* KaiEngine/KaiEngine.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiEngine.swift"; path = "KaiEngine/KaiEngine.swift"; sourceTree = "<group>"; };
+	FR00000449 /* KaiEngine/KaiFallback.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiFallback.swift"; path = "KaiEngine/KaiFallback.swift"; sourceTree = "<group>"; };
+	FR0000044A /* KaiEngine/ModelDownload.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "ModelDownload.swift"; path = "KaiEngine/ModelDownload.swift"; sourceTree = "<group>"; };
+	FR0000044B /* KaiEngine/ModelLocator.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "ModelLocator.swift"; path = "KaiEngine/ModelLocator.swift"; sourceTree = "<group>"; };
+	FR0000044C /* KaiEngine/PIIScan.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "PIIScan.swift"; path = "KaiEngine/PIIScan.swift"; sourceTree = "<group>"; };
+	FR0000044D /* KaiEngine/SpeculativeDecoding.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "SpeculativeDecoding.swift"; path = "KaiEngine/SpeculativeDecoding.swift"; sourceTree = "<group>"; };
+	FR0000044E /* KaiEngine/Triage.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "Triage.swift"; path = "KaiEngine/Triage.swift"; sourceTree = "<group>"; };
+	FR0000044F /* KaiIngestion/BatchScheduler.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "BatchScheduler.swift"; path = "KaiIngestion/BatchScheduler.swift"; sourceTree = "<group>"; };
+	FR00000450 /* KaiIngestion/CalendarRetryCache.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "CalendarRetryCache.swift"; path = "KaiIngestion/CalendarRetryCache.swift"; sourceTree = "<group>"; };
+	FR00000451 /* KaiIngestion/Connector.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "Connector.swift"; path = "KaiIngestion/Connector.swift"; sourceTree = "<group>"; };
+	FR00000452 /* KaiIngestion/Connectors/AppleCalendarConnector.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "AppleCalendarConnector.swift"; path = "KaiIngestion/Connectors/AppleCalendarConnector.swift"; sourceTree = "<group>"; };
+	FR00000453 /* KaiIngestion/Connectors/AppleMailConnector.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "AppleMailConnector.swift"; path = "KaiIngestion/Connectors/AppleMailConnector.swift"; sourceTree = "<group>"; };
+	FR00000454 /* KaiIngestion/Connectors/ChatConnectors.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "ChatConnectors.swift"; path = "KaiIngestion/Connectors/ChatConnectors.swift"; sourceTree = "<group>"; };
+	FR00000455 /* KaiIngestion/Connectors/FilesConnector.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "FilesConnector.swift"; path = "KaiIngestion/Connectors/FilesConnector.swift"; sourceTree = "<group>"; };
+	FR00000456 /* KaiIngestion/Connectors/GmailConnector.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "GmailConnector.swift"; path = "KaiIngestion/Connectors/GmailConnector.swift"; sourceTree = "<group>"; };
+	FR00000457 /* KaiIngestion/Connectors/GoogleCalendarConnector.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "GoogleCalendarConnector.swift"; path = "KaiIngestion/Connectors/GoogleCalendarConnector.swift"; sourceTree = "<group>"; };
+	FR00000458 /* KaiIngestion/Connectors/NotesConnector.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "NotesConnector.swift"; path = "KaiIngestion/Connectors/NotesConnector.swift"; sourceTree = "<group>"; };
+	FR00000459 /* KaiIngestion/Connectors/OutlookCalendarConnector.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "OutlookCalendarConnector.swift"; path = "KaiIngestion/Connectors/OutlookCalendarConnector.swift"; sourceTree = "<group>"; };
+	FR0000045A /* KaiIngestion/Connectors/SiYuanConnector.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "SiYuanConnector.swift"; path = "KaiIngestion/Connectors/SiYuanConnector.swift"; sourceTree = "<group>"; };
+	FR0000045B /* KaiIngestion/CycleStore.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "CycleStore.swift"; path = "KaiIngestion/CycleStore.swift"; sourceTree = "<group>"; };
+	FR0000045C /* KaiIngestion/DeprecationManager.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "DeprecationManager.swift"; path = "KaiIngestion/DeprecationManager.swift"; sourceTree = "<group>"; };
+	FR0000045D /* KaiIngestion/FactoryReset.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "FactoryReset.swift"; path = "KaiIngestion/FactoryReset.swift"; sourceTree = "<group>"; };
+	FR0000045E /* KaiIngestion/InitialAnalysisRecovery.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "InitialAnalysisRecovery.swift"; path = "KaiIngestion/InitialAnalysisRecovery.swift"; sourceTree = "<group>"; };
+	FR0000045F /* KaiIngestion/ItemKey.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "ItemKey.swift"; path = "KaiIngestion/ItemKey.swift"; sourceTree = "<group>"; };
+	FR00000460 /* KaiIngestion/IterativeRun.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "IterativeRun.swift"; path = "KaiIngestion/IterativeRun.swift"; sourceTree = "<group>"; };
+	FR00000461 /* KaiIngestion/LifetimeStats.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "LifetimeStats.swift"; path = "KaiIngestion/LifetimeStats.swift"; sourceTree = "<group>"; };
+	FR00000462 /* KaiIngestion/PipelineActivity.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "PipelineActivity.swift"; path = "KaiIngestion/PipelineActivity.swift"; sourceTree = "<group>"; };
+	FR00000463 /* KaiIngestion/ProcessingCoordinator.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "ProcessingCoordinator.swift"; path = "KaiIngestion/ProcessingCoordinator.swift"; sourceTree = "<group>"; };
+	FR00000464 /* KaiIngestion/ProcessingPlan.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "ProcessingPlan.swift"; path = "KaiIngestion/ProcessingPlan.swift"; sourceTree = "<group>"; };
+	FR00000465 /* KaiIngestion/ProcessingRun.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "ProcessingRun.swift"; path = "KaiIngestion/ProcessingRun.swift"; sourceTree = "<group>"; };
+	FR00000466 /* KaiIngestion/ProgressTracker.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "ProgressTracker.swift"; path = "KaiIngestion/ProgressTracker.swift"; sourceTree = "<group>"; };
+	FR00000467 /* KaiIngestion/RunProgress.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "RunProgress.swift"; path = "KaiIngestion/RunProgress.swift"; sourceTree = "<group>"; };
+	FR00000468 /* KaiIngestion/RunSource.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "RunSource.swift"; path = "KaiIngestion/RunSource.swift"; sourceTree = "<group>"; };
+	FR00000469 /* KaiIngestion/SQLitePool.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "SQLitePool.swift"; path = "KaiIngestion/SQLitePool.swift"; sourceTree = "<group>"; };
+	FR0000046A /* KaiMagic/KaiCommandCoordinator.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCommandCoordinator.swift"; path = "KaiMagic/KaiCommandCoordinator.swift"; sourceTree = "<group>"; };
+	FR0000046B /* KaiMagic/KaiCommandRunModel.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCommandRunModel.swift"; path = "KaiMagic/KaiCommandRunModel.swift"; sourceTree = "<group>"; };
+	FR0000046C /* KaiMagic/KaiMicrophoneEngine.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMicrophoneEngine.swift"; path = "KaiMagic/KaiMicrophoneEngine.swift"; sourceTree = "<group>"; };
+	FR0000046D /* KaiMagic/KaiNotchPreferences.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiNotchPreferences.swift"; path = "KaiMagic/KaiNotchPreferences.swift"; sourceTree = "<group>"; };
+	FR0000046E /* KaiMagic/KaiNotchShape.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiNotchShape.swift"; path = "KaiMagic/KaiNotchShape.swift"; sourceTree = "<group>"; };
+	FR0000046F /* KaiMagic/KaiNotchSpace.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiNotchSpace.swift"; path = "KaiMagic/KaiNotchSpace.swift"; sourceTree = "<group>"; };
+	FR00000470 /* KaiMagic/KaiNotchWindowController.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiNotchWindowController.swift"; path = "KaiMagic/KaiNotchWindowController.swift"; sourceTree = "<group>"; };
+	FR00000471 /* KaiMagic/KaiQuickTranscriptionEngine.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiQuickTranscriptionEngine.swift"; path = "KaiMagic/KaiQuickTranscriptionEngine.swift"; sourceTree = "<group>"; };
+	FR00000472 /* KaiMagic/KaiScreenCapture.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiScreenCapture.swift"; path = "KaiMagic/KaiScreenCapture.swift"; sourceTree = "<group>"; };
+	FR00000473 /* KaiMagic/KaiSidekickAttentionPolicy.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickAttentionPolicy.swift"; path = "KaiMagic/KaiSidekickAttentionPolicy.swift"; sourceTree = "<group>"; };
+	FR00000474 /* KaiMagic/KaiSidekickCardContext.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickCardContext.swift"; path = "KaiMagic/KaiSidekickCardContext.swift"; sourceTree = "<group>"; };
+	FR00000475 /* KaiMagic/KaiSidekickContext.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickContext.swift"; path = "KaiMagic/KaiSidekickContext.swift"; sourceTree = "<group>"; };
+	FR00000476 /* KaiMagic/KaiSidekickConversation.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickConversation.swift"; path = "KaiMagic/KaiSidekickConversation.swift"; sourceTree = "<group>"; };
+	FR00000477 /* KaiMagic/KaiSidekickConversationStore.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickConversationStore.swift"; path = "KaiMagic/KaiSidekickConversationStore.swift"; sourceTree = "<group>"; };
+	FR00000478 /* KaiMagic/KaiSidekickDiscovery.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickDiscovery.swift"; path = "KaiMagic/KaiSidekickDiscovery.swift"; sourceTree = "<group>"; };
+	FR00000479 /* KaiMagic/KaiSidekickHistory.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickHistory.swift"; path = "KaiMagic/KaiSidekickHistory.swift"; sourceTree = "<group>"; };
+	FR0000047A /* KaiMagic/KaiSidekickHotkeyMonitor.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickHotkeyMonitor.swift"; path = "KaiMagic/KaiSidekickHotkeyMonitor.swift"; sourceTree = "<group>"; };
+	FR0000047B /* KaiMagic/KaiSidekickInstructionStore.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickInstructionStore.swift"; path = "KaiMagic/KaiSidekickInstructionStore.swift"; sourceTree = "<group>"; };
+	FR0000047C /* KaiMagic/KaiSidekickInteraction.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickInteraction.swift"; path = "KaiMagic/KaiSidekickInteraction.swift"; sourceTree = "<group>"; };
+	FR0000047D /* KaiMagic/KaiSidekickPersonalization.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickPersonalization.swift"; path = "KaiMagic/KaiSidekickPersonalization.swift"; sourceTree = "<group>"; };
+	FR0000047E /* KaiMagic/KaiSidekickRecovery.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickRecovery.swift"; path = "KaiMagic/KaiSidekickRecovery.swift"; sourceTree = "<group>"; };
+	FR0000047F /* KaiMagic/KaiSidekickRecoveryView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickRecoveryView.swift"; path = "KaiMagic/KaiSidekickRecoveryView.swift"; sourceTree = "<group>"; };
+	FR00000480 /* KaiMagic/KaiSidekickTaskEnd.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickTaskEnd.swift"; path = "KaiMagic/KaiSidekickTaskEnd.swift"; sourceTree = "<group>"; };
+	FR00000481 /* KaiMagic/KaiSidekickTaskSummary.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickTaskSummary.swift"; path = "KaiMagic/KaiSidekickTaskSummary.swift"; sourceTree = "<group>"; };
+	FR00000482 /* KaiMagic/KaiSidekickToolServer.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickToolServer.swift"; path = "KaiMagic/KaiSidekickToolServer.swift"; sourceTree = "<group>"; };
+	FR00000483 /* KaiMagic/KaiSpeechAnalyzerEngine.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSpeechAnalyzerEngine.swift"; path = "KaiMagic/KaiSpeechAnalyzerEngine.swift"; sourceTree = "<group>"; };
+	FR00000484 /* KaiMagic/KaiSpinningLogo.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSpinningLogo.swift"; path = "KaiMagic/KaiSpinningLogo.swift"; sourceTree = "<group>"; };
+	FR00000485 /* KaiMagic/KaiVoiceCapture.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiVoiceCapture.swift"; path = "KaiMagic/KaiVoiceCapture.swift"; sourceTree = "<group>"; };
+	FR00000486 /* KaiProactive/GiftLetter.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "GiftLetter.swift"; path = "KaiProactive/GiftLetter.swift"; sourceTree = "<group>"; };
+	FR00000487 /* KaiProactive/KaiProactive.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiProactive.swift"; path = "KaiProactive/KaiProactive.swift"; sourceTree = "<group>"; };
+	FR00000488 /* KaiProactive/KaiProactiveCycle.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiProactiveCycle.swift"; path = "KaiProactive/KaiProactiveCycle.swift"; sourceTree = "<group>"; };
+	FR00000489 /* KaiProactive/KaiProactiveExecutor.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiProactiveExecutor.swift"; path = "KaiProactive/KaiProactiveExecutor.swift"; sourceTree = "<group>"; };
+	FR0000048A /* KaiProactive/KaiProactiveExecutorOverhaul.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiProactiveExecutorOverhaul.swift"; path = "KaiProactive/KaiProactiveExecutorOverhaul.swift"; sourceTree = "<group>"; };
+	FR0000048B /* KaiProactive/KaiProactiveResearch.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiProactiveResearch.swift"; path = "KaiProactive/KaiProactiveResearch.swift"; sourceTree = "<group>"; };
+	FR0000048C /* KaiProactive/KaiProactiveScheduling.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiProactiveScheduling.swift"; path = "KaiProactive/KaiProactiveScheduling.swift"; sourceTree = "<group>"; };
+	FR0000048D /* KaiProactive/ResearchToolServer.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "ResearchToolServer.swift"; path = "KaiProactive/ResearchToolServer.swift"; sourceTree = "<group>"; };
+	FR0000048E /* KaiProactive/VaultMergeCheckpoint.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "VaultMergeCheckpoint.swift"; path = "KaiProactive/VaultMergeCheckpoint.swift"; sourceTree = "<group>"; };
+	FR0000048F /* KaiScheduling/KaiLoginItem.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLoginItem.swift"; path = "KaiScheduling/KaiLoginItem.swift"; sourceTree = "<group>"; };
+	FR00000490 /* KaiScheduling/KaiOvernightCaution.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOvernightCaution.swift"; path = "KaiScheduling/KaiOvernightCaution.swift"; sourceTree = "<group>"; };
+	FR00000491 /* KaiScheduling/KaiOvernightScheduler.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOvernightScheduler.swift"; path = "KaiScheduling/KaiOvernightScheduler.swift"; sourceTree = "<group>"; };
+	FR00000492 /* KaiScheduling/KaiPowerState.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiPowerState.swift"; path = "KaiScheduling/KaiPowerState.swift"; sourceTree = "<group>"; };
+	FR00000493 /* KaiScheduling/KaiServiceRegistration.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiServiceRegistration.swift"; path = "KaiScheduling/KaiServiceRegistration.swift"; sourceTree = "<group>"; };
+	FR00000494 /* KaiScheduling/KaiWakeHelper.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiWakeHelper.swift"; path = "KaiScheduling/KaiWakeHelper.swift"; sourceTree = "<group>"; };
+	FR00000495 /* KaiScheduling/KaiWakeHelperClient.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiWakeHelperClient.swift"; path = "KaiScheduling/KaiWakeHelperClient.swift"; sourceTree = "<group>"; };
+	FR00000496 /* KaiScheduling/KaiWakeHelperMaintenance.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiWakeHelperMaintenance.swift"; path = "KaiScheduling/KaiWakeHelperMaintenance.swift"; sourceTree = "<group>"; };
+	FR00000497 /* KaiScheduling/KaiWakeHelperProtocol.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiWakeHelperProtocol.swift"; path = "KaiScheduling/KaiWakeHelperProtocol.swift"; sourceTree = "<group>"; };
+	FR00000498 /* KaiSources/KaiAddressBookNames.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAddressBookNames.swift"; path = "KaiSources/KaiAddressBookNames.swift"; sourceTree = "<group>"; };
+	FR00000499 /* KaiSources/KaiAppleCalendarSource.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAppleCalendarSource.swift"; path = "KaiSources/KaiAppleCalendarSource.swift"; sourceTree = "<group>"; };
+	FR0000049A /* KaiSources/KaiAppleMailMIME.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAppleMailMIME.swift"; path = "KaiSources/KaiAppleMailMIME.swift"; sourceTree = "<group>"; };
+	FR0000049B /* KaiSources/KaiAppleMailResearch.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAppleMailResearch.swift"; path = "KaiSources/KaiAppleMailResearch.swift"; sourceTree = "<group>"; };
+	FR0000049C /* KaiSources/KaiAppleMailResearchAccess.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAppleMailResearchAccess.swift"; path = "KaiSources/KaiAppleMailResearchAccess.swift"; sourceTree = "<group>"; };
+	FR0000049D /* KaiSources/KaiAppleMailSource.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAppleMailSource.swift"; path = "KaiSources/KaiAppleMailSource.swift"; sourceTree = "<group>"; };
+	FR0000049E /* KaiSources/KaiCalendarConnect.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCalendarConnect.swift"; path = "KaiSources/KaiCalendarConnect.swift"; sourceTree = "<group>"; };
+	FR0000049F /* KaiSources/KaiCalendarContext.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCalendarContext.swift"; path = "KaiSources/KaiCalendarContext.swift"; sourceTree = "<group>"; };
+	FR000004A0 /* KaiSources/KaiCalendarEventTime.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCalendarEventTime.swift"; path = "KaiSources/KaiCalendarEventTime.swift"; sourceTree = "<group>"; };
+	FR000004A1 /* KaiSources/KaiChatWindowing.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiChatWindowing.swift"; path = "KaiSources/KaiChatWindowing.swift"; sourceTree = "<group>"; };
+	FR000004A2 /* KaiSources/KaiConnectorReadFailure.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorReadFailure.swift"; path = "KaiSources/KaiConnectorReadFailure.swift"; sourceTree = "<group>"; };
+	FR000004A3 /* KaiSources/KaiDataSource.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDataSource.swift"; path = "KaiSources/KaiDataSource.swift"; sourceTree = "<group>"; };
+	FR000004A4 /* KaiSources/KaiEventKitBackgroundFetch.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiEventKitBackgroundFetch.swift"; path = "KaiSources/KaiEventKitBackgroundFetch.swift"; sourceTree = "<group>"; };
+	FR000004A5 /* KaiSources/KaiFilesSource.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiFilesSource.swift"; path = "KaiSources/KaiFilesSource.swift"; sourceTree = "<group>"; };
+	FR000004A6 /* KaiSources/KaiGmailConnect.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiGmailConnect.swift"; path = "KaiSources/KaiGmailConnect.swift"; sourceTree = "<group>"; };
+	FR000004A7 /* KaiSources/KaiGmailReadState.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiGmailReadState.swift"; path = "KaiSources/KaiGmailReadState.swift"; sourceTree = "<group>"; };
+	FR000004A8 /* KaiSources/KaiGoogleSourceRead.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiGoogleSourceRead.swift"; path = "KaiSources/KaiGoogleSourceRead.swift"; sourceTree = "<group>"; };
+	FR000004A9 /* KaiSources/KaiGranolaResponse.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiGranolaResponse.swift"; path = "KaiSources/KaiGranolaResponse.swift"; sourceTree = "<group>"; };
+	FR000004AA /* KaiSources/KaiGranolaSource.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiGranolaSource.swift"; path = "KaiSources/KaiGranolaSource.swift"; sourceTree = "<group>"; };
+	FR000004AB /* KaiSources/KaiHostedConnectorReadState.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedConnectorReadState.swift"; path = "KaiSources/KaiHostedConnectorReadState.swift"; sourceTree = "<group>"; };
+	FR000004AC /* KaiSources/KaiHostedConnectorSource.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedConnectorSource.swift"; path = "KaiSources/KaiHostedConnectorSource.swift"; sourceTree = "<group>"; };
+	FR000004AD /* KaiSources/KaiLocalWritingSamples.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLocalWritingSamples.swift"; path = "KaiSources/KaiLocalWritingSamples.swift"; sourceTree = "<group>"; };
+	FR000004AE /* KaiSources/KaiMCPSource.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMCPSource.swift"; path = "KaiSources/KaiMCPSource.swift"; sourceTree = "<group>"; };
+	FR000004AF /* KaiSources/KaiMCPSourceEvidence.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMCPSourceEvidence.swift"; path = "KaiSources/KaiMCPSourceEvidence.swift"; sourceTree = "<group>"; };
+	FR000004B0 /* KaiSources/KaiMCPSourceIdentity.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMCPSourceIdentity.swift"; path = "KaiSources/KaiMCPSourceIdentity.swift"; sourceTree = "<group>"; };
+	FR000004B1 /* KaiSources/KaiMCPSourceModel.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMCPSourceModel.swift"; path = "KaiSources/KaiMCPSourceModel.swift"; sourceTree = "<group>"; };
+	FR000004B2 /* KaiSources/KaiMCPSourcePrompts.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMCPSourcePrompts.swift"; path = "KaiSources/KaiMCPSourcePrompts.swift"; sourceTree = "<group>"; };
+	FR000004B3 /* KaiSources/KaiMCPStandard.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMCPStandard.swift"; path = "KaiSources/KaiMCPStandard.swift"; sourceTree = "<group>"; };
+	FR000004B4 /* KaiUpdates/KaiUpdateManager.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiUpdateManager.swift"; path = "KaiUpdates/KaiUpdateManager.swift"; sourceTree = "<group>"; };
+	FR000004B5 /* KaiVault/CorpusSlicer.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "CorpusSlicer.swift"; path = "KaiVault/CorpusSlicer.swift"; sourceTree = "<group>"; };
+	FR000004B6 /* KaiVault/KaiKnowledgeGraph.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiKnowledgeGraph.swift"; path = "KaiVault/KaiKnowledgeGraph.swift"; sourceTree = "<group>"; };
+	FR000004B7 /* KaiVault/KaiRAG.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiRAG.swift"; path = "KaiVault/KaiRAG.swift"; sourceTree = "<group>"; };
+	FR000004B8 /* KaiVault/KaiVaultCrossRef.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiVaultCrossRef.swift"; path = "KaiVault/KaiVaultCrossRef.swift"; sourceTree = "<group>"; };
+	FR000004B9 /* KaiVault/KaiVaultGenerator.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiVaultGenerator.swift"; path = "KaiVault/KaiVaultGenerator.swift"; sourceTree = "<group>"; };
+	FR000004BA /* KaiVault/KaiVaultPrivacy.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiVaultPrivacy.swift"; path = "KaiVault/KaiVaultPrivacy.swift"; sourceTree = "<group>"; };
+	FR000004BB /* KaiVault/KaiVaultSelective.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiVaultSelective.swift"; path = "KaiVault/KaiVaultSelective.swift"; sourceTree = "<group>"; };
+	FR000004BC /* KaiVault/KaiVaultSync.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiVaultSync.swift"; path = "KaiVault/KaiVaultSync.swift"; sourceTree = "<group>"; };
+	FR000004BD /* KaiVault/KaiVaultVersioning.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiVaultVersioning.swift"; path = "KaiVault/KaiVaultVersioning.swift"; sourceTree = "<group>"; };
+	FR000004BE /* KaiVault/KaiVectorStore.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiVectorStore.swift"; path = "KaiVault/KaiVectorStore.swift"; sourceTree = "<group>"; };
+	FR000004BF /* KaiVault/VaultActivity.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "VaultActivity.swift"; path = "KaiVault/VaultActivity.swift"; sourceTree = "<group>"; };
+	FR000004C0 /* KaiVault/VaultSliceCheckpoint.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "VaultSliceCheckpoint.swift"; path = "KaiVault/VaultSliceCheckpoint.swift"; sourceTree = "<group>"; };
+	FR000004C1 /* KaiVault/VaultValidation.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "VaultValidation.swift"; path = "KaiVault/VaultValidation.swift"; sourceTree = "<group>"; };
+	FR000004C2 /* KaiVault/WritingStyle.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "WritingStyle.swift"; path = "KaiVault/WritingStyle.swift"; sourceTree = "<group>"; };
+	FR000004C3 /* Tests/KaiBatchSchedulerTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiBatchSchedulerTests.swift"; path = "Tests/KaiBatchSchedulerTests.swift"; sourceTree = "<group>"; };
+	FR000004C4 /* Tests/KaiConnectorClassificationTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorClassificationTests.swift"; path = "Tests/KaiConnectorClassificationTests.swift"; sourceTree = "<group>"; };
+	FR000004C5 /* Tests/KaiConnectorCurationTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorCurationTests.swift"; path = "Tests/KaiConnectorCurationTests.swift"; sourceTree = "<group>"; };
+	FR000004C6 /* Tests/KaiConnectorErrorTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorErrorTests.swift"; path = "Tests/KaiConnectorErrorTests.swift"; sourceTree = "<group>"; };
+	FR000004C7 /* Tests/KaiConnectorLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorLab.swift"; path = "Tests/KaiConnectorLab.swift"; sourceTree = "<group>"; };
+	FR000004C8 /* Tests/KaiConnectorReadAudit.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorReadAudit.swift"; path = "Tests/KaiConnectorReadAudit.swift"; sourceTree = "<group>"; };
+	FR000004C9 /* Tests/KaiConnectorReliabilityTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorReliabilityTests.swift"; path = "Tests/KaiConnectorReliabilityTests.swift"; sourceTree = "<group>"; };
+	FR000004CA /* Tests/KaiConnectorSetupLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorSetupLab.swift"; path = "Tests/KaiConnectorSetupLab.swift"; sourceTree = "<group>"; };
+	FR000004CB /* Tests/KaiDirectMCPTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDirectMCPTests.swift"; path = "Tests/KaiDirectMCPTests.swift"; sourceTree = "<group>"; };
+	FR000004CC /* Tests/KaiFullAcceptanceTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiFullAcceptanceTests.swift"; path = "Tests/KaiFullAcceptanceTests.swift"; sourceTree = "<group>"; };
+	FR000004CD /* Tests/KaiGranolaCurationTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiGranolaCurationTests.swift"; path = "Tests/KaiGranolaCurationTests.swift"; sourceTree = "<group>"; };
+	FR000004CE /* Tests/KaiHostedConnectorLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHostedConnectorLab.swift"; path = "Tests/KaiHostedConnectorLab.swift"; sourceTree = "<group>"; };
+	FR000004CF /* Tests/KaiLegacyCommandRouter.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLegacyCommandRouter.swift"; path = "Tests/KaiLegacyCommandRouter.swift"; sourceTree = "<group>"; };
+	FR000004D0 /* Tests/KaiLegacyConnectorClassifier.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLegacyConnectorClassifier.swift"; path = "Tests/KaiLegacyConnectorClassifier.swift"; sourceTree = "<group>"; };
+	FR000004D1 /* Tests/KaiMirrorAcceptanceTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMirrorAcceptanceTests.swift"; path = "Tests/KaiMirrorAcceptanceTests.swift"; sourceTree = "<group>"; };
+	FR000004D2 /* Tests/KaiNativeComputerUseLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiNativeComputerUseLab.swift"; path = "Tests/KaiNativeComputerUseLab.swift"; sourceTree = "<group>"; };
+	FR000004D3 /* Tests/KaiNotionCurationTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiNotionCurationTests.swift"; path = "Tests/KaiNotionCurationTests.swift"; sourceTree = "<group>"; };
+	FR000004D4 /* Tests/KaiOutlookCalendarContentFixtures.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOutlookCalendarContentFixtures.swift"; path = "Tests/KaiOutlookCalendarContentFixtures.swift"; sourceTree = "<group>"; };
+	FR000004D5 /* Tests/KaiOutlookCalendarCurationTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOutlookCalendarCurationTests.swift"; path = "Tests/KaiOutlookCalendarCurationTests.swift"; sourceTree = "<group>"; };
+	FR000004D6 /* Tests/KaiOutlookCurationTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOutlookCurationTests.swift"; path = "Tests/KaiOutlookCurationTests.swift"; sourceTree = "<group>"; };
+	FR000004D7 /* Tests/KaiPIIScanTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiPIIScanTests.swift"; path = "Tests/KaiPIIScanTests.swift"; sourceTree = "<group>"; };
+	FR000004D8 /* Tests/KaiPersonalSetupHomeLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiPersonalSetupHomeLab.swift"; path = "Tests/KaiPersonalSetupHomeLab.swift"; sourceTree = "<group>"; };
+	FR000004D9 /* Tests/KaiPersonalSetupSourcesLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiPersonalSetupSourcesLab.swift"; path = "Tests/KaiPersonalSetupSourcesLab.swift"; sourceTree = "<group>"; };
+	FR000004DA /* Tests/KaiProgressTrackerTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiProgressTrackerTests.swift"; path = "Tests/KaiProgressTrackerTests.swift"; sourceTree = "<group>"; };
+	FR000004DB /* Tests/KaiRunProgressTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiRunProgressTests.swift"; path = "Tests/KaiRunProgressTests.swift"; sourceTree = "<group>"; };
+	FR000004DC /* Tests/KaiSQLitePoolTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSQLitePoolTests.swift"; path = "Tests/KaiSQLitePoolTests.swift"; sourceTree = "<group>"; };
+	FR000004DD /* Tests/KaiSelfTest.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSelfTest.swift"; path = "Tests/KaiSelfTest.swift"; sourceTree = "<group>"; };
+	FR000004DE /* Tests/KaiSidekickActivityLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickActivityLab.swift"; path = "Tests/KaiSidekickActivityLab.swift"; sourceTree = "<group>"; };
+	FR000004DF /* Tests/KaiSidekickAppLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickAppLab.swift"; path = "Tests/KaiSidekickAppLab.swift"; sourceTree = "<group>"; };
+	FR000004E0 /* Tests/KaiSidekickBackendLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickBackendLab.swift"; path = "Tests/KaiSidekickBackendLab.swift"; sourceTree = "<group>"; };
+	FR000004E1 /* Tests/KaiSidekickLiveWorkflowLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickLiveWorkflowLab.swift"; path = "Tests/KaiSidekickLiveWorkflowLab.swift"; sourceTree = "<group>"; };
+	FR000004E2 /* Tests/KaiSidekickNativeNotchLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickNativeNotchLab.swift"; path = "Tests/KaiSidekickNativeNotchLab.swift"; sourceTree = "<group>"; };
+	FR000004E3 /* Tests/KaiSidekickPolishLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickPolishLab.swift"; path = "Tests/KaiSidekickPolishLab.swift"; sourceTree = "<group>"; };
+	FR000004E4 /* Tests/KaiSidekickTranscriptStressLab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickTranscriptStressLab.swift"; path = "Tests/KaiSidekickTranscriptStressLab.swift"; sourceTree = "<group>"; };
+	FR000004E5 /* Tests/KaiSidekickUILab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickUILab.swift"; path = "Tests/KaiSidekickUILab.swift"; sourceTree = "<group>"; };
+	FR000004E6 /* Tests/KaiSidekickUIRecording.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickUIRecording.swift"; path = "Tests/KaiSidekickUIRecording.swift"; sourceTree = "<group>"; };
+	FR000004E7 /* Tests/KaiSlackActionTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSlackActionTests.swift"; path = "Tests/KaiSlackActionTests.swift"; sourceTree = "<group>"; };
+	FR000004E8 /* Tests/KaiSlackContentFixtures.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSlackContentFixtures.swift"; path = "Tests/KaiSlackContentFixtures.swift"; sourceTree = "<group>"; };
+	FR000004E9 /* Tests/KaiSlackCurationTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSlackCurationTests.swift"; path = "Tests/KaiSlackCurationTests.swift"; sourceTree = "<group>"; };
+	FR000004EA /* Tests/KaiSlackDenialAudit.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSlackDenialAudit.swift"; path = "Tests/KaiSlackDenialAudit.swift"; sourceTree = "<group>"; };
+	FR000004EB /* Tests/KaiWakeAcceptanceTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiWakeAcceptanceTests.swift"; path = "Tests/KaiWakeAcceptanceTests.swift"; sourceTree = "<group>"; };
+	FR000004EC /* Tests/KaiWritingStyleTests.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiWritingStyleTests.swift"; path = "Tests/KaiWritingStyleTests.swift"; sourceTree = "<group>"; };
+	FR000004ED /* Tests/TestCase.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "TestCase.swift"; path = "Tests/TestCase.swift"; sourceTree = "<group>"; };
+	FR000004EE /* Views/Dev/KaiDevPanel.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDevPanel.swift"; path = "Views/Dev/KaiDevPanel.swift"; sourceTree = "<group>"; };
+	FR000004EF /* Views/Dev/KaiDevTools.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDevTools.swift"; path = "Views/Dev/KaiDevTools.swift"; sourceTree = "<group>"; };
+	FR000004F0 /* Views/KaiAccessibilitySupport.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAccessibilitySupport.swift"; path = "Views/KaiAccessibilitySupport.swift"; sourceTree = "<group>"; };
+	FR000004F1 /* Views/KaiAppleCalendarConnectSheet.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAppleCalendarConnectSheet.swift"; path = "Views/KaiAppleCalendarConnectSheet.swift"; sourceTree = "<group>"; };
+	FR000004F2 /* Views/KaiAppleMailPicker.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiAppleMailPicker.swift"; path = "Views/KaiAppleMailPicker.swift"; sourceTree = "<group>"; };
+	FR000004F3 /* Views/KaiBackButtonStyle.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiBackButtonStyle.swift"; path = "Views/KaiBackButtonStyle.swift"; sourceTree = "<group>"; };
+	FR000004F4 /* Views/KaiBriefing.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiBriefing.swift"; path = "Views/KaiBriefing.swift"; sourceTree = "<group>"; };
+	FR000004F5 /* Views/KaiBriefingCard.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiBriefingCard.swift"; path = "Views/KaiBriefingCard.swift"; sourceTree = "<group>"; };
+	FR000004F6 /* Views/KaiCautionCapsule.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCautionCapsule.swift"; path = "Views/KaiCautionCapsule.swift"; sourceTree = "<group>"; };
+	FR000004F7 /* Views/KaiChatGPTSignInSheet.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiChatGPTSignInSheet.swift"; path = "Views/KaiChatGPTSignInSheet.swift"; sourceTree = "<group>"; };
+	FR000004F8 /* Views/KaiChatPicker.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiChatPicker.swift"; path = "Views/KaiChatPicker.swift"; sourceTree = "<group>"; };
+	FR000004F9 /* Views/KaiCloudConnectSheet.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCloudConnectSheet.swift"; path = "Views/KaiCloudConnectSheet.swift"; sourceTree = "<group>"; };
+	FR000004FA /* Views/KaiCodexSetupView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiCodexSetupView.swift"; path = "Views/KaiCodexSetupView.swift"; sourceTree = "<group>"; };
+	FR000004FB /* Views/KaiComputerUseUpdateNotice.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiComputerUseUpdateNotice.swift"; path = "Views/KaiComputerUseUpdateNotice.swift"; sourceTree = "<group>"; };
+	FR000004FC /* Views/KaiConnectAIsView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectAIsView.swift"; path = "Views/KaiConnectAIsView.swift"; sourceTree = "<group>"; };
+	FR000004FD /* Views/KaiConnectorActionButton.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorActionButton.swift"; path = "Views/KaiConnectorActionButton.swift"; sourceTree = "<group>"; };
+	FR000004FE /* Views/KaiConnectorLogo.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiConnectorLogo.swift"; path = "Views/KaiConnectorLogo.swift"; sourceTree = "<group>"; };
+	FR000004FF /* Views/KaiDarkModeSupport.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiDarkModeSupport.swift"; path = "Views/KaiDarkModeSupport.swift"; sourceTree = "<group>"; };
+	FR00000500 /* Views/KaiFileThumbnail.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiFileThumbnail.swift"; path = "Views/KaiFileThumbnail.swift"; sourceTree = "<group>"; };
+	FR00000501 /* Views/KaiFrontierEnginePicker.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiFrontierEnginePicker.swift"; path = "Views/KaiFrontierEnginePicker.swift"; sourceTree = "<group>"; };
+	FR00000502 /* Views/KaiFrontierEngineTab.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiFrontierEngineTab.swift"; path = "Views/KaiFrontierEngineTab.swift"; sourceTree = "<group>"; };
+	FR00000503 /* Views/KaiGiftShareImage.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiGiftShareImage.swift"; path = "Views/KaiGiftShareImage.swift"; sourceTree = "<group>"; };
+	FR00000504 /* Views/KaiGlowButton.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiGlowButton.swift"; path = "Views/KaiGlowButton.swift"; sourceTree = "<group>"; };
+	FR00000505 /* Views/KaiGlowProgressBar.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiGlowProgressBar.swift"; path = "Views/KaiGlowProgressBar.swift"; sourceTree = "<group>"; };
+	FR00000506 /* Views/KaiHomeFeatureShowcases.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHomeFeatureShowcases.swift"; path = "Views/KaiHomeFeatureShowcases.swift"; sourceTree = "<group>"; };
+	FR00000507 /* Views/KaiHomePersonalSetup.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHomePersonalSetup.swift"; path = "Views/KaiHomePersonalSetup.swift"; sourceTree = "<group>"; };
+	FR00000508 /* Views/KaiHomePopovers.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHomePopovers.swift"; path = "Views/KaiHomePopovers.swift"; sourceTree = "<group>"; };
+	FR00000509 /* Views/KaiHomeShortcuts.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHomeShortcuts.swift"; path = "Views/KaiHomeShortcuts.swift"; sourceTree = "<group>"; };
+	FR0000050A /* Views/KaiHomeView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiHomeView.swift"; path = "Views/KaiHomeView.swift"; sourceTree = "<group>"; };
+	FR0000050B /* Views/KaiInferencePanel.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiInferencePanel.swift"; path = "Views/KaiInferencePanel.swift"; sourceTree = "<group>"; };
+	FR0000050C /* Views/KaiInternationalization.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiInternationalization.swift"; path = "Views/KaiInternationalization.swift"; sourceTree = "<group>"; };
+	FR0000050D /* Views/KaiKnowledgeSourcePill.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiKnowledgeSourcePill.swift"; path = "Views/KaiKnowledgeSourcePill.swift"; sourceTree = "<group>"; };
+	FR0000050E /* Views/KaiKnowledgeSourcesPicker.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiKnowledgeSourcesPicker.swift"; path = "Views/KaiKnowledgeSourcesPicker.swift"; sourceTree = "<group>"; };
+	FR0000050F /* Views/KaiLetterBody.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLetterBody.swift"; path = "Views/KaiLetterBody.swift"; sourceTree = "<group>"; };
+	FR00000510 /* Views/KaiLetterPaper.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLetterPaper.swift"; path = "Views/KaiLetterPaper.swift"; sourceTree = "<group>"; };
+	FR00000511 /* Views/KaiLoginLinkButton.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiLoginLinkButton.swift"; path = "Views/KaiLoginLinkButton.swift"; sourceTree = "<group>"; };
+	FR00000512 /* Views/KaiMenuBarView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiMenuBarView.swift"; path = "Views/KaiMenuBarView.swift"; sourceTree = "<group>"; };
+	FR00000513 /* Views/KaiModelDownloadWhisper.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiModelDownloadWhisper.swift"; path = "Views/KaiModelDownloadWhisper.swift"; sourceTree = "<group>"; };
+	FR00000514 /* Views/KaiModelSelectionDesign.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiModelSelectionDesign.swift"; path = "Views/KaiModelSelectionDesign.swift"; sourceTree = "<group>"; };
+	FR00000515 /* Views/KaiOrb.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOrb.swift"; path = "Views/KaiOrb.swift"; sourceTree = "<group>"; };
+	FR00000516 /* Views/KaiPermissionsView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiPermissionsView.swift"; path = "Views/KaiPermissionsView.swift"; sourceTree = "<group>"; };
+	FR00000517 /* Views/KaiPlanEditor.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiPlanEditor.swift"; path = "Views/KaiPlanEditor.swift"; sourceTree = "<group>"; };
+	FR00000518 /* Views/KaiProcessingView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiProcessingView.swift"; path = "Views/KaiProcessingView.swift"; sourceTree = "<group>"; };
+	FR00000519 /* Views/KaiProcessingWindowView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiProcessingWindowView.swift"; path = "Views/KaiProcessingWindowView.swift"; sourceTree = "<group>"; };
+	FR0000051A /* Views/KaiPromptBar.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiPromptBar.swift"; path = "Views/KaiPromptBar.swift"; sourceTree = "<group>"; };
+	FR0000051B /* Views/KaiRootView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiRootView.swift"; path = "Views/KaiRootView.swift"; sourceTree = "<group>"; };
+	FR0000051C /* Views/KaiTheme.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiTheme.swift"; path = "Views/KaiTheme.swift"; sourceTree = "<group>"; };
+	FR0000051D /* Views/KaiUsagePresentation.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiUsagePresentation.swift"; path = "Views/KaiUsagePresentation.swift"; sourceTree = "<group>"; };
+	FR0000051E /* Views/Knowledge/KaiKnowledgeGraphView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiKnowledgeGraphView.swift"; path = "Views/Knowledge/KaiKnowledgeGraphView.swift"; sourceTree = "<group>"; };
+	FR0000051F /* Views/Knowledge/KaiKnowledgeReader.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiKnowledgeReader.swift"; path = "Views/Knowledge/KaiKnowledgeReader.swift"; sourceTree = "<group>"; };
+	FR00000520 /* Views/Knowledge/KaiKnowledgeView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiKnowledgeView.swift"; path = "Views/Knowledge/KaiKnowledgeView.swift"; sourceTree = "<group>"; };
+	FR00000521 /* Views/Onboarding/KaiOnboardingProgress.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOnboardingProgress.swift"; path = "Views/Onboarding/KaiOnboardingProgress.swift"; sourceTree = "<group>"; };
+	FR00000522 /* Views/Onboarding/KaiOnboardingView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiOnboardingView.swift"; path = "Views/Onboarding/KaiOnboardingView.swift"; sourceTree = "<group>"; };
+	FR00000523 /* Views/Settings/KaiSettingsAbout.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSettingsAbout.swift"; path = "Views/Settings/KaiSettingsAbout.swift"; sourceTree = "<group>"; };
+	FR00000524 /* Views/Settings/KaiSettingsKeyboard.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSettingsKeyboard.swift"; path = "Views/Settings/KaiSettingsKeyboard.swift"; sourceTree = "<group>"; };
+	FR00000525 /* Views/Settings/KaiSettingsKnowledge.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSettingsKnowledge.swift"; path = "Views/Settings/KaiSettingsKnowledge.swift"; sourceTree = "<group>"; };
+	FR00000526 /* Views/Settings/KaiSettingsPrivacy.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSettingsPrivacy.swift"; path = "Views/Settings/KaiSettingsPrivacy.swift"; sourceTree = "<group>"; };
+	FR00000527 /* Views/Settings/KaiSettingsProactive.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSettingsProactive.swift"; path = "Views/Settings/KaiSettingsProactive.swift"; sourceTree = "<group>"; };
+	FR00000528 /* Views/Settings/KaiSettingsSidekick.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSettingsSidekick.swift"; path = "Views/Settings/KaiSettingsSidekick.swift"; sourceTree = "<group>"; };
+	FR00000529 /* Views/Settings/KaiSettingsView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSettingsView.swift"; path = "Views/Settings/KaiSettingsView.swift"; sourceTree = "<group>"; };
+	FR0000052A /* Views/Sidekick/KaiSidekickStyle.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickStyle.swift"; path = "Views/Sidekick/KaiSidekickStyle.swift"; sourceTree = "<group>"; };
+	FR0000052B /* Views/Sidekick/KaiSidekickView.swift = {isa = PBXFileReference; lastKnownFileType = "sourcecode.swift"; name = "KaiSidekickView.swift"; path = "Views/Sidekick/KaiSidekickView.swift"; sourceTree = "<group>"; };
+
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+	B5ROOT = {
+		isa = PBXGroup;
+		children = (
+			B5APPGRP, /* Kai OS macOS */
+		);
+		name = "Kai OS macOS";
+		path = "Kai OS macOS";
+		sourceTree = "<group>";
+	};
+	BDAC863F34 /* App = {isa = PBXGroup; children = (
+			FR000003E8; /* KaiAppAwareness.swift */
+			FR000003E9; /* KaiAppState.swift */
+			FR000003EA; /* KaiDockPolicy.swift */
+			FR000003EB; /* KaiHomeWindowOpening.swift */
+			FR000003EC; /* KaiLaunchPresentation.swift */
+			FR000003ED; /* KaiMainNavigation.swift */
+			FR000003EE; /* KaiMainWindowCloseGuard.swift */
+			FR000003EF; /* KaiOSApp.swift */
+			FR000003F0; /* KaiPersonalSetupProgress.swift */
+			FR000003F1; /* main.swift */
+		); name = "App"; path = "App"; sourceTree = "<group>"; };
+	BDC749EAB0 /* KaiCloud = {isa = PBXGroup; children = (
+			FR000003F2; /* KaiChatGPTRecovery.swift */
+			FR000003F3; /* KaiClaudeCLI.swift */
+			FR000003F4; /* KaiConnectorCensus.swift */
+			FR000003F5; /* KaiConnectorLinks.swift */
+			FR000003F6; /* KaiConnectorRegistry.swift */
+			FR000003F7; /* KaiFrontierRun.swift */
+			FR000003F8; /* KaiHostedInference.swift */
+			FR000003F9; /* KaiHostedInferenceClient.swift */
+			FR000003FA; /* KaiSetup.swift */
+			FR000003FB; /* KaiHostedToolPolicy.swift */
+			FR000003FC; /* KaiHostedVaultFiles.swift */
+			FR000003FD; /* KaiHostedVaultToolServer.swift */
+			FR000003FE; /* KaiLocalMCPServer.swift */
+			FR000003FF; /* KaiLoginLink.swift */
+			FR00000400; /* KaiLoopbackHTTP.swift */
+			FR00000401; /* KaiMCPCallEvidence.swift */
+			FR00000402; /* KaiMirrorClient.swift */
+			FR00000403; /* KaiModelBackend.swift */
+			FR00000404; /* KaiResponsesTranslator.swift */
+			FR00000405; /* KaiRunWatchdog.swift */
+		); name = "KaiCloud"; path = "KaiCloud"; sourceTree = "<group>"; };
+	BD04C62BA4 /* KaiConnectors = {isa = PBXGroup; children = (
+			FR00000406; /* KaiHostedConnectorAuth.swift */
+			FR00000407; /* KaiHostedConnectorClient.swift */
+			FR00000408; /* KaiHostedConnectorModels.swift */
+			FR00000409; /* KaiHostedConnectorToolServer.swift */
+			FR0000040A; /* KaiDirectMCPAuth.swift */
+			FR0000040B; /* KaiDirectMCPCallback.swift */
+			FR0000040C; /* KaiDirectMCPConnections.swift */
+			FR0000040D; /* KaiDirectMCPHTTP.swift */
+			FR0000040E; /* KaiDirectMCPIdentity.swift */
+			FR0000040F; /* KaiDirectMCPModels.swift */
+			FR00000410; /* KaiDirectMCPProbe.swift */
+			FR00000411; /* KaiDirectMCPResult.swift */
+			FR00000412; /* KaiDirectMCPRuntime.swift */
+			FR00000413; /* KaiDirectMCPSession.swift */
+			FR00000414; /* KaiDirectMCPStore.swift */
+		); name = "KaiConnectors"; path = "KaiConnectors"; sourceTree = "<group>"; };
+	BDC8D52000 /* KaiDiagonstics = {isa = PBXGroup; children = (
+			FR00000415; /* KaiAgentRunDiagnostics.swift */
+			FR00000416; /* KaiAnalytics.swift */
+			FR00000417; /* KaiBuildIdentity.swift */
+			FR00000418; /* KaiCaptureDiagnostics.swift */
+			FR00000419; /* KaiChildProcessDiagnostics.swift */
+			FR0000041A; /* KaiComputerUseCheckProbe.swift */
+			FR0000041B; /* KaiComputerUseCheckReport.swift */
+			FR0000041C; /* KaiComputerUseDiagnosticConsent.swift */
+			FR0000041D; /* KaiComputerUseDiagnosticPolicy.swift */
+			FR0000041E; /* KaiComputerUseDoctor.swift */
+			FR0000041F; /* KaiComputerUseReportUpload.swift */
+			FR00000420; /* KaiConnectorClassificationDiagnostics.swift */
+			FR00000421; /* KaiCrashReporting.swift */
+			FR00000422; /* KaiDiagnosticEventBudget.swift */
+			FR00000423; /* KaiDiagnosticExport.swift */
+			FR00000424; /* KaiDiagnosticHistory.swift */
+			FR00000425; /* KaiDiagnostics.swift */
+			FR00000426; /* KaiExecutorScoreboard.swift */
+			FR00000427; /* KaiLog.swift */
+			FR00000428; /* KaiNativeComputerUseErrorLog.swift */
+			FR00000429; /* KaiNativeComputerUseFailure.swift */
+			FR0000042A; /* KaiSentryHangPolicy.swift */
+			FR0000042B; /* KaiSidekickDiagnostics.swift */
+			FR0000042C; /* KaiSourceHealth.swift */
+		); name = "KaiDiagonstics"; path = "KaiDiagonstics"; sourceTree = "<group>"; };
+	BD288C4479 /* KaiDoubleTap = {isa = PBXGroup; children = (
+			FR0000042D; /* KaiCaretLocator.swift */
+			FR0000042E; /* KaiCaretSwirl.swift */
+			FR0000042F; /* KaiDoubleTap.swift */
+			FR00000430; /* KaiDoubleTapInference.swift */
+			FR00000431; /* KaiDoubleTapKnowledge.swift */
+			FR00000432; /* KaiDoubleTapProvider.swift */
+			FR00000433; /* KaiDoubleTapSetupNotice.swift */
+			FR00000434; /* WritingStyleSetupView.swift */
+		); name = "KaiDoubleTap"; path = "KaiDoubleTap"; sourceTree = "<group>"; };
+	BD39354CF9 /* KaiDriver = {isa = PBXGroup; children = (
+			FR00000435; /* KaiComputerUseBackend.swift */
+			FR00000436; /* KaiComputerUseSafety.swift */
+			FR00000437; /* KaiComputerUseSandbox.swift */
+			FR00000438; /* KaiComputerUseSetup.swift */
+			FR00000439; /* KaiCuaDriver.swift */
+			FR0000043A; /* KaiCuaDriverHost.swift */
+			FR0000043B; /* KaiCuaDriverSetup.swift */
+			FR0000043C; /* KaiCuaDriverSkill.swift */
+			FR0000043D; /* KaiDependencyDownload.swift */
+			FR0000043E; /* KaiMultiStepPlanner.swift */
+			FR0000043F; /* KaiNativeComputerUseServer.swift */
+			FR00000440; /* KaiNativePermissionReadiness.swift */
+			FR00000441; /* KaiOpenAIComputerUse.swift */
+			FR00000442; /* KaiOpenAIComputerUseProbe.swift */
+			FR00000443; /* KaiOpenAIComputerUseRuntime.swift */
+			FR00000444; /* KaiOpenAIComputerUseSession.swift */
+			FR00000445; /* KaiOpenAIComputerUseSetup.swift */
+			FR00000446; /* KaiSessionReplay.swift */
+			FR00000447; /* KaiTaskStateMachine.swift */
+		); name = "KaiDriver"; path = "KaiDriver"; sourceTree = "<group>"; };
+	BD741792C0 /* KaiEngine = {isa = PBXGroup; children = (
+			FR00000448; /* KaiEngine.swift */
+			FR00000449; /* KaiFallback.swift */
+			FR0000044A; /* ModelDownload.swift */
+			FR0000044B; /* ModelLocator.swift */
+			FR0000044C; /* PIIScan.swift */
+			FR0000044D; /* SpeculativeDecoding.swift */
+			FR0000044E; /* Triage.swift */
+		); name = "KaiEngine"; path = "KaiEngine"; sourceTree = "<group>"; };
+	BDFE6622CB /* KaiIngestion = {isa = PBXGroup; children = (
+			FR0000044F; /* BatchScheduler.swift */
+			FR00000450; /* CalendarRetryCache.swift */
+			FR00000451; /* Connector.swift */
+			FR00000452; /* AppleCalendarConnector.swift */
+			FR00000453; /* AppleMailConnector.swift */
+			FR00000454; /* ChatConnectors.swift */
+			FR00000455; /* FilesConnector.swift */
+			FR00000456; /* GmailConnector.swift */
+			FR00000457; /* GoogleCalendarConnector.swift */
+			FR00000458; /* NotesConnector.swift */
+			FR00000459; /* OutlookCalendarConnector.swift */
+			FR0000045A; /* SiYuanConnector.swift */
+			FR0000045B; /* CycleStore.swift */
+			FR0000045C; /* DeprecationManager.swift */
+			FR0000045D; /* FactoryReset.swift */
+			FR0000045E; /* InitialAnalysisRecovery.swift */
+			FR0000045F; /* ItemKey.swift */
+			FR00000460; /* IterativeRun.swift */
+			FR00000461; /* LifetimeStats.swift */
+			FR00000462; /* PipelineActivity.swift */
+			FR00000463; /* ProcessingCoordinator.swift */
+			FR00000464; /* ProcessingPlan.swift */
+			FR00000465; /* ProcessingRun.swift */
+			FR00000466; /* ProgressTracker.swift */
+			FR00000467; /* RunProgress.swift */
+			FR00000468; /* RunSource.swift */
+			FR00000469; /* SQLitePool.swift */
+		); name = "KaiIngestion"; path = "KaiIngestion"; sourceTree = "<group>"; };
+	BD341835D9 /* KaiMagic = {isa = PBXGroup; children = (
+			FR0000046A; /* KaiCommandCoordinator.swift */
+			FR0000046B; /* KaiCommandRunModel.swift */
+			FR0000046C; /* KaiMicrophoneEngine.swift */
+			FR0000046D; /* KaiNotchPreferences.swift */
+			FR0000046E; /* KaiNotchShape.swift */
+			FR0000046F; /* KaiNotchSpace.swift */
+			FR00000470; /* KaiNotchWindowController.swift */
+			FR00000471; /* KaiQuickTranscriptionEngine.swift */
+			FR00000472; /* KaiScreenCapture.swift */
+			FR00000473; /* KaiSidekickAttentionPolicy.swift */
+			FR00000474; /* KaiSidekickCardContext.swift */
+			FR00000475; /* KaiSidekickContext.swift */
+			FR00000476; /* KaiSidekickConversation.swift */
+			FR00000477; /* KaiSidekickConversationStore.swift */
+			FR00000478; /* KaiSidekickDiscovery.swift */
+			FR00000479; /* KaiSidekickHistory.swift */
+			FR0000047A; /* KaiSidekickHotkeyMonitor.swift */
+			FR0000047B; /* KaiSidekickInstructionStore.swift */
+			FR0000047C; /* KaiSidekickInteraction.swift */
+			FR0000047D; /* KaiSidekickPersonalization.swift */
+			FR0000047E; /* KaiSidekickRecovery.swift */
+			FR0000047F; /* KaiSidekickRecoveryView.swift */
+			FR00000480; /* KaiSidekickTaskEnd.swift */
+			FR00000481; /* KaiSidekickTaskSummary.swift */
+			FR00000482; /* KaiSidekickToolServer.swift */
+			FR00000483; /* KaiSpeechAnalyzerEngine.swift */
+			FR00000484; /* KaiSpinningLogo.swift */
+			FR00000485; /* KaiVoiceCapture.swift */
+		); name = "KaiMagic"; path = "KaiMagic"; sourceTree = "<group>"; };
+	BD5B9E7112 /* KaiProactive = {isa = PBXGroup; children = (
+			FR00000486; /* GiftLetter.swift */
+			FR00000487; /* KaiProactive.swift */
+			FR00000488; /* KaiProactiveCycle.swift */
+			FR00000489; /* KaiProactiveExecutor.swift */
+			FR0000048A; /* KaiProactiveExecutorOverhaul.swift */
+			FR0000048B; /* KaiProactiveResearch.swift */
+			FR0000048C; /* KaiProactiveScheduling.swift */
+			FR0000048D; /* ResearchToolServer.swift */
+			FR0000048E; /* VaultMergeCheckpoint.swift */
+		); name = "KaiProactive"; path = "KaiProactive"; sourceTree = "<group>"; };
+	BDAFC192D0 /* KaiScheduling = {isa = PBXGroup; children = (
+			FR0000048F; /* KaiLoginItem.swift */
+			FR00000490; /* KaiOvernightCaution.swift */
+			FR00000491; /* KaiOvernightScheduler.swift */
+			FR00000492; /* KaiPowerState.swift */
+			FR00000493; /* KaiServiceRegistration.swift */
+			FR00000494; /* KaiWakeHelper.swift */
+			FR00000495; /* KaiWakeHelperClient.swift */
+			FR00000496; /* KaiWakeHelperMaintenance.swift */
+			FR00000497; /* KaiWakeHelperProtocol.swift */
+		); name = "KaiScheduling"; path = "KaiScheduling"; sourceTree = "<group>"; };
+	BD5D837BB5 /* KaiSources = {isa = PBXGroup; children = (
+			FR00000498; /* KaiAddressBookNames.swift */
+			FR00000499; /* KaiAppleCalendarSource.swift */
+			FR0000049A; /* KaiAppleMailMIME.swift */
+			FR0000049B; /* KaiAppleMailResearch.swift */
+			FR0000049C; /* KaiAppleMailResearchAccess.swift */
+			FR0000049D; /* KaiAppleMailSource.swift */
+			FR0000049E; /* KaiCalendarConnect.swift */
+			FR0000049F; /* KaiCalendarContext.swift */
+			FR000004A0; /* KaiCalendarEventTime.swift */
+			FR000004A1; /* KaiChatWindowing.swift */
+			FR000004A2; /* KaiConnectorReadFailure.swift */
+			FR000004A3; /* KaiDataSource.swift */
+			FR000004A4; /* KaiEventKitBackgroundFetch.swift */
+			FR000004A5; /* KaiFilesSource.swift */
+			FR000004A6; /* KaiGmailConnect.swift */
+			FR000004A7; /* KaiGmailReadState.swift */
+			FR000004A8; /* KaiGoogleSourceRead.swift */
+			FR000004A9; /* KaiGranolaResponse.swift */
+			FR000004AA; /* KaiGranolaSource.swift */
+			FR000004AB; /* KaiHostedConnectorReadState.swift */
+			FR000004AC; /* KaiHostedConnectorSource.swift */
+			FR000004AD; /* KaiLocalWritingSamples.swift */
+			FR000004AE; /* KaiMCPSource.swift */
+			FR000004AF; /* KaiMCPSourceEvidence.swift */
+			FR000004B0; /* KaiMCPSourceIdentity.swift */
+			FR000004B1; /* KaiMCPSourceModel.swift */
+			FR000004B2; /* KaiMCPSourcePrompts.swift */
+			FR000004B3; /* KaiMCPStandard.swift */
+		); name = "KaiSources"; path = "KaiSources"; sourceTree = "<group>"; };
+	BD22F2F7C6 /* KaiUpdates = {isa = PBXGroup; children = (
+			FR000004B4; /* KaiUpdateManager.swift */
+		); name = "KaiUpdates"; path = "KaiUpdates"; sourceTree = "<group>"; };
+	BD2A97267A /* KaiVault = {isa = PBXGroup; children = (
+			FR000004B5; /* CorpusSlicer.swift */
+			FR000004B6; /* KaiKnowledgeGraph.swift */
+			FR000004B7; /* KaiRAG.swift */
+			FR000004B8; /* KaiVaultCrossRef.swift */
+			FR000004B9; /* KaiVaultGenerator.swift */
+			FR000004BA; /* KaiVaultPrivacy.swift */
+			FR000004BB; /* KaiVaultSelective.swift */
+			FR000004BC; /* KaiVaultSync.swift */
+			FR000004BD; /* KaiVaultVersioning.swift */
+			FR000004BE; /* KaiVectorStore.swift */
+			FR000004BF; /* VaultActivity.swift */
+			FR000004C0; /* VaultSliceCheckpoint.swift */
+			FR000004C1; /* VaultValidation.swift */
+			FR000004C2; /* WritingStyle.swift */
+		); name = "KaiVault"; path = "KaiVault"; sourceTree = "<group>"; };
+	BD90792DE5 /* Tests = {isa = PBXGroup; children = (
+			FR000004C3; /* KaiBatchSchedulerTests.swift */
+			FR000004C4; /* KaiConnectorClassificationTests.swift */
+			FR000004C5; /* KaiConnectorCurationTests.swift */
+			FR000004C6; /* KaiConnectorErrorTests.swift */
+			FR000004C7; /* KaiConnectorLab.swift */
+			FR000004C8; /* KaiConnectorReadAudit.swift */
+			FR000004C9; /* KaiConnectorReliabilityTests.swift */
+			FR000004CA; /* KaiConnectorSetupLab.swift */
+			FR000004CB; /* KaiDirectMCPTests.swift */
+			FR000004CC; /* KaiFullAcceptanceTests.swift */
+			FR000004CD; /* KaiGranolaCurationTests.swift */
+			FR000004CE; /* KaiHostedConnectorLab.swift */
+			FR000004CF; /* KaiLegacyCommandRouter.swift */
+			FR000004D0; /* KaiLegacyConnectorClassifier.swift */
+			FR000004D1; /* KaiMirrorAcceptanceTests.swift */
+			FR000004D2; /* KaiNativeComputerUseLab.swift */
+			FR000004D3; /* KaiNotionCurationTests.swift */
+			FR000004D4; /* KaiOutlookCalendarContentFixtures.swift */
+			FR000004D5; /* KaiOutlookCalendarCurationTests.swift */
+			FR000004D6; /* KaiOutlookCurationTests.swift */
+			FR000004D7; /* KaiPIIScanTests.swift */
+			FR000004D8; /* KaiPersonalSetupHomeLab.swift */
+			FR000004D9; /* KaiPersonalSetupSourcesLab.swift */
+			FR000004DA; /* KaiProgressTrackerTests.swift */
+			FR000004DB; /* KaiRunProgressTests.swift */
+			FR000004DC; /* KaiSQLitePoolTests.swift */
+			FR000004DD; /* KaiSelfTest.swift */
+			FR000004DE; /* KaiSidekickActivityLab.swift */
+			FR000004DF; /* KaiSidekickAppLab.swift */
+			FR000004E0; /* KaiSidekickBackendLab.swift */
+			FR000004E1; /* KaiSidekickLiveWorkflowLab.swift */
+			FR000004E2; /* KaiSidekickNativeNotchLab.swift */
+			FR000004E3; /* KaiSidekickPolishLab.swift */
+			FR000004E4; /* KaiSidekickTranscriptStressLab.swift */
+			FR000004E5; /* KaiSidekickUILab.swift */
+			FR000004E6; /* KaiSidekickUIRecording.swift */
+			FR000004E7; /* KaiSlackActionTests.swift */
+			FR000004E8; /* KaiSlackContentFixtures.swift */
+			FR000004E9; /* KaiSlackCurationTests.swift */
+			FR000004EA; /* KaiSlackDenialAudit.swift */
+			FR000004EB; /* KaiWakeAcceptanceTests.swift */
+			FR000004EC; /* KaiWritingStyleTests.swift */
+			FR000004ED; /* TestCase.swift */
+		); name = "Tests"; path = "Tests"; sourceTree = "<group>"; };
+	BDED4832A8 /* Views = {isa = PBXGroup; children = (
+			FR000004EE; /* KaiDevPanel.swift */
+			FR000004EF; /* KaiDevTools.swift */
+			FR000004F0; /* KaiAccessibilitySupport.swift */
+			FR000004F1; /* KaiAppleCalendarConnectSheet.swift */
+			FR000004F2; /* KaiAppleMailPicker.swift */
+			FR000004F3; /* KaiBackButtonStyle.swift */
+			FR000004F4; /* KaiBriefing.swift */
+			FR000004F5; /* KaiBriefingCard.swift */
+			FR000004F6; /* KaiCautionCapsule.swift */
+			FR000004F7; /* KaiChatGPTSignInSheet.swift */
+			FR000004F8; /* KaiChatPicker.swift */
+			FR000004F9; /* KaiCloudConnectSheet.swift */
+			FR000004FA; /* KaiCodexSetupView.swift */
+			FR000004FB; /* KaiComputerUseUpdateNotice.swift */
+			FR000004FC; /* KaiConnectAIsView.swift */
+			FR000004FD; /* KaiConnectorActionButton.swift */
+			FR000004FE; /* KaiConnectorLogo.swift */
+			FR000004FF; /* KaiDarkModeSupport.swift */
+			FR00000500; /* KaiFileThumbnail.swift */
+			FR00000501; /* KaiFrontierEnginePicker.swift */
+			FR00000502; /* KaiFrontierEngineTab.swift */
+			FR00000503; /* KaiGiftShareImage.swift */
+			FR00000504; /* KaiGlowButton.swift */
+			FR00000505; /* KaiGlowProgressBar.swift */
+			FR00000506; /* KaiHomeFeatureShowcases.swift */
+			FR00000507; /* KaiHomePersonalSetup.swift */
+			FR00000508; /* KaiHomePopovers.swift */
+			FR00000509; /* KaiHomeShortcuts.swift */
+			FR0000050A; /* KaiHomeView.swift */
+			FR0000050B; /* KaiInferencePanel.swift */
+			FR0000050C; /* KaiInternationalization.swift */
+			FR0000050D; /* KaiKnowledgeSourcePill.swift */
+			FR0000050E; /* KaiKnowledgeSourcesPicker.swift */
+			FR0000050F; /* KaiLetterBody.swift */
+			FR00000510; /* KaiLetterPaper.swift */
+			FR00000511; /* KaiLoginLinkButton.swift */
+			FR00000512; /* KaiMenuBarView.swift */
+			FR00000513; /* KaiModelDownloadWhisper.swift */
+			FR00000514; /* KaiModelSelectionDesign.swift */
+			FR00000515; /* KaiOrb.swift */
+			FR00000516; /* KaiPermissionsView.swift */
+			FR00000517; /* KaiPlanEditor.swift */
+			FR00000518; /* KaiProcessingView.swift */
+			FR00000519; /* KaiProcessingWindowView.swift */
+			FR0000051A; /* KaiPromptBar.swift */
+			FR0000051B; /* KaiRootView.swift */
+			FR0000051C; /* KaiTheme.swift */
+			FR0000051D; /* KaiUsagePresentation.swift */
+			FR0000051E; /* KaiKnowledgeGraphView.swift */
+			FR0000051F; /* KaiKnowledgeReader.swift */
+			FR00000520; /* KaiKnowledgeView.swift */
+			FR00000521; /* KaiOnboardingProgress.swift */
+			FR00000522; /* KaiOnboardingView.swift */
+			FR00000523; /* KaiSettingsAbout.swift */
+			FR00000524; /* KaiSettingsKeyboard.swift */
+			FR00000525; /* KaiSettingsKnowledge.swift */
+			FR00000526; /* KaiSettingsPrivacy.swift */
+			FR00000527; /* KaiSettingsProactive.swift */
+			FR00000528; /* KaiSettingsSidekick.swift */
+			FR00000529; /* KaiSettingsView.swift */
+			FR0000052A; /* KaiSidekickStyle.swift */
+			FR0000052B; /* KaiSidekickView.swift */
+		); name = "Views"; path = "Views"; sourceTree = "<group>"; };
+	B5SRCGRP /* Sources */ = {isa = PBXGroup; children = (
+		FR000003E8; /* KaiAppAwareness.swift */
+		FR000003E9; /* KaiAppState.swift */
+		FR000003EA; /* KaiDockPolicy.swift */
+		FR000003EB; /* KaiHomeWindowOpening.swift */
+		FR000003EC; /* KaiLaunchPresentation.swift */
+		FR000003ED; /* KaiMainNavigation.swift */
+		FR000003EE; /* KaiMainWindowCloseGuard.swift */
+		FR000003EF; /* KaiOSApp.swift */
+		FR000003F0; /* KaiPersonalSetupProgress.swift */
+		FR000003F1; /* main.swift */
+		FR000003F2; /* KaiChatGPTRecovery.swift */
+		FR000003F3; /* KaiClaudeCLI.swift */
+		FR000003F4; /* KaiConnectorCensus.swift */
+		FR000003F5; /* KaiConnectorLinks.swift */
+		FR000003F6; /* KaiConnectorRegistry.swift */
+		FR000003F7; /* KaiFrontierRun.swift */
+		FR000003F8; /* KaiHostedInference.swift */
+		FR000003F9; /* KaiHostedInferenceClient.swift */
+		FR000003FA; /* KaiSetup.swift */
+		FR000003FB; /* KaiHostedToolPolicy.swift */
+		FR000003FC; /* KaiHostedVaultFiles.swift */
+		FR000003FD; /* KaiHostedVaultToolServer.swift */
+		FR000003FE; /* KaiLocalMCPServer.swift */
+		FR000003FF; /* KaiLoginLink.swift */
+		FR00000400; /* KaiLoopbackHTTP.swift */
+		FR00000401; /* KaiMCPCallEvidence.swift */
+		FR00000402; /* KaiMirrorClient.swift */
+		FR00000403; /* KaiModelBackend.swift */
+		FR00000404; /* KaiResponsesTranslator.swift */
+		FR00000405; /* KaiRunWatchdog.swift */
+		FR00000406; /* KaiHostedConnectorAuth.swift */
+		FR00000407; /* KaiHostedConnectorClient.swift */
+		FR00000408; /* KaiHostedConnectorModels.swift */
+		FR00000409; /* KaiHostedConnectorToolServer.swift */
+		FR0000040A; /* KaiDirectMCPAuth.swift */
+		FR0000040B; /* KaiDirectMCPCallback.swift */
+		FR0000040C; /* KaiDirectMCPConnections.swift */
+		FR0000040D; /* KaiDirectMCPHTTP.swift */
+		FR0000040E; /* KaiDirectMCPIdentity.swift */
+		FR0000040F; /* KaiDirectMCPModels.swift */
+		FR00000410; /* KaiDirectMCPProbe.swift */
+		FR00000411; /* KaiDirectMCPResult.swift */
+		FR00000412; /* KaiDirectMCPRuntime.swift */
+		FR00000413; /* KaiDirectMCPSession.swift */
+		FR00000414; /* KaiDirectMCPStore.swift */
+		FR00000415; /* KaiAgentRunDiagnostics.swift */
+		FR00000416; /* KaiAnalytics.swift */
+		FR00000417; /* KaiBuildIdentity.swift */
+		FR00000418; /* KaiCaptureDiagnostics.swift */
+		FR00000419; /* KaiChildProcessDiagnostics.swift */
+		FR0000041A; /* KaiComputerUseCheckProbe.swift */
+		FR0000041B; /* KaiComputerUseCheckReport.swift */
+		FR0000041C; /* KaiComputerUseDiagnosticConsent.swift */
+		FR0000041D; /* KaiComputerUseDiagnosticPolicy.swift */
+		FR0000041E; /* KaiComputerUseDoctor.swift */
+		FR0000041F; /* KaiComputerUseReportUpload.swift */
+		FR00000420; /* KaiConnectorClassificationDiagnostics.swift */
+		FR00000421; /* KaiCrashReporting.swift */
+		FR00000422; /* KaiDiagnosticEventBudget.swift */
+		FR00000423; /* KaiDiagnosticExport.swift */
+		FR00000424; /* KaiDiagnosticHistory.swift */
+		FR00000425; /* KaiDiagnostics.swift */
+		FR00000426; /* KaiExecutorScoreboard.swift */
+		FR00000427; /* KaiLog.swift */
+		FR00000428; /* KaiNativeComputerUseErrorLog.swift */
+		FR00000429; /* KaiNativeComputerUseFailure.swift */
+		FR0000042A; /* KaiSentryHangPolicy.swift */
+		FR0000042B; /* KaiSidekickDiagnostics.swift */
+		FR0000042C; /* KaiSourceHealth.swift */
+		FR0000042D; /* KaiCaretLocator.swift */
+		FR0000042E; /* KaiCaretSwirl.swift */
+		FR0000042F; /* KaiDoubleTap.swift */
+		FR00000430; /* KaiDoubleTapInference.swift */
+		FR00000431; /* KaiDoubleTapKnowledge.swift */
+		FR00000432; /* KaiDoubleTapProvider.swift */
+		FR00000433; /* KaiDoubleTapSetupNotice.swift */
+		FR00000434; /* WritingStyleSetupView.swift */
+		FR00000435; /* KaiComputerUseBackend.swift */
+		FR00000436; /* KaiComputerUseSafety.swift */
+		FR00000437; /* KaiComputerUseSandbox.swift */
+		FR00000438; /* KaiComputerUseSetup.swift */
+		FR00000439; /* KaiCuaDriver.swift */
+		FR0000043A; /* KaiCuaDriverHost.swift */
+		FR0000043B; /* KaiCuaDriverSetup.swift */
+		FR0000043C; /* KaiCuaDriverSkill.swift */
+		FR0000043D; /* KaiDependencyDownload.swift */
+		FR0000043E; /* KaiMultiStepPlanner.swift */
+		FR0000043F; /* KaiNativeComputerUseServer.swift */
+		FR00000440; /* KaiNativePermissionReadiness.swift */
+		FR00000441; /* KaiOpenAIComputerUse.swift */
+		FR00000442; /* KaiOpenAIComputerUseProbe.swift */
+		FR00000443; /* KaiOpenAIComputerUseRuntime.swift */
+		FR00000444; /* KaiOpenAIComputerUseSession.swift */
+		FR00000445; /* KaiOpenAIComputerUseSetup.swift */
+		FR00000446; /* KaiSessionReplay.swift */
+		FR00000447; /* KaiTaskStateMachine.swift */
+		FR00000448; /* KaiEngine.swift */
+		FR00000449; /* KaiFallback.swift */
+		FR0000044A; /* ModelDownload.swift */
+		FR0000044B; /* ModelLocator.swift */
+		FR0000044C; /* PIIScan.swift */
+		FR0000044D; /* SpeculativeDecoding.swift */
+		FR0000044E; /* Triage.swift */
+		FR0000044F; /* BatchScheduler.swift */
+		FR00000450; /* CalendarRetryCache.swift */
+		FR00000451; /* Connector.swift */
+		FR00000452; /* AppleCalendarConnector.swift */
+		FR00000453; /* AppleMailConnector.swift */
+		FR00000454; /* ChatConnectors.swift */
+		FR00000455; /* FilesConnector.swift */
+		FR00000456; /* GmailConnector.swift */
+		FR00000457; /* GoogleCalendarConnector.swift */
+		FR00000458; /* NotesConnector.swift */
+		FR00000459; /* OutlookCalendarConnector.swift */
+		FR0000045A; /* SiYuanConnector.swift */
+		FR0000045B; /* CycleStore.swift */
+		FR0000045C; /* DeprecationManager.swift */
+		FR0000045D; /* FactoryReset.swift */
+		FR0000045E; /* InitialAnalysisRecovery.swift */
+		FR0000045F; /* ItemKey.swift */
+		FR00000460; /* IterativeRun.swift */
+		FR00000461; /* LifetimeStats.swift */
+		FR00000462; /* PipelineActivity.swift */
+		FR00000463; /* ProcessingCoordinator.swift */
+		FR00000464; /* ProcessingPlan.swift */
+		FR00000465; /* ProcessingRun.swift */
+		FR00000466; /* ProgressTracker.swift */
+		FR00000467; /* RunProgress.swift */
+		FR00000468; /* RunSource.swift */
+		FR00000469; /* SQLitePool.swift */
+		FR0000046A; /* KaiCommandCoordinator.swift */
+		FR0000046B; /* KaiCommandRunModel.swift */
+		FR0000046C; /* KaiMicrophoneEngine.swift */
+		FR0000046D; /* KaiNotchPreferences.swift */
+		FR0000046E; /* KaiNotchShape.swift */
+		FR0000046F; /* KaiNotchSpace.swift */
+		FR00000470; /* KaiNotchWindowController.swift */
+		FR00000471; /* KaiQuickTranscriptionEngine.swift */
+		FR00000472; /* KaiScreenCapture.swift */
+		FR00000473; /* KaiSidekickAttentionPolicy.swift */
+		FR00000474; /* KaiSidekickCardContext.swift */
+		FR00000475; /* KaiSidekickContext.swift */
+		FR00000476; /* KaiSidekickConversation.swift */
+		FR00000477; /* KaiSidekickConversationStore.swift */
+		FR00000478; /* KaiSidekickDiscovery.swift */
+		FR00000479; /* KaiSidekickHistory.swift */
+		FR0000047A; /* KaiSidekickHotkeyMonitor.swift */
+		FR0000047B; /* KaiSidekickInstructionStore.swift */
+		FR0000047C; /* KaiSidekickInteraction.swift */
+		FR0000047D; /* KaiSidekickPersonalization.swift */
+		FR0000047E; /* KaiSidekickRecovery.swift */
+		FR0000047F; /* KaiSidekickRecoveryView.swift */
+		FR00000480; /* KaiSidekickTaskEnd.swift */
+		FR00000481; /* KaiSidekickTaskSummary.swift */
+		FR00000482; /* KaiSidekickToolServer.swift */
+		FR00000483; /* KaiSpeechAnalyzerEngine.swift */
+		FR00000484; /* KaiSpinningLogo.swift */
+		FR00000485; /* KaiVoiceCapture.swift */
+		FR00000486; /* GiftLetter.swift */
+		FR00000487; /* KaiProactive.swift */
+		FR00000488; /* KaiProactiveCycle.swift */
+		FR00000489; /* KaiProactiveExecutor.swift */
+		FR0000048A; /* KaiProactiveExecutorOverhaul.swift */
+		FR0000048B; /* KaiProactiveResearch.swift */
+		FR0000048C; /* KaiProactiveScheduling.swift */
+		FR0000048D; /* ResearchToolServer.swift */
+		FR0000048E; /* VaultMergeCheckpoint.swift */
+		FR0000048F; /* KaiLoginItem.swift */
+		FR00000490; /* KaiOvernightCaution.swift */
+		FR00000491; /* KaiOvernightScheduler.swift */
+		FR00000492; /* KaiPowerState.swift */
+		FR00000493; /* KaiServiceRegistration.swift */
+		FR00000494; /* KaiWakeHelper.swift */
+		FR00000495; /* KaiWakeHelperClient.swift */
+		FR00000496; /* KaiWakeHelperMaintenance.swift */
+		FR00000497; /* KaiWakeHelperProtocol.swift */
+		FR00000498; /* KaiAddressBookNames.swift */
+		FR00000499; /* KaiAppleCalendarSource.swift */
+		FR0000049A; /* KaiAppleMailMIME.swift */
+		FR0000049B; /* KaiAppleMailResearch.swift */
+		FR0000049C; /* KaiAppleMailResearchAccess.swift */
+		FR0000049D; /* KaiAppleMailSource.swift */
+		FR0000049E; /* KaiCalendarConnect.swift */
+		FR0000049F; /* KaiCalendarContext.swift */
+		FR000004A0; /* KaiCalendarEventTime.swift */
+		FR000004A1; /* KaiChatWindowing.swift */
+		FR000004A2; /* KaiConnectorReadFailure.swift */
+		FR000004A3; /* KaiDataSource.swift */
+		FR000004A4; /* KaiEventKitBackgroundFetch.swift */
+		FR000004A5; /* KaiFilesSource.swift */
+		FR000004A6; /* KaiGmailConnect.swift */
+		FR000004A7; /* KaiGmailReadState.swift */
+		FR000004A8; /* KaiGoogleSourceRead.swift */
+		FR000004A9; /* KaiGranolaResponse.swift */
+		FR000004AA; /* KaiGranolaSource.swift */
+		FR000004AB; /* KaiHostedConnectorReadState.swift */
+		FR000004AC; /* KaiHostedConnectorSource.swift */
+		FR000004AD; /* KaiLocalWritingSamples.swift */
+		FR000004AE; /* KaiMCPSource.swift */
+		FR000004AF; /* KaiMCPSourceEvidence.swift */
+		FR000004B0; /* KaiMCPSourceIdentity.swift */
+		FR000004B1; /* KaiMCPSourceModel.swift */
+		FR000004B2; /* KaiMCPSourcePrompts.swift */
+		FR000004B3; /* KaiMCPStandard.swift */
+		FR000004B4; /* KaiUpdateManager.swift */
+		FR000004B5; /* CorpusSlicer.swift */
+		FR000004B6; /* KaiKnowledgeGraph.swift */
+		FR000004B7; /* KaiRAG.swift */
+		FR000004B8; /* KaiVaultCrossRef.swift */
+		FR000004B9; /* KaiVaultGenerator.swift */
+		FR000004BA; /* KaiVaultPrivacy.swift */
+		FR000004BB; /* KaiVaultSelective.swift */
+		FR000004BC; /* KaiVaultSync.swift */
+		FR000004BD; /* KaiVaultVersioning.swift */
+		FR000004BE; /* KaiVectorStore.swift */
+		FR000004BF; /* VaultActivity.swift */
+		FR000004C0; /* VaultSliceCheckpoint.swift */
+		FR000004C1; /* VaultValidation.swift */
+		FR000004C2; /* WritingStyle.swift */
+		FR000004C3; /* KaiBatchSchedulerTests.swift */
+		FR000004C4; /* KaiConnectorClassificationTests.swift */
+		FR000004C5; /* KaiConnectorCurationTests.swift */
+		FR000004C6; /* KaiConnectorErrorTests.swift */
+		FR000004C7; /* KaiConnectorLab.swift */
+		FR000004C8; /* KaiConnectorReadAudit.swift */
+		FR000004C9; /* KaiConnectorReliabilityTests.swift */
+		FR000004CA; /* KaiConnectorSetupLab.swift */
+		FR000004CB; /* KaiDirectMCPTests.swift */
+		FR000004CC; /* KaiFullAcceptanceTests.swift */
+		FR000004CD; /* KaiGranolaCurationTests.swift */
+		FR000004CE; /* KaiHostedConnectorLab.swift */
+		FR000004CF; /* KaiLegacyCommandRouter.swift */
+		FR000004D0; /* KaiLegacyConnectorClassifier.swift */
+		FR000004D1; /* KaiMirrorAcceptanceTests.swift */
+		FR000004D2; /* KaiNativeComputerUseLab.swift */
+		FR000004D3; /* KaiNotionCurationTests.swift */
+		FR000004D4; /* KaiOutlookCalendarContentFixtures.swift */
+		FR000004D5; /* KaiOutlookCalendarCurationTests.swift */
+		FR000004D6; /* KaiOutlookCurationTests.swift */
+		FR000004D7; /* KaiPIIScanTests.swift */
+		FR000004D8; /* KaiPersonalSetupHomeLab.swift */
+		FR000004D9; /* KaiPersonalSetupSourcesLab.swift */
+		FR000004DA; /* KaiProgressTrackerTests.swift */
+		FR000004DB; /* KaiRunProgressTests.swift */
+		FR000004DC; /* KaiSQLitePoolTests.swift */
+		FR000004DD; /* KaiSelfTest.swift */
+		FR000004DE; /* KaiSidekickActivityLab.swift */
+		FR000004DF; /* KaiSidekickAppLab.swift */
+		FR000004E0; /* KaiSidekickBackendLab.swift */
+		FR000004E1; /* KaiSidekickLiveWorkflowLab.swift */
+		FR000004E2; /* KaiSidekickNativeNotchLab.swift */
+		FR000004E3; /* KaiSidekickPolishLab.swift */
+		FR000004E4; /* KaiSidekickTranscriptStressLab.swift */
+		FR000004E5; /* KaiSidekickUILab.swift */
+		FR000004E6; /* KaiSidekickUIRecording.swift */
+		FR000004E7; /* KaiSlackActionTests.swift */
+		FR000004E8; /* KaiSlackContentFixtures.swift */
+		FR000004E9; /* KaiSlackCurationTests.swift */
+		FR000004EA; /* KaiSlackDenialAudit.swift */
+		FR000004EB; /* KaiWakeAcceptanceTests.swift */
+		FR000004EC; /* KaiWritingStyleTests.swift */
+		FR000004ED; /* TestCase.swift */
+		FR000004EE; /* KaiDevPanel.swift */
+		FR000004EF; /* KaiDevTools.swift */
+		FR000004F0; /* KaiAccessibilitySupport.swift */
+		FR000004F1; /* KaiAppleCalendarConnectSheet.swift */
+		FR000004F2; /* KaiAppleMailPicker.swift */
+		FR000004F3; /* KaiBackButtonStyle.swift */
+		FR000004F4; /* KaiBriefing.swift */
+		FR000004F5; /* KaiBriefingCard.swift */
+		FR000004F6; /* KaiCautionCapsule.swift */
+		FR000004F7; /* KaiChatGPTSignInSheet.swift */
+		FR000004F8; /* KaiChatPicker.swift */
+		FR000004F9; /* KaiCloudConnectSheet.swift */
+		FR000004FA; /* KaiCodexSetupView.swift */
+		FR000004FB; /* KaiComputerUseUpdateNotice.swift */
+		FR000004FC; /* KaiConnectAIsView.swift */
+		FR000004FD; /* KaiConnectorActionButton.swift */
+		FR000004FE; /* KaiConnectorLogo.swift */
+		FR000004FF; /* KaiDarkModeSupport.swift */
+		FR00000500; /* KaiFileThumbnail.swift */
+		FR00000501; /* KaiFrontierEnginePicker.swift */
+		FR00000502; /* KaiFrontierEngineTab.swift */
+		FR00000503; /* KaiGiftShareImage.swift */
+		FR00000504; /* KaiGlowButton.swift */
+		FR00000505; /* KaiGlowProgressBar.swift */
+		FR00000506; /* KaiHomeFeatureShowcases.swift */
+		FR00000507; /* KaiHomePersonalSetup.swift */
+		FR00000508; /* KaiHomePopovers.swift */
+		FR00000509; /* KaiHomeShortcuts.swift */
+		FR0000050A; /* KaiHomeView.swift */
+		FR0000050B; /* KaiInferencePanel.swift */
+		FR0000050C; /* KaiInternationalization.swift */
+		FR0000050D; /* KaiKnowledgeSourcePill.swift */
+		FR0000050E; /* KaiKnowledgeSourcesPicker.swift */
+		FR0000050F; /* KaiLetterBody.swift */
+		FR00000510; /* KaiLetterPaper.swift */
+		FR00000511; /* KaiLoginLinkButton.swift */
+		FR00000512; /* KaiMenuBarView.swift */
+		FR00000513; /* KaiModelDownloadWhisper.swift */
+		FR00000514; /* KaiModelSelectionDesign.swift */
+		FR00000515; /* KaiOrb.swift */
+		FR00000516; /* KaiPermissionsView.swift */
+		FR00000517; /* KaiPlanEditor.swift */
+		FR00000518; /* KaiProcessingView.swift */
+		FR00000519; /* KaiProcessingWindowView.swift */
+		FR0000051A; /* KaiPromptBar.swift */
+		FR0000051B; /* KaiRootView.swift */
+		FR0000051C; /* KaiTheme.swift */
+		FR0000051D; /* KaiUsagePresentation.swift */
+		FR0000051E; /* KaiKnowledgeGraphView.swift */
+		FR0000051F; /* KaiKnowledgeReader.swift */
+		FR00000520; /* KaiKnowledgeView.swift */
+		FR00000521; /* KaiOnboardingProgress.swift */
+		FR00000522; /* KaiOnboardingView.swift */
+		FR00000523; /* KaiSettingsAbout.swift */
+		FR00000524; /* KaiSettingsKeyboard.swift */
+		FR00000525; /* KaiSettingsKnowledge.swift */
+		FR00000526; /* KaiSettingsPrivacy.swift */
+		FR00000527; /* KaiSettingsProactive.swift */
+		FR00000528; /* KaiSettingsSidekick.swift */
+		FR00000529; /* KaiSettingsView.swift */
+		FR0000052A; /* KaiSidekickStyle.swift */
+		FR0000052B; /* KaiSidekickView.swift */
+	); name = "Sources"; sourceTree = "<group>"; };
+	B5ASSETS /* Assets */ = {isa = PBXGroup; children = (
+		B5XCASSETS, /* Assets */
+	); name = "Assets"; sourceTree = "<group>"; };
+	B5XCASSETS = {isa = PBXGroup; children = (
+		B5XCASSETS_DIR, /* Assets */
+	); path = "Assets.xcassets"; sourceTree = "<group>"; };
+	B5XCASSETS_DIR = {isa = PBXFileReference; lastKnownFileType = "folder.assetcatalog"; path = "Assets.xcassets"; sourceTree = "<group>"; };
+
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+	TGT00000001 /* "Kai OS" */ = {
+		isa = PBXNativeTarget;
+		buildConfigurationList = CFG00000003 /* Configuration list, PBXProject::buildConfigurationList */;
+		buildPhases = (
+			BLD00000001, /* Sources */
+		);
+		buildRules = ();
+		dependencies = ();
+		name = "Kai OS";
+		productName = "Kai OS";
+		productReference = TGT00000002 /* Kai OS.app */;
+		productType = "com.apple.product-type.application";
+	};
+	TGT00000002 /* Kai OS.app */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "Kai OS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+
+/* End PBXNativeTarget section */
+
+/* Begin PBXSourcesBuildPhase section */
+	BLD00000001 /* Sources */ = {
+		isa = PBXSourcesBuildPhase;
+		buildActionMask = 2147483647;
+		files = (
+			BF00000001; /* KaiAppAwareness.swift in Sources */
+			BF00000002; /* KaiAppState.swift in Sources */
+			BF00000003; /* KaiDockPolicy.swift in Sources */
+			BF00000004; /* KaiHomeWindowOpening.swift in Sources */
+			BF00000005; /* KaiLaunchPresentation.swift in Sources */
+			BF00000006; /* KaiMainNavigation.swift in Sources */
+			BF00000007; /* KaiMainWindowCloseGuard.swift in Sources */
+			BF00000008; /* KaiOSApp.swift in Sources */
+			BF00000009; /* KaiPersonalSetupProgress.swift in Sources */
+			BF0000000A; /* main.swift in Sources */
+			BF0000000B; /* KaiChatGPTRecovery.swift in Sources */
+			BF0000000C; /* KaiClaudeCLI.swift in Sources */
+			BF0000000D; /* KaiConnectorCensus.swift in Sources */
+			BF0000000E; /* KaiConnectorLinks.swift in Sources */
+			BF0000000F; /* KaiConnectorRegistry.swift in Sources */
+			BF00000010; /* KaiFrontierRun.swift in Sources */
+			BF00000011; /* KaiHostedInference.swift in Sources */
+			BF00000012; /* KaiHostedInferenceClient.swift in Sources */
+			BF00000013; /* KaiSetup.swift in Sources */
+			BF00000014; /* KaiHostedToolPolicy.swift in Sources */
+			BF00000015; /* KaiHostedVaultFiles.swift in Sources */
+			BF00000016; /* KaiHostedVaultToolServer.swift in Sources */
+			BF00000017; /* KaiLocalMCPServer.swift in Sources */
+			BF00000018; /* KaiLoginLink.swift in Sources */
+			BF00000019; /* KaiLoopbackHTTP.swift in Sources */
+			BF0000001A; /* KaiMCPCallEvidence.swift in Sources */
+			BF0000001B; /* KaiMirrorClient.swift in Sources */
+			BF0000001C; /* KaiModelBackend.swift in Sources */
+			BF0000001D; /* KaiResponsesTranslator.swift in Sources */
+			BF0000001E; /* KaiRunWatchdog.swift in Sources */
+			BF0000001F; /* KaiHostedConnectorAuth.swift in Sources */
+			BF00000020; /* KaiHostedConnectorClient.swift in Sources */
+			BF00000021; /* KaiHostedConnectorModels.swift in Sources */
+			BF00000022; /* KaiHostedConnectorToolServer.swift in Sources */
+			BF00000023; /* KaiDirectMCPAuth.swift in Sources */
+			BF00000024; /* KaiDirectMCPCallback.swift in Sources */
+			BF00000025; /* KaiDirectMCPConnections.swift in Sources */
+			BF00000026; /* KaiDirectMCPHTTP.swift in Sources */
+			BF00000027; /* KaiDirectMCPIdentity.swift in Sources */
+			BF00000028; /* KaiDirectMCPModels.swift in Sources */
+			BF00000029; /* KaiDirectMCPProbe.swift in Sources */
+			BF0000002A; /* KaiDirectMCPResult.swift in Sources */
+			BF0000002B; /* KaiDirectMCPRuntime.swift in Sources */
+			BF0000002C; /* KaiDirectMCPSession.swift in Sources */
+			BF0000002D; /* KaiDirectMCPStore.swift in Sources */
+			BF0000002E; /* KaiAgentRunDiagnostics.swift in Sources */
+			BF0000002F; /* KaiAnalytics.swift in Sources */
+			BF00000030; /* KaiBuildIdentity.swift in Sources */
+			BF00000031; /* KaiCaptureDiagnostics.swift in Sources */
+			BF00000032; /* KaiChildProcessDiagnostics.swift in Sources */
+			BF00000033; /* KaiComputerUseCheckProbe.swift in Sources */
+			BF00000034; /* KaiComputerUseCheckReport.swift in Sources */
+			BF00000035; /* KaiComputerUseDiagnosticConsent.swift in Sources */
+			BF00000036; /* KaiComputerUseDiagnosticPolicy.swift in Sources */
+			BF00000037; /* KaiComputerUseDoctor.swift in Sources */
+			BF00000038; /* KaiComputerUseReportUpload.swift in Sources */
+			BF00000039; /* KaiConnectorClassificationDiagnostics.swift in Sources */
+			BF0000003A; /* KaiCrashReporting.swift in Sources */
+			BF0000003B; /* KaiDiagnosticEventBudget.swift in Sources */
+			BF0000003C; /* KaiDiagnosticExport.swift in Sources */
+			BF0000003D; /* KaiDiagnosticHistory.swift in Sources */
+			BF0000003E; /* KaiDiagnostics.swift in Sources */
+			BF0000003F; /* KaiExecutorScoreboard.swift in Sources */
+			BF00000040; /* KaiLog.swift in Sources */
+			BF00000041; /* KaiNativeComputerUseErrorLog.swift in Sources */
+			BF00000042; /* KaiNativeComputerUseFailure.swift in Sources */
+			BF00000043; /* KaiSentryHangPolicy.swift in Sources */
+			BF00000044; /* KaiSidekickDiagnostics.swift in Sources */
+			BF00000045; /* KaiSourceHealth.swift in Sources */
+			BF00000046; /* KaiCaretLocator.swift in Sources */
+			BF00000047; /* KaiCaretSwirl.swift in Sources */
+			BF00000048; /* KaiDoubleTap.swift in Sources */
+			BF00000049; /* KaiDoubleTapInference.swift in Sources */
+			BF0000004A; /* KaiDoubleTapKnowledge.swift in Sources */
+			BF0000004B; /* KaiDoubleTapProvider.swift in Sources */
+			BF0000004C; /* KaiDoubleTapSetupNotice.swift in Sources */
+			BF0000004D; /* WritingStyleSetupView.swift in Sources */
+			BF0000004E; /* KaiComputerUseBackend.swift in Sources */
+			BF0000004F; /* KaiComputerUseSafety.swift in Sources */
+			BF00000050; /* KaiComputerUseSandbox.swift in Sources */
+			BF00000051; /* KaiComputerUseSetup.swift in Sources */
+			BF00000052; /* KaiCuaDriver.swift in Sources */
+			BF00000053; /* KaiCuaDriverHost.swift in Sources */
+			BF00000054; /* KaiCuaDriverSetup.swift in Sources */
+			BF00000055; /* KaiCuaDriverSkill.swift in Sources */
+			BF00000056; /* KaiDependencyDownload.swift in Sources */
+			BF00000057; /* KaiMultiStepPlanner.swift in Sources */
+			BF00000058; /* KaiNativeComputerUseServer.swift in Sources */
+			BF00000059; /* KaiNativePermissionReadiness.swift in Sources */
+			BF0000005A; /* KaiOpenAIComputerUse.swift in Sources */
+			BF0000005B; /* KaiOpenAIComputerUseProbe.swift in Sources */
+			BF0000005C; /* KaiOpenAIComputerUseRuntime.swift in Sources */
+			BF0000005D; /* KaiOpenAIComputerUseSession.swift in Sources */
+			BF0000005E; /* KaiOpenAIComputerUseSetup.swift in Sources */
+			BF0000005F; /* KaiSessionReplay.swift in Sources */
+			BF00000060; /* KaiTaskStateMachine.swift in Sources */
+			BF00000061; /* KaiEngine.swift in Sources */
+			BF00000062; /* KaiFallback.swift in Sources */
+			BF00000063; /* ModelDownload.swift in Sources */
+			BF00000064; /* ModelLocator.swift in Sources */
+			BF00000065; /* PIIScan.swift in Sources */
+			BF00000066; /* SpeculativeDecoding.swift in Sources */
+			BF00000067; /* Triage.swift in Sources */
+			BF00000068; /* BatchScheduler.swift in Sources */
+			BF00000069; /* CalendarRetryCache.swift in Sources */
+			BF0000006A; /* Connector.swift in Sources */
+			BF0000006B; /* AppleCalendarConnector.swift in Sources */
+			BF0000006C; /* AppleMailConnector.swift in Sources */
+			BF0000006D; /* ChatConnectors.swift in Sources */
+			BF0000006E; /* FilesConnector.swift in Sources */
+			BF0000006F; /* GmailConnector.swift in Sources */
+			BF00000070; /* GoogleCalendarConnector.swift in Sources */
+			BF00000071; /* NotesConnector.swift in Sources */
+			BF00000072; /* OutlookCalendarConnector.swift in Sources */
+			BF00000073; /* SiYuanConnector.swift in Sources */
+			BF00000074; /* CycleStore.swift in Sources */
+			BF00000075; /* DeprecationManager.swift in Sources */
+			BF00000076; /* FactoryReset.swift in Sources */
+			BF00000077; /* InitialAnalysisRecovery.swift in Sources */
+			BF00000078; /* ItemKey.swift in Sources */
+			BF00000079; /* IterativeRun.swift in Sources */
+			BF0000007A; /* LifetimeStats.swift in Sources */
+			BF0000007B; /* PipelineActivity.swift in Sources */
+			BF0000007C; /* ProcessingCoordinator.swift in Sources */
+			BF0000007D; /* ProcessingPlan.swift in Sources */
+			BF0000007E; /* ProcessingRun.swift in Sources */
+			BF0000007F; /* ProgressTracker.swift in Sources */
+			BF00000080; /* RunProgress.swift in Sources */
+			BF00000081; /* RunSource.swift in Sources */
+			BF00000082; /* SQLitePool.swift in Sources */
+			BF00000083; /* KaiCommandCoordinator.swift in Sources */
+			BF00000084; /* KaiCommandRunModel.swift in Sources */
+			BF00000085; /* KaiMicrophoneEngine.swift in Sources */
+			BF00000086; /* KaiNotchPreferences.swift in Sources */
+			BF00000087; /* KaiNotchShape.swift in Sources */
+			BF00000088; /* KaiNotchSpace.swift in Sources */
+			BF00000089; /* KaiNotchWindowController.swift in Sources */
+			BF0000008A; /* KaiQuickTranscriptionEngine.swift in Sources */
+			BF0000008B; /* KaiScreenCapture.swift in Sources */
+			BF0000008C; /* KaiSidekickAttentionPolicy.swift in Sources */
+			BF0000008D; /* KaiSidekickCardContext.swift in Sources */
+			BF0000008E; /* KaiSidekickContext.swift in Sources */
+			BF0000008F; /* KaiSidekickConversation.swift in Sources */
+			BF00000090; /* KaiSidekickConversationStore.swift in Sources */
+			BF00000091; /* KaiSidekickDiscovery.swift in Sources */
+			BF00000092; /* KaiSidekickHistory.swift in Sources */
+			BF00000093; /* KaiSidekickHotkeyMonitor.swift in Sources */
+			BF00000094; /* KaiSidekickInstructionStore.swift in Sources */
+			BF00000095; /* KaiSidekickInteraction.swift in Sources */
+			BF00000096; /* KaiSidekickPersonalization.swift in Sources */
+			BF00000097; /* KaiSidekickRecovery.swift in Sources */
+			BF00000098; /* KaiSidekickRecoveryView.swift in Sources */
+			BF00000099; /* KaiSidekickTaskEnd.swift in Sources */
+			BF0000009A; /* KaiSidekickTaskSummary.swift in Sources */
+			BF0000009B; /* KaiSidekickToolServer.swift in Sources */
+			BF0000009C; /* KaiSpeechAnalyzerEngine.swift in Sources */
+			BF0000009D; /* KaiSpinningLogo.swift in Sources */
+			BF0000009E; /* KaiVoiceCapture.swift in Sources */
+			BF0000009F; /* GiftLetter.swift in Sources */
+			BF000000A0; /* KaiProactive.swift in Sources */
+			BF000000A1; /* KaiProactiveCycle.swift in Sources */
+			BF000000A2; /* KaiProactiveExecutor.swift in Sources */
+			BF000000A3; /* KaiProactiveExecutorOverhaul.swift in Sources */
+			BF000000A4; /* KaiProactiveResearch.swift in Sources */
+			BF000000A5; /* KaiProactiveScheduling.swift in Sources */
+			BF000000A6; /* ResearchToolServer.swift in Sources */
+			BF000000A7; /* VaultMergeCheckpoint.swift in Sources */
+			BF000000A8; /* KaiLoginItem.swift in Sources */
+			BF000000A9; /* KaiOvernightCaution.swift in Sources */
+			BF000000AA; /* KaiOvernightScheduler.swift in Sources */
+			BF000000AB; /* KaiPowerState.swift in Sources */
+			BF000000AC; /* KaiServiceRegistration.swift in Sources */
+			BF000000AD; /* KaiWakeHelper.swift in Sources */
+			BF000000AE; /* KaiWakeHelperClient.swift in Sources */
+			BF000000AF; /* KaiWakeHelperMaintenance.swift in Sources */
+			BF000000B0; /* KaiWakeHelperProtocol.swift in Sources */
+			BF000000B1; /* KaiAddressBookNames.swift in Sources */
+			BF000000B2; /* KaiAppleCalendarSource.swift in Sources */
+			BF000000B3; /* KaiAppleMailMIME.swift in Sources */
+			BF000000B4; /* KaiAppleMailResearch.swift in Sources */
+			BF000000B5; /* KaiAppleMailResearchAccess.swift in Sources */
+			BF000000B6; /* KaiAppleMailSource.swift in Sources */
+			BF000000B7; /* KaiCalendarConnect.swift in Sources */
+			BF000000B8; /* KaiCalendarContext.swift in Sources */
+			BF000000B9; /* KaiCalendarEventTime.swift in Sources */
+			BF000000BA; /* KaiChatWindowing.swift in Sources */
+			BF000000BB; /* KaiConnectorReadFailure.swift in Sources */
+			BF000000BC; /* KaiDataSource.swift in Sources */
+			BF000000BD; /* KaiEventKitBackgroundFetch.swift in Sources */
+			BF000000BE; /* KaiFilesSource.swift in Sources */
+			BF000000BF; /* KaiGmailConnect.swift in Sources */
+			BF000000C0; /* KaiGmailReadState.swift in Sources */
+			BF000000C1; /* KaiGoogleSourceRead.swift in Sources */
+			BF000000C2; /* KaiGranolaResponse.swift in Sources */
+			BF000000C3; /* KaiGranolaSource.swift in Sources */
+			BF000000C4; /* KaiHostedConnectorReadState.swift in Sources */
+			BF000000C5; /* KaiHostedConnectorSource.swift in Sources */
+			BF000000C6; /* KaiLocalWritingSamples.swift in Sources */
+			BF000000C7; /* KaiMCPSource.swift in Sources */
+			BF000000C8; /* KaiMCPSourceEvidence.swift in Sources */
+			BF000000C9; /* KaiMCPSourceIdentity.swift in Sources */
+			BF000000CA; /* KaiMCPSourceModel.swift in Sources */
+			BF000000CB; /* KaiMCPSourcePrompts.swift in Sources */
+			BF000000CC; /* KaiMCPStandard.swift in Sources */
+			BF000000CD; /* KaiUpdateManager.swift in Sources */
+			BF000000CE; /* CorpusSlicer.swift in Sources */
+			BF000000CF; /* KaiKnowledgeGraph.swift in Sources */
+			BF000000D0; /* KaiRAG.swift in Sources */
+			BF000000D1; /* KaiVaultCrossRef.swift in Sources */
+			BF000000D2; /* KaiVaultGenerator.swift in Sources */
+			BF000000D3; /* KaiVaultPrivacy.swift in Sources */
+			BF000000D4; /* KaiVaultSelective.swift in Sources */
+			BF000000D5; /* KaiVaultSync.swift in Sources */
+			BF000000D6; /* KaiVaultVersioning.swift in Sources */
+			BF000000D7; /* KaiVectorStore.swift in Sources */
+			BF000000D8; /* VaultActivity.swift in Sources */
+			BF000000D9; /* VaultSliceCheckpoint.swift in Sources */
+			BF000000DA; /* VaultValidation.swift in Sources */
+			BF000000DB; /* WritingStyle.swift in Sources */
+			BF000000DC; /* KaiBatchSchedulerTests.swift in Sources */
+			BF000000DD; /* KaiConnectorClassificationTests.swift in Sources */
+			BF000000DE; /* KaiConnectorCurationTests.swift in Sources */
+			BF000000DF; /* KaiConnectorErrorTests.swift in Sources */
+			BF000000E0; /* KaiConnectorLab.swift in Sources */
+			BF000000E1; /* KaiConnectorReadAudit.swift in Sources */
+			BF000000E2; /* KaiConnectorReliabilityTests.swift in Sources */
+			BF000000E3; /* KaiConnectorSetupLab.swift in Sources */
+			BF000000E4; /* KaiDirectMCPTests.swift in Sources */
+			BF000000E5; /* KaiFullAcceptanceTests.swift in Sources */
+			BF000000E6; /* KaiGranolaCurationTests.swift in Sources */
+			BF000000E7; /* KaiHostedConnectorLab.swift in Sources */
+			BF000000E8; /* KaiLegacyCommandRouter.swift in Sources */
+			BF000000E9; /* KaiLegacyConnectorClassifier.swift in Sources */
+			BF000000EA; /* KaiMirrorAcceptanceTests.swift in Sources */
+			BF000000EB; /* KaiNativeComputerUseLab.swift in Sources */
+			BF000000EC; /* KaiNotionCurationTests.swift in Sources */
+			BF000000ED; /* KaiOutlookCalendarContentFixtures.swift in Sources */
+			BF000000EE; /* KaiOutlookCalendarCurationTests.swift in Sources */
+			BF000000EF; /* KaiOutlookCurationTests.swift in Sources */
+			BF000000F0; /* KaiPIIScanTests.swift in Sources */
+			BF000000F1; /* KaiPersonalSetupHomeLab.swift in Sources */
+			BF000000F2; /* KaiPersonalSetupSourcesLab.swift in Sources */
+			BF000000F3; /* KaiProgressTrackerTests.swift in Sources */
+			BF000000F4; /* KaiRunProgressTests.swift in Sources */
+			BF000000F5; /* KaiSQLitePoolTests.swift in Sources */
+			BF000000F6; /* KaiSelfTest.swift in Sources */
+			BF000000F7; /* KaiSidekickActivityLab.swift in Sources */
+			BF000000F8; /* KaiSidekickAppLab.swift in Sources */
+			BF000000F9; /* KaiSidekickBackendLab.swift in Sources */
+			BF000000FA; /* KaiSidekickLiveWorkflowLab.swift in Sources */
+			BF000000FB; /* KaiSidekickNativeNotchLab.swift in Sources */
+			BF000000FC; /* KaiSidekickPolishLab.swift in Sources */
+			BF000000FD; /* KaiSidekickTranscriptStressLab.swift in Sources */
+			BF000000FE; /* KaiSidekickUILab.swift in Sources */
+			BF000000FF; /* KaiSidekickUIRecording.swift in Sources */
+			BF00000100; /* KaiSlackActionTests.swift in Sources */
+			BF00000101; /* KaiSlackContentFixtures.swift in Sources */
+			BF00000102; /* KaiSlackCurationTests.swift in Sources */
+			BF00000103; /* KaiSlackDenialAudit.swift in Sources */
+			BF00000104; /* KaiWakeAcceptanceTests.swift in Sources */
+			BF00000105; /* KaiWritingStyleTests.swift in Sources */
+			BF00000106; /* TestCase.swift in Sources */
+			BF00000107; /* KaiDevPanel.swift in Sources */
+			BF00000108; /* KaiDevTools.swift in Sources */
+			BF00000109; /* KaiAccessibilitySupport.swift in Sources */
+			BF0000010A; /* KaiAppleCalendarConnectSheet.swift in Sources */
+			BF0000010B; /* KaiAppleMailPicker.swift in Sources */
+			BF0000010C; /* KaiBackButtonStyle.swift in Sources */
+			BF0000010D; /* KaiBriefing.swift in Sources */
+			BF0000010E; /* KaiBriefingCard.swift in Sources */
+			BF0000010F; /* KaiCautionCapsule.swift in Sources */
+			BF00000110; /* KaiChatGPTSignInSheet.swift in Sources */
+			BF00000111; /* KaiChatPicker.swift in Sources */
+			BF00000112; /* KaiCloudConnectSheet.swift in Sources */
+			BF00000113; /* KaiCodexSetupView.swift in Sources */
+			BF00000114; /* KaiComputerUseUpdateNotice.swift in Sources */
+			BF00000115; /* KaiConnectAIsView.swift in Sources */
+			BF00000116; /* KaiConnectorActionButton.swift in Sources */
+			BF00000117; /* KaiConnectorLogo.swift in Sources */
+			BF00000118; /* KaiDarkModeSupport.swift in Sources */
+			BF00000119; /* KaiFileThumbnail.swift in Sources */
+			BF0000011A; /* KaiFrontierEnginePicker.swift in Sources */
+			BF0000011B; /* KaiFrontierEngineTab.swift in Sources */
+			BF0000011C; /* KaiGiftShareImage.swift in Sources */
+			BF0000011D; /* KaiGlowButton.swift in Sources */
+			BF0000011E; /* KaiGlowProgressBar.swift in Sources */
+			BF0000011F; /* KaiHomeFeatureShowcases.swift in Sources */
+			BF00000120; /* KaiHomePersonalSetup.swift in Sources */
+			BF00000121; /* KaiHomePopovers.swift in Sources */
+			BF00000122; /* KaiHomeShortcuts.swift in Sources */
+			BF00000123; /* KaiHomeView.swift in Sources */
+			BF00000124; /* KaiInferencePanel.swift in Sources */
+			BF00000125; /* KaiInternationalization.swift in Sources */
+			BF00000126; /* KaiKnowledgeSourcePill.swift in Sources */
+			BF00000127; /* KaiKnowledgeSourcesPicker.swift in Sources */
+			BF00000128; /* KaiLetterBody.swift in Sources */
+			BF00000129; /* KaiLetterPaper.swift in Sources */
+			BF0000012A; /* KaiLoginLinkButton.swift in Sources */
+			BF0000012B; /* KaiMenuBarView.swift in Sources */
+			BF0000012C; /* KaiModelDownloadWhisper.swift in Sources */
+			BF0000012D; /* KaiModelSelectionDesign.swift in Sources */
+			BF0000012E; /* KaiOrb.swift in Sources */
+			BF0000012F; /* KaiPermissionsView.swift in Sources */
+			BF00000130; /* KaiPlanEditor.swift in Sources */
+			BF00000131; /* KaiProcessingView.swift in Sources */
+			BF00000132; /* KaiProcessingWindowView.swift in Sources */
+			BF00000133; /* KaiPromptBar.swift in Sources */
+			BF00000134; /* KaiRootView.swift in Sources */
+			BF00000135; /* KaiTheme.swift in Sources */
+			BF00000136; /* KaiUsagePresentation.swift in Sources */
+			BF00000137; /* KaiKnowledgeGraphView.swift in Sources */
+			BF00000138; /* KaiKnowledgeReader.swift in Sources */
+			BF00000139; /* KaiKnowledgeView.swift in Sources */
+			BF0000013A; /* KaiOnboardingProgress.swift in Sources */
+			BF0000013B; /* KaiOnboardingView.swift in Sources */
+			BF0000013C; /* KaiSettingsAbout.swift in Sources */
+			BF0000013D; /* KaiSettingsKeyboard.swift in Sources */
+			BF0000013E; /* KaiSettingsKnowledge.swift in Sources */
+			BF0000013F; /* KaiSettingsPrivacy.swift in Sources */
+			BF00000140; /* KaiSettingsProactive.swift in Sources */
+			BF00000141; /* KaiSettingsSidekick.swift in Sources */
+			BF00000142; /* KaiSettingsView.swift in Sources */
+			BF00000143; /* KaiSidekickStyle.swift in Sources */
+			BF00000144; /* KaiSidekickView.swift in Sources */
+		);
+		runOnlyForDeploymentPostprocessing = 0;
+	};
+
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXProject section */
+	PRJ00000001 /* Project object */ = {
+		isa = PBXProject;
+		buildConfigurationList = CFG00000003 /* Configuration list, PBXProject::buildConfigurationList */;
+		compatibilityVersion = "Xcode 14.0";
+		mainGroup = B5ROOT;
+		preloadPlugins = ();
+		productGroup = TGT00000003 /* Product group */;
+		projectRoot = "";
+		targets = (
+			TGT00000001, /* "Kai OS" */
+		);
+	};
+	TGT00000003 /* Product group */ = {isa = PBXGroup; children = (TGT00000002); name = "Products"; sourceTree = "<group>"; };
+
+/* End PBXProject section */
+	Debug /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {
+		ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon";
+		ASSETCATALOG_COMPILER_CONFIGURE_APP_ICONS = 1;
+		CODE_SIGN_STYLE = Automatic;
+		CURRENT_PROJECT_VERSION = 1;
+		INFOPLIST_FILE = "Info.plist";
+		INFOPLIST_KEY_CFBundleDisplayName = "Kai OS";
+		INFOPLIST_KEY_CFBundleShortVersionString = "1.0.0";
+		INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+		INFOPLIST_KEY_LSMinimumSystemVersion = "13.0";
+		INFOPLIST_KEY_NSPrincipalClass = "SWIFT_APPLICATION";
+		INSTALL_PATH = /Applications;
+		LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks @executable_path/../../Frameworks";
+		MACOSX_DEPLOYMENT_TARGET = "14.0";
+		MARKETING_VERSION = "1.0.0";
+		PRODUCT_BUNDLE_IDENTIFIER = "ai.kai";
+		PRODUCT_NAME = "$(TARGET_NAME)";
+		SWIFT_VERSION = "5.9";
+		DEBUG_INFORMATION_FORMAT = dwarf;
+		ENABLE_HARDENED_RUNTIME = YES;
+		SWIFT_EMIT_LOC_STRINGS = YES;
+		SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+	}; name = Debug; };
+	Release /* Release */ = {isa = XCBuildConfiguration; buildSettings = {
+		ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon";
+		ASSETCATALOG_COMPILER_CONFIGURE_APP_ICONS = 1;
+		CODE_SIGN_STYLE = Automatic;
+		CURRENT_PROJECT_VERSION = 1;
+		INFOPLIST_FILE = "Info.plist";
+		INFOPLIST_KEY_CFBundleDisplayName = "Kai OS";
+		INFOPLIST_KEY_CFBundleShortVersionString = "1.0.0";
+		INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
+		INFOPLIST_KEY_LSMinimumSystemVersion = "13.0";
+		INFOPLIST_KEY_NSPrincipalClass = "SWIFT_APPLICATION";
+		INSTALL_PATH = /Applications;
+		LD_RUNPATH_SEARCH_PATHS = "@executable_path/../Frameworks @executable_path/../../Frameworks";
+		MACOSX_DEPLOYMENT_TARGET = "14.0";
+		MARKETING_VERSION = "1.0.0";
+		PRODUCT_BUNDLE_IDENTIFIER = "ai.kai";
+		PRODUCT_NAME = "$(TARGET_NAME)";
+		SWIFT_VERSION = "5.9";
+		DEBUG_INFORMATION_FORMAT = dwarf-with-dsym;
+		ENABLE_HARDENED_RUNTIME = YES;
+		SWIFT_OPTIMIZATION_LEVEL = "-O";
+	}; name = Release; };
+
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+	CFG00000001 /* Config list */ = {
+		isa = XCBuildConfigurationList;
+		buildConfigurations = (
+			CFG00000001, /* Debug */
+			CFG00000002, /* Release */
+		);
+		defaultConfigurationIsVisible = 1;
+		defaultConfigurationName = Release;
+	};
+	CFG00000003 /* Project config list */ = {
+		isa = XCBuildConfigurationList;
+		buildConfigurations = (
+			CFG00000001, /* Debug */
+			CFG00000002, /* Release */
+		);
+	};
+
+/* End XCConfigurationList section */
+};
+rootObject = PRJ00000001; /* Project object */
+}
