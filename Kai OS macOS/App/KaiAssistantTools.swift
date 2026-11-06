@@ -2,11 +2,14 @@
 //  KaiAssistantTools.swift
 //  Kai OS macOS
 //
-//  Read-only tools the local model can call. A tool never connects a source on its own:
+//  Tools the local model can call. Reading tools never connect a source on their own:
 //  connecting stays a deliberate click, so a model can't trigger a permission prompt.
+//  Propose tools only show a card. No tool can approve one, so a model that's been misled
+//  by a file or a message still can't change anything without the user.
 //
 
 import Foundation
+import KaiActions
 import KaiLocalAI
 import KaiLocalData
 
@@ -34,6 +37,34 @@ extension AppState {
             description: "List the user's recent notes with their text.",
             parameters: [.init(name: "query", type: "string", description: "Optional words to filter by title or text", required: false)]
         ),
+        KaiOllamaTool(
+            name: "propose_calendar_event",
+            description: "Propose a new calendar event. The user sees a card and decides; nothing is added unless they approve.",
+            parameters: [
+                .init(name: "title", type: "string", description: "Event title", required: true),
+                .init(name: "start", type: "string", description: "Local start time, formatted like 2026-11-07T09:00:00", required: true),
+                .init(name: "minutes", type: "integer", description: "Length in minutes. Defaults to 60.", required: false),
+                .init(name: "location", type: "string", description: "Optional location", required: false),
+            ]
+        ),
+        KaiOllamaTool(
+            name: "propose_email_draft",
+            description: "Propose opening a new draft in Apple Mail. The user sees a card and decides. Mail is never sent; the user reviews and sends the draft themselves.",
+            parameters: [
+                .init(name: "to", type: "string", description: "Recipient email addresses, separated by commas", required: true),
+                .init(name: "subject", type: "string", description: "Subject line", required: true),
+                .init(name: "body", type: "string", description: "Message text", required: false),
+            ]
+        ),
+        KaiOllamaTool(
+            name: "propose_notification",
+            description: "Propose a Mac notification at a future time. The user sees a card and decides; nothing is scheduled unless they approve.",
+            parameters: [
+                .init(name: "title", type: "string", description: "Notification title", required: true),
+                .init(name: "body", type: "string", description: "Optional text", required: false),
+                .init(name: "at", type: "string", description: "Local time, formatted like 2026-11-07T09:00:00", required: true),
+            ]
+        ),
     ]
 
     static func toolStatus(for name: String) -> String {
@@ -42,6 +73,7 @@ extension AppState {
         case "list_calendar_events": return "Checking your calendar…"
         case "list_recent_mail": return "Checking your mail…"
         case "search_notes": return "Reading your notes…"
+        case "propose_calendar_event", "propose_email_draft", "propose_notification": return "Preparing a proposal…"
         default: return "Working…"
         }
     }
@@ -59,6 +91,25 @@ extension AppState {
                 output = try await mailTool(query: call.arguments["query"]?.stringValue)
             case "search_notes":
                 output = try await notesTool(query: call.arguments["query"]?.stringValue)
+            case "propose_calendar_event":
+                output = try propose(KaiActionParser.calendarEvent(
+                    title: call.arguments["title"]?.stringValue,
+                    start: call.arguments["start"]?.stringValue,
+                    minutes: call.arguments["minutes"]?.intValue,
+                    location: call.arguments["location"]?.stringValue
+                ))
+            case "propose_email_draft":
+                output = try propose(KaiActionParser.mailDraft(
+                    to: call.arguments["to"]?.stringValue,
+                    subject: call.arguments["subject"]?.stringValue,
+                    body: call.arguments["body"]?.stringValue
+                ))
+            case "propose_notification":
+                output = try propose(KaiActionParser.notification(
+                    title: call.arguments["title"]?.stringValue,
+                    body: call.arguments["body"]?.stringValue,
+                    at: call.arguments["at"]?.stringValue
+                ))
             default:
                 output = "Unknown tool: \(call.name)"
             }
@@ -66,6 +117,11 @@ extension AppState {
         } catch {
             return "The tool failed: \(error.localizedDescription)"
         }
+    }
+
+    private func propose(_ action: KaiProposedAction) throws -> String {
+        try presentActionCard(KaiActionCard(action: action))
+        return "The user now sees a card for this and can approve or decline it. Nothing has happened yet, so don't say it's done."
     }
 
     private func searchFilesTool(_ query: String) async throws -> String {

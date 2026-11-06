@@ -3,7 +3,7 @@
 //  Kai OS
 //
 //  Read-only access to the user's calendar, mail, notes and files on this Mac.
-//  Nothing here modifies data or leaves the machine.
+//  Nothing here modifies data or leaves the machine. Changes go through KaiActions.
 //
 
 import EventKit
@@ -25,7 +25,7 @@ public enum KaiSourceError: LocalizedError, Equatable, Sendable {
         }
     }
 
-    static func fromAppleScriptFailure(app: String, message: String) -> KaiSourceError {
+    public static func fromAppleScriptFailure(app: String, message: String) -> KaiSourceError {
         if message.contains("-1743") || message.localizedCaseInsensitiveContains("not authorized") {
             return .notAuthorized(app)
         }
@@ -35,15 +35,15 @@ public enum KaiSourceError: LocalizedError, Equatable, Sendable {
 
 // MARK: - Process runner
 
-enum KaiProcessRunner {
-    struct Output {
-        let standardOutput: String
-        let standardError: String
-        let exitCode: Int32
+public enum KaiProcessRunner {
+    public struct Output: Sendable {
+        public let standardOutput: String
+        public let standardError: String
+        public let exitCode: Int32
     }
 
     /// Returns nil when the timeout is reached; the process is terminated in that case.
-    static func run(_ path: String, arguments: [String], timeout: TimeInterval) async throws -> Output? {
+    public static func run(_ path: String, arguments: [String], timeout: TimeInterval) async throws -> Output? {
         let process = Process()
         let out = Pipe()
         let err = Pipe()

@@ -15,9 +15,22 @@ import AppKit
 import AVFoundation
 import Foundation
 import Speech
+import KaiActions
 import KaiCapture
 import KaiLocalAI
 import KaiLocalData
+
+private final class KaiRecordingActionExecutor: KaiActionPerforming, @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [KaiProposedAction] = []
+
+    var performed: [KaiProposedAction] { lock.withLock { recorded } }
+
+    func perform(_ action: KaiProposedAction) async throws -> String {
+        lock.withLock { recorded.append(action) }
+        return "recorded"
+    }
+}
 
 @MainActor
 enum KaiChatSelfTest {
@@ -147,6 +160,71 @@ enum KaiChatSelfTest {
             report("a real screen capture attaches a resized image", size > 0 && longEdge == KaiScreenImage.defaultMaxLongEdge, "\(size) bytes, long edge \(longEdge)")
             appState.pendingScreenshot = nil
         }
+
+        // Gated actions, with a fake executor so the real calendar and mail are never touched.
+        let actionDirectory = directory.appendingPathComponent("actions")
+        let realExecutor = appState.actionExecutor
+        let realLog = appState.actionLog
+        let recorder = KaiRecordingActionExecutor()
+        appState.actionExecutor = recorder
+        appState.actionLog = KaiActionLog(url: actionDirectory.appendingPathComponent("log.jsonl"))
+
+        func latestCard() -> Message? { appState.messages.last { $0.actionCard != nil } }
+        let toolNames = AppState.assistantTools.map(\.name)
+        report("no tool can approve an action, run a command or send", !toolNames.contains { $0.contains("approve") || $0.contains("shell") || $0.contains("command") || $0.contains("send") }, toolNames.joined(separator: ", "))
+
+        let cardsBefore = appState.messages.filter { $0.actionCard != nil }.count
+        appState.sendMessage(text: "Please add a calendar event titled Kai probe tomorrow at 9am for 30 minutes.")
+        await waitForReply(appState: appState, seconds: 180)
+        let proposed = latestCard()
+        report("asking for an event produces a card", appState.messages.filter { $0.actionCard != nil }.count == cardsBefore + 1, proposed?.actionCard?.action.details.map { "\($0.label)=\($0.value)" }.joined(separator: "; ") ?? "none")
+        report("the card sits above the reply", appState.messages.last?.actionCard == nil)
+        report("nothing runs before approval", recorder.performed.isEmpty)
+        snapshot(window, to: directory.appendingPathComponent("2d-card.png"))
+
+        if let id = proposed?.id {
+            appState.declineAction(messageID: id)
+            report("Decline leaves the action undone", latestCard()?.actionCard?.state == .declined && recorder.performed.isEmpty)
+            appState.approveAction(messageID: id)
+            try? await Task.sleep(for: .milliseconds(200))
+            report("a declined card can't be approved later", latestCard()?.actionCard?.state == .declined && recorder.performed.isEmpty)
+        }
+
+        appState.sendMessage(text: "Did that event get added? Answer yes or no, then one short sentence.")
+        await waitForReply(appState: appState, seconds: 120)
+        let declinedAnswer = appState.messages.last?.text ?? ""
+        report("the model is told the action was declined", declinedAnswer.lowercased().hasPrefix("no"), declinedAnswer)
+
+        let event = KaiProposedAction.notification(title: "Probe", body: "", at: Date().addingTimeInterval(3600))
+        let approvedCard = KaiActionCard(action: event)
+        try? appState.presentActionCard(approvedCard)
+        if let id = appState.messages.last(where: { $0.actionCard?.id == approvedCard.id })?.id {
+            appState.approveAction(messageID: id)
+            appState.approveAction(messageID: id)
+            await waitUntil(seconds: 5) { recorder.performed.count >= 1 }
+            try? await Task.sleep(for: .milliseconds(200))
+            report("Approve runs the action exactly once", recorder.performed == [event], "\(recorder.performed.count) run(s)")
+            report("the card shows the outcome", appState.messages.first { $0.id == id }?.actionCard?.state == .succeeded("recorded"))
+        }
+
+        let logged = (try? String(contentsOf: appState.actionLog.url, encoding: .utf8)) ?? ""
+        let events = logged.split(separator: "\n").compactMap { line in
+            (try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any])?["event"] as? String
+        }
+        report("every step reaches the log", events == ["proposed", "declined", "proposed", "approved", "succeeded"], events.joined(separator: ", "))
+
+        let badLogCard = KaiActionCard(action: event)
+        try? appState.presentActionCard(badLogCard)
+        appState.actionLog = KaiActionLog(url: URL(fileURLWithPath: "/nonexistent-kai-dir/log.jsonl"))
+        let runsBefore = recorder.performed.count
+        if let id = appState.messages.last(where: { $0.actionCard?.id == badLogCard.id })?.id {
+            appState.approveAction(messageID: id)
+            try? await Task.sleep(for: .milliseconds(200))
+            report("an action that can't be logged doesn't run", recorder.performed.count == runsBefore)
+        }
+        appState.actionExecutor = realExecutor
+        appState.actionLog = realLog
+        snapshot(window, to: directory.appendingPathComponent("2e-card-done.png"))
 
         appState.activeSidebar = "Mail"
         try? await Task.sleep(for: .milliseconds(500))

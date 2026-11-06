@@ -321,7 +321,7 @@ Kai OS macOS/
 - [ ] 7.2 Wire Claude endpoint (Anthropic Messages API) in LocalFallback
 - [ ] 7.3 Wire Google Calendar connector (copy Apple Calendar pattern)
 - [ ] 7.4 Wire Outlook Calendar (copy Outlook Mail pattern)
-- [ ] 7.5 Wire ProactiveExecutor.fire() → NSUserNotification, calendar, email, computer
+- [x] 7.5 Replaced ProactiveExecutor, which ran model text as shell commands, with `KaiActions`: proposals only run from a user-approved card. Calendar event, mail draft and notification only; no shell or send. Overnight analysis and morning cards remain unbuilt.
 - [x] 7.6 Spotlight search through `mdfind`, as `KaiSpotlightSource` and the `search_files` assistant tool
 - [ ] 7.7 Wire DoubleTap local model fallback
 - [x] 7.8 Add app-awareness: detect frontmost app via NSWorkspace

@@ -56,10 +56,8 @@ Kai OS macOS/
 │   ├── CrossReferenceEngine.swift
 │   └── PrivacyControls.swift
 ├── KaiProactive/                 # Proactive intelligence
-│   ├── KaiProactiveExecutor.swift     # Fire pipeline (notifications, email, calendar)
 │   ├── KaiProactiveExecutorOverhaul.swift
 │   ├── KaiProactiveScheduling.swift
-│   ├── KaiProactiveResearch.swift     # Research (mdfind, system calls)
 │   └── VaultMergeCheckpoint.swift
 ├── KaiDriver/                    # Computer-use automation
 │   ├── ComputerUseSandbox.swift
@@ -149,7 +147,7 @@ Knowledge base as plain Markdown files.
 
 ### KaiProactive
 Overnight intelligence that prepares morning cards.
-- **KaiProactiveExecutor** fires: notifications, calendar invites, email replies, computer actions
+- **KaiActions** (top-level target) runs user-approved calendar events, mail drafts and notifications
 - **KaiProactiveResearch** performs Spotlight searches via `mdfind`
 - Time-aware suggestions based on calendar and context
 - **Audit Trail** logs all actions for transparency
