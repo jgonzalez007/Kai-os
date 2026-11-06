@@ -19,7 +19,7 @@ let package = Package(
         ),
         .target(
             name: "KaiActions",
-            dependencies: ["KaiLocalData"],
+            dependencies: ["KaiLocalAI", "KaiLocalData"],
             path: "KaiActions"
         ),
         .target(

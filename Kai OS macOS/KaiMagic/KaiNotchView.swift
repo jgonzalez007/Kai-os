@@ -31,8 +31,13 @@ struct KaiNotchView: View {
             KaiNotchShape(topRadius: isExpanded ? 14 : 8, bottomRadius: isExpanded ? 22 : 10)
                 .fill(.black)
             if isExpanded {
-                KaiNotchPanelContent(model: model, appState: appState, controller: controller, topInset: notchHeight)
-                    .transition(.opacity)
+                if model.panelMode == .reply, let doubleTap = controller.doubleTap {
+                    KaiNotchReplyContent(model: model, doubleTap: doubleTap, controller: controller, topInset: notchHeight)
+                        .transition(.opacity)
+                } else {
+                    KaiNotchPanelContent(model: model, appState: appState, controller: controller, topInset: notchHeight)
+                        .transition(.opacity)
+                }
             } else if model.surface == .peek {
                 wings.transition(.opacity)
             }
@@ -77,6 +82,142 @@ struct KaiNotchView: View {
         case .running: return "Working"
         case .done: return "Done"
         case .failed: return "Failed"
+        }
+    }
+}
+
+private struct KaiNotchReplyContent: View {
+    @ObservedObject var model: KaiNotchModel
+    @ObservedObject var doubleTap: KaiDoubleTapController
+    let controller: KaiNotchWindowController
+    let topInset: CGFloat
+
+    @FocusState private var instructionFocused: Bool
+
+    private var title: String {
+        guard case .mail(_, let source) = doubleTap.context else { return "Reply to the email on screen" }
+        let name = source.sender.split(separator: "<").first.map { $0.trimmingCharacters(in: .whitespaces) }
+        return "Reply to \(name.flatMap { $0.isEmpty ? nil : $0 } ?? source.sender)"
+    }
+
+    private var subject: String? {
+        guard case .mail(_, let source) = doubleTap.context else { return nil }
+        return source.subject
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrowshape.turn.up.left").foregroundStyle(.purple)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).fontWeight(.semibold).lineLimit(1)
+                    if let subject { Text(subject).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                }
+                Spacer()
+                statusLabel
+                Button(action: controller.collapse) { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .buttonStyle(.plain)
+                    .help("Close and discard this draft")
+            }
+            content
+            if doubleTap.context != nil { instructionRow }
+            actionRow
+        }
+        .padding(.top, topInset + 8)
+        .padding(.horizontal, 28)
+        .padding(.bottom, 16)
+        .task {
+            try? await Task.sleep(for: .milliseconds(250))
+            instructionFocused = true
+        }
+        .onExitCommand { controller.collapse() }
+    }
+
+    @ViewBuilder
+    private var statusLabel: some View {
+        switch doubleTap.phase {
+        case .reading: Text("Reading…").font(.caption).foregroundStyle(.secondary)
+        case .drafting: Text("Drafting…").font(.caption).foregroundStyle(.secondary)
+        default: EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if case .failed(let message) = doubleTap.phase {
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        } else {
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $doubleTap.draft)
+                    .font(.body)
+                    .scrollContentBackground(.hidden)
+                    .disabled(doubleTap.phase != .ready)
+                    .padding(6)
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                if doubleTap.draft.isEmpty && doubleTap.phase != .ready {
+                    ProgressView().controlSize(.small).padding(14)
+                }
+            }
+        }
+    }
+
+    private var instructionRow: some View {
+        HStack(spacing: 8) {
+            TextField(model.voicePhase == .listening ? "Listening…" : "Tell Kai what to say, then press Return", text: $doubleTap.instruction)
+                .textFieldStyle(.plain)
+                .focused($instructionFocused)
+                .padding(10)
+                .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+                .onSubmit { doubleTap.regenerate() }
+            Button(action: controller.toggleVoice) {
+                Image(systemName: model.voicePhase == .listening ? "mic.fill" : "mic")
+                    .font(.title3)
+                    .foregroundStyle(model.voicePhase == .listening ? Color.red : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.voicePhase == .transcribing)
+            .help("Say what the reply should say")
+        }
+    }
+
+    private var isMailReply: Bool {
+        if case .mail = doubleTap.context { return true }
+        return false
+    }
+
+    @ViewBuilder
+    private var actionRow: some View {
+        HStack(spacing: 8) {
+            Button("Redraft") { doubleTap.regenerate() }
+                .disabled(doubleTap.context == nil || doubleTap.phase == .drafting || doubleTap.phase == .reading)
+            Button("Copy") { doubleTap.copyDraft() }
+                .disabled(!doubleTap.canCopy)
+            Spacer()
+            outcome
+            if isMailReply {
+                // No keyboard shortcut: pressing Return in the instruction field must never open it.
+                Button("Open Reply in Mail") { doubleTap.openInMail() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!doubleTap.canOpenInMail)
+            } else if doubleTap.phase == .ready {
+                Text("Copy this into your email.").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var outcome: some View {
+        switch doubleTap.openState {
+        case .running:
+            ProgressView().controlSize(.small)
+        case .succeeded(let detail):
+            Label(detail, systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green).lineLimit(2)
+        case .failed(let detail):
+            Label(detail, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange).lineLimit(3)
+        default:
+            EmptyView()
         }
     }
 }

@@ -333,3 +333,62 @@ public enum KaiSpotlightSource {
             }
     }
 }
+
+// MARK: - Selected message
+
+public struct KaiMailMessageReference: Codable, Equatable, Sendable {
+    public let id: String
+    public let mailbox: String
+    public let account: String
+
+    public init(id: String, mailbox: String, account: String) {
+        self.id = id
+        self.mailbox = mailbox
+        self.account = account
+    }
+}
+
+/// The parts of an email a reply is drafted from. All of it is untrusted text from someone else.
+public struct KaiEmailDraftSource: Equatable, Sendable {
+    public let sender: String
+    public let subject: String
+    public let body: String
+
+    public init(sender: String, subject: String, body: String) {
+        self.sender = sender
+        self.subject = subject
+        self.body = body
+    }
+}
+
+public enum KaiMailSelection {
+    /// Reads the message selected in Mail, or nil when nothing is selected.
+    public static func selectedEmail() async throws -> (reference: KaiMailMessageReference, source: KaiEmailDraftSource)? {
+        email(from: try await KaiAppleScriptRecords.run(script: script, app: "Mail"))
+    }
+
+    static let script = KaiAppleScriptRecords.prelude + """
+    tell application "Mail"
+        set theSelection to selection
+        if (count of theSelection) is 0 then return ""
+        set m to item 1 of theSelection
+        set boxName to ""
+        set accountName to ""
+        try
+            set boxName to name of (mailbox of m)
+        end try
+        try
+            set accountName to name of (account of (mailbox of m))
+        end try
+        return (id of m as string) & US & my cleaned(boxName) & US & my cleaned(accountName) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & my cleaned(content of m) & RS
+    end tell
+    """
+
+    static func email(from records: [[String]]) -> (reference: KaiMailMessageReference, source: KaiEmailDraftSource)? {
+        guard let fields = records.first, fields.count == 7 else { return nil }
+        return (
+            KaiMailMessageReference(id: fields[0], mailbox: fields[1], account: fields[2]),
+            KaiEmailDraftSource(sender: fields[3], subject: fields[4], body: fields[6])
+        )
+    }
+}
