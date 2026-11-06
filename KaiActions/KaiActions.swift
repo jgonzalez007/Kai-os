@@ -28,12 +28,14 @@ public enum KaiActionError: LocalizedError, Equatable, Sendable {
 public enum KaiProposedAction: Codable, Equatable, Sendable {
     case calendarEvent(title: String, start: Date, minutes: Int, location: String)
     case mailDraft(to: [String], subject: String, body: String)
+    case mailReply(reference: KaiMailMessageReference, recipient: String, subject: String, body: String)
     case notification(title: String, body: String, at: Date)
 
     public var kindName: String {
         switch self {
         case .calendarEvent: return "calendar_event"
         case .mailDraft: return "mail_draft"
+        case .mailReply: return "mail_reply"
         case .notification: return "notification"
         }
     }
@@ -42,6 +44,7 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
         switch self {
         case .calendarEvent: return "Add to Calendar"
         case .mailDraft: return "Open a Mail Draft"
+        case .mailReply: return "Open a Reply in Mail"
         case .notification: return "Schedule a Notification"
         }
     }
@@ -50,6 +53,7 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
         switch self {
         case .calendarEvent: return "calendar.badge.plus"
         case .mailDraft: return "square.and.pencil"
+        case .mailReply: return "arrowshape.turn.up.left"
         case .notification: return "bell.badge"
         }
     }
@@ -67,6 +71,8 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
             return rows
         case .mailDraft(let to, let subject, let body):
             return [("To", to.joined(separator: ", ")), ("Subject", subject), ("Body", body)]
+        case .mailReply(_, let recipient, let subject, let body):
+            return [("To", recipient), ("Subject", subject), ("Body", body)]
         case .notification(let title, let body, let date):
             var rows = [("Title", title), ("When", date.formatted(date: .complete, time: .shortened))]
             if !body.isEmpty { rows.append(("Text", body)) }
@@ -271,6 +277,8 @@ public struct KaiSystemActionExecutor: KaiActionPerforming {
             return try await addCalendarEvent(title: title, start: start, minutes: minutes, location: location)
         case .mailDraft(let to, let subject, let body):
             return try await openMailDraft(to: to, subject: subject, body: body)
+        case .mailReply(let reference, _, _, let body):
+            return try await openMailReply(reference: reference, body: body)
         case .notification(let title, let body, let date):
             return try await scheduleNotification(title: title, body: body, date: date)
         }
@@ -305,6 +313,17 @@ public struct KaiSystemActionExecutor: KaiActionPerforming {
             throw KaiSourceError.fromAppleScriptFailure(app: "Mail", message: output.standardError.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         return "The draft is open in Mail. It hasn't been sent."
+    }
+
+    private func openMailReply(reference: KaiMailMessageReference, body: String) async throws -> String {
+        let arguments = ["-e", KaiMailReplyScript.source, reference.id, reference.mailbox, reference.account, body]
+        guard let output = try await KaiProcessRunner.run("/usr/bin/osascript", arguments: arguments, timeout: 45) else {
+            throw KaiSourceError.timedOut("Mail")
+        }
+        guard output.exitCode == 0 else {
+            throw KaiSourceError.fromAppleScriptFailure(app: "Mail", message: output.standardError.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return "The reply is open in Mail. Review it and send it yourself."
     }
 
     private func scheduleNotification(title: String, body: String, date: Date) async throws -> String {

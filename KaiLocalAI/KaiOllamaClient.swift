@@ -213,13 +213,15 @@ public struct KaiOllamaClient: Sendable {
     // MARK: Requests
 
     /// Thinking is disabled because the chat UI shows only the final answer.
-    func chatRequest(model: String, messages: [KaiOllamaMessage], tools: [KaiOllamaTool] = []) throws -> URLRequest {
+    func chatRequest(model: String, messages: [KaiOllamaMessage], tools: [KaiOllamaTool] = [], temperature: Double? = nil) throws -> URLRequest {
+        struct Options: Encodable { let temperature: Double }
         struct Body: Encodable {
             let model: String
             let messages: [KaiOllamaMessage]
             let stream: Bool
             let think: Bool
             let tools: [KaiOllamaTool]?
+            let options: Options?
         }
         var request = URLRequest(url: baseURL.appendingPathComponent("api/chat"))
         request.httpMethod = "POST"
@@ -227,7 +229,7 @@ public struct KaiOllamaClient: Sendable {
         // Long enough for a large model to load into memory before its first token.
         request.timeoutInterval = 300
         request.httpBody = try JSONEncoder().encode(
-            Body(model: model, messages: messages, stream: true, think: false, tools: tools.isEmpty ? nil : tools)
+            Body(model: model, messages: messages, stream: true, think: false, tools: tools.isEmpty ? nil : tools, options: temperature.map(Options.init))
         )
         return request
     }
@@ -298,12 +300,13 @@ public struct KaiOllamaClient: Sendable {
     public func streamChat(
         model: String,
         messages: [KaiOllamaMessage],
-        tools: [KaiOllamaTool] = []
+        tools: [KaiOllamaTool] = [],
+        temperature: Double? = nil
     ) -> AsyncThrowingStream<KaiOllamaEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let request = try chatRequest(model: model, messages: messages, tools: tools)
+                    let request = try chatRequest(model: model, messages: messages, tools: tools, temperature: temperature)
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)
                     if let status = (response as? HTTPURLResponse)?.statusCode, status != 200 {
                         var body = ""

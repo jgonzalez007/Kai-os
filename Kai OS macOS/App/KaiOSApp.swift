@@ -132,6 +132,7 @@ final class AppState: ObservableObject {
     }
     @Published var enableProactive = true
     @Published var frontmostApp: String = "Finder"
+    @Published var frontmostBundleIdentifier: String?
     @Published var appCategory: String = "Other"
     @Published var suggestions: [String] = []
     @Published var calendarEvents: [CalendarEvent] = []
@@ -317,6 +318,7 @@ final class AppState: ObservableObject {
     private func updateFrontmostApp(_ app: NSRunningApplication?) {
         guard let app, app.bundleIdentifier != Bundle.main.bundleIdentifier, let name = app.localizedName else { return }
         frontmostApp = name
+        frontmostBundleIdentifier = app.bundleIdentifier
         appCategory = Self.category(forBundleIdentifier: app.bundleIdentifier ?? "")
     }
 
@@ -1088,6 +1090,8 @@ struct SettingsView: View {
                 Toggle("Show Kai at the notch", isOn: $notchEnabled)
                     .onChange(of: notchEnabled) { _, _ in KaiNotchWindowController.shared.applyEnabledPreference() }
                 LabeledContent("Toggle shortcut", value: "⌃⌥Space")
+                LabeledContent("Draft an email reply", value: "Double tap ⌃⌥Space")
+                LabeledContent("Talk", value: "Hold ⌃⌥Space")
                 LabeledContent("Tap right ⌘") {
                     if KaiSidekickHotkeyMonitor.shared.isRightCommandAvailable {
                         Text("Enabled").foregroundStyle(.secondary)

@@ -22,7 +22,12 @@ final class KaiNotchModel: ObservableObject {
         case idle, listening, transcribing
     }
 
+    enum PanelMode: Equatable {
+        case chat, reply
+    }
+
     @Published var voicePhase = VoicePhase.idle
+    @Published var panelMode = PanelMode.chat
 
     @Published var isExpanded = false { didSet { onSurfaceChange?() } }
     @Published var isHovering = false { didSet { onSurfaceChange?() } }
@@ -92,6 +97,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     /// Replaced by the self-test, which has no microphone permission to rely on.
     var voiceEngine: any KaiVoiceEngine = KaiSpeechTranscriber()
     private(set) var panel: KaiNotchPanel?
+    private(set) var doubleTap: KaiDoubleTapController?
 
     private var appState: AppState?
     private var cancellables = Set<AnyCancellable>()
@@ -105,6 +111,8 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         guard !started else { return }
         started = true
         self.appState = appState
+        doubleTap = KaiDoubleTapController(appState: appState)
+        doubleTap?.onReplyOpened = { [weak self] in self?.collapse() }
         model.onSurfaceChange = { [weak self] in self?.applySurface() }
         appState.$isProcessing
             .dropFirst()
@@ -120,12 +128,13 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         }
         // Clicks in other apps close the panel. Mouse monitors need no permission.
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            MainActor.assumeIsolated { self?.collapse() }
+            MainActor.assumeIsolated { self?.dismissForOutsideInteraction() }
         }
         KaiSidekickHotkeyMonitor.shared.start { [weak self] action in
             switch action {
-            case .none: break
+            case .none, .awaitSecondTap: break
             case .toggle: self?.toggle()
+            case .doubleTap: self?.startReply()
             case .beginHold: self?.beginVoice()
             case .endHold: self?.endVoice()
             case .cancelHold: self?.cancelVoice()
@@ -160,10 +169,22 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         guard let panel, model.isExpanded else { return }
         cancelVoice()
         model.isExpanded = false
+        model.panelMode = .chat
+        doubleTap?.cancel()
         // Reordering hands keyboard focus back to the frontmost app without flicker.
         panel.orderOut(nil)
         panel.orderFrontRegardless()
         syncHoverWithCursor()
+    }
+
+    // MARK: Double tap
+
+    func startReply() {
+        guard KaiNotchPreferences.isEnabled else { return }
+        cancelVoice()
+        model.panelMode = .reply
+        expand()
+        doubleTap?.start()
     }
 
     // MARK: Voice
@@ -187,9 +208,16 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
             return
         }
         do {
-            model.draft = ""
+            let isReply = model.panelMode == .reply
+            if !isReply { model.draft = "" }
             model.voicePhase = .listening
-            try voiceEngine.start { [weak self] text in self?.model.draft = text }
+            try voiceEngine.start { [weak self] text in
+                if isReply {
+                    self?.doubleTap?.instruction = text
+                } else {
+                    self?.model.draft = text
+                }
+            }
         } catch {
             model.voicePhase = .idle
             appState.postError(error.localizedDescription)
@@ -203,7 +231,13 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         Task {
             let text = await voiceEngine.finish().trimmingCharacters(in: .whitespacesAndNewlines)
             model.voicePhase = .idle
-            if text.isEmpty {
+            if model.panelMode == .reply {
+                // Speech in reply mode is an instruction for the draft, never a chat message.
+                if !text.isEmpty {
+                    doubleTap?.instruction = text
+                    doubleTap?.regenerate()
+                }
+            } else if text.isEmpty {
                 model.draft = ""
                 appState.postError("I didn't catch that. Hold the talk key and try again.")
             } else if appState.isProcessing {
@@ -219,7 +253,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         guard model.voicePhase == .listening else { return }
         voiceEngine.cancel()
         model.voicePhase = .idle
-        model.draft = ""
+        if model.panelMode == .chat { model.draft = "" }
     }
 
     func openMainWindow() {
@@ -234,6 +268,13 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        dismissForOutsideInteraction()
+    }
+
+    /// A draft in progress survives clicks elsewhere, so the user can reread the email or answer
+    /// a permission prompt. The chat panel holds nothing that would be lost, so it closes.
+    func dismissForOutsideInteraction() {
+        guard model.panelMode == .chat else { return }
         collapse()
     }
 

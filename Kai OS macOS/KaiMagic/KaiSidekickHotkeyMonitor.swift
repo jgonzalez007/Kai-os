@@ -2,7 +2,8 @@
 //  KaiSidekickHotkeyMonitor.swift
 //  Kai OS macOS
 //
-//  Two keys open the notch: tap to toggle, hold to talk. Control-Option-Space uses a Carbon
+//  Two keys drive the notch: tap to toggle, hold to talk, double tap to draft an email reply.
+//  Control-Option-Space uses a Carbon
 //  hotkey, which needs no permission. Right Command needs Accessibility, because macOS
 //  withholds global keyboard events from untrusted apps.
 //
@@ -64,7 +65,22 @@ final class KaiSidekickHotkeyMonitor {
     }
 
     func hotKeyReleased() {
-        onAction?(hotKeyGesture.release(at: ProcessInfo.processInfo.systemUptime))
+        dispatch(hotKeyGesture.release(at: ProcessInfo.processInfo.systemUptime)) { monitor, token in
+            monitor.hotKeyGesture.tapTimerFired(token: token)
+        }
+    }
+
+    /// A first tap only becomes a toggle if no second tap arrives in time.
+    private func dispatch(_ action: KaiHoldGesture.Action, tapTimer: @escaping (KaiSidekickHotkeyMonitor, Int) -> KaiHoldGesture.Action) {
+        guard case .awaitSecondTap(let token) = action else {
+            onAction?(action)
+            return
+        }
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(KaiHoldGesture.doubleTapWindow))
+            guard let self else { return }
+            self.onAction?(tapTimer(self, token))
+        }
     }
 
     private func scheduleHoldTimer(_ fire: @escaping (KaiSidekickHotkeyMonitor) -> KaiHoldGesture.Action) {
@@ -137,7 +153,9 @@ final class KaiSidekickHotkeyMonitor {
             let token = rightCommandGesture.press(at: event.timestamp)
             scheduleHoldTimer { monitor in monitor.rightCommandGesture.holdTimerFired(token: token) }
         } else {
-            onAction?(rightCommandGesture.release(at: event.timestamp))
+            dispatch(rightCommandGesture.release(at: event.timestamp)) { monitor, token in
+                monitor.rightCommandGesture.tapTimerFired(token: token)
+            }
         }
     }
 }

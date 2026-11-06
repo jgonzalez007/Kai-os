@@ -20,7 +20,7 @@ import KaiCapture
 import KaiLocalAI
 import KaiLocalData
 
-private final class KaiRecordingActionExecutor: KaiActionPerforming, @unchecked Sendable {
+final class KaiRecordingActionExecutor: KaiActionPerforming, @unchecked Sendable {
     private let lock = NSLock()
     private var recorded: [KaiProposedAction] = []
 
@@ -157,7 +157,7 @@ enum KaiChatSelfTest {
             await waitUntil(seconds: 20) { !appState.isCapturingScreen }
             let size = appState.pendingScreenshot?.count ?? 0
             let longEdge = appState.pendingScreenshot.flatMap { NSImage(data: $0)?.representations.first }.map { max($0.pixelsWide, $0.pixelsHigh) } ?? 0
-            report("a real screen capture attaches a resized image", size > 0 && longEdge == KaiScreenImage.defaultMaxLongEdge, "\(size) bytes, long edge \(longEdge)")
+            report("a real screen capture attaches a resized image", size > 0 && longEdge == KaiScreenImage.defaultMaxLongEdge, "\(size) bytes, long edge \(longEdge), last message: \(appState.messages.last?.text.prefix(200) ?? "")")
             appState.pendingScreenshot = nil
         }
 
