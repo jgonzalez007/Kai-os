@@ -5,6 +5,7 @@ import Foundation
 @testable import KaiLocalAI
 import CoreGraphics
 import ImageIO
+@testable import KaiActions
 import KaiCapture
 @testable import KaiLocalData
 import KaiNotchCore
@@ -319,6 +320,85 @@ check("Spotlight results skip Library folders and hidden paths") {
     return kept && !library && !hidden
 }
 
+// MARK: Gated actions
+
+let actionNow = KaiActionParser.date(from: "2026-11-06T12:00:00")!
+
+check("a calendar proposal parses with a default duration") {
+    let action = try KaiActionParser.calendarEvent(title: " Dentist ", start: "2026-11-07T09:00:00", minutes: nil, location: nil, now: actionNow)
+    guard case .calendarEvent(let title, let start, let minutes, let location) = action else { return false }
+    return title == "Dentist" && start == KaiActionParser.date(from: "2026-11-07T09:00:00") && minutes == 60 && location.isEmpty
+}
+
+check("a date with a time zone offset is accepted") {
+    KaiActionParser.date(from: "2026-11-07T09:00:00-06:00") != nil
+}
+
+func rejects(_ body: () throws -> KaiProposedAction) -> Bool {
+    do { _ = try body(); return false } catch is KaiActionError { return true } catch { return false }
+}
+
+check("a calendar proposal without a title is rejected") {
+    rejects { try KaiActionParser.calendarEvent(title: "  ", start: "2026-11-07T09:00:00", minutes: nil, location: nil, now: actionNow) }
+}
+check("a calendar proposal in the past is rejected") {
+    rejects { try KaiActionParser.calendarEvent(title: "Old", start: "2026-11-05T09:00:00", minutes: nil, location: nil, now: actionNow) }
+}
+check("an unreadable date is rejected") {
+    rejects { try KaiActionParser.calendarEvent(title: "x", start: "tomorrow-ish", minutes: nil, location: nil, now: actionNow) }
+}
+check("an absurd duration is rejected") {
+    rejects { try KaiActionParser.calendarEvent(title: "x", start: "2026-11-07T09:00:00", minutes: 100_000, location: nil, now: actionNow) }
+}
+check("a mail draft with several recipients parses") {
+    let action = try KaiActionParser.mailDraft(to: "a@example.com, b@example.org", subject: "Hi", body: "Text")
+    guard case .mailDraft(let to, _, _) = action else { return false }
+    return to == ["a@example.com", "b@example.org"]
+}
+check("a recipient that isn't an address is rejected") {
+    rejects { try KaiActionParser.mailDraft(to: "--evil", subject: "Hi", body: "Text") }
+        && rejects { try KaiActionParser.mailDraft(to: "a@example.com\nb@example.com", subject: "Hi", body: "Text") }
+}
+check("a notification in the past is rejected") {
+    rejects { try KaiActionParser.notification(title: "x", body: nil, at: "2026-11-05T09:00:00", now: actionNow) }
+}
+
+check("approval runs an action at most once") {
+    var card = KaiActionCard(action: .notification(title: "x", body: "", at: actionNow))
+    let first = card.approve()
+    let second = card.approve()
+    return first && !second && card.state == .running
+}
+check("a declined action can't be approved") {
+    var card = KaiActionCard(action: .notification(title: "x", body: "", at: actionNow))
+    let declined = card.decline()
+    return declined && !card.approve() && card.state == .declined
+}
+check("a finished action can't be declined or rerun") {
+    var card = KaiActionCard(action: .notification(title: "x", body: "", at: actionNow))
+    _ = card.approve()
+    card.finish(.succeeded("ok"))
+    return !card.decline() && !card.approve() && card.state == .succeeded("ok")
+}
+check("a card can't finish unless it was approved") {
+    var card = KaiActionCard(action: .notification(title: "x", body: "", at: actionNow))
+    card.finish(.succeeded("ok"))
+    return card.state == .pending
+}
+
+check("the action log appends one JSON line per event") {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent("log.jsonl")
+    defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+    let log = KaiActionLog(url: url)
+    let card = KaiActionCard(action: .notification(title: "x", body: "", at: actionNow))
+    try log.record(event: "proposed", card: card, detail: nil)
+    try log.record(event: "approved", card: card, detail: "line\nbreak")
+    let lines = try String(contentsOf: url, encoding: .utf8).split(separator: "\n")
+    let last = try JSONSerialization.jsonObject(with: Data(lines[1].utf8)) as? [String: Any]
+    let permissions = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
+    return lines.count == 2 && last?["event"] as? String == "approved" && last?["detail"] as? String == "line\nbreak" && permissions == 0o600
+}
+
 // MARK: Scripts and Spotlight on this Mac
 
 func compiles(_ script: String) -> Bool {
@@ -334,6 +414,26 @@ func compiles(_ script: String) -> Bool {
 }
 
 check("the Mail script compiles against Mail's dictionary") { compiles(KaiMailSource.script(limit: 5)) }
+check("the mail draft script compiles and has no send command") {
+    compiles(KaiMailDraftScript.source)
+        && !KaiMailDraftScript.source.lowercased().split(whereSeparator: { !$0.isLetter }).contains("send")
+}
+
+check("hostile text reaches AppleScript as data, not code") {
+    let hostile = #"\" & (do shell script "touch /tmp/kai-pwned") & "'; rm -rf ~ `id` $(id)"#
+    let marker = URL(fileURLWithPath: "/tmp/kai-pwned")
+    try? FileManager.default.removeItem(at: marker)
+    let process = Process()
+    let pipe = Pipe()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+    process.arguments = ["-e", "on run argv\nreturn item 2 of argv\nend run", "first", hostile]
+    process.standardOutput = pipe
+    try process.run()
+    let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    process.waitUntilExit()
+    return output.trimmingCharacters(in: .newlines) == hostile && !FileManager.default.fileExists(atPath: marker.path)
+}
+
 check("the Notes script compiles against Notes' dictionary") { compiles(KaiNotesSource.script(limit: 5, bodyLimit: 100)) }
 
 // Nothing listens on port 9, so this exercises the "Ollama is not running" path.
