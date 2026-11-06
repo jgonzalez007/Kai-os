@@ -12,6 +12,7 @@
 
 #if DEBUG
 import AppKit
+import Combine
 import Foundation
 import KaiNotchCore
 
@@ -64,6 +65,9 @@ enum KaiNotchSelfTest {
         report("the expanded panel takes keyboard focus", panel.isKeyWindow)
         report("the text field has focus", panel.firstResponder is NSTextView)
 
+        // Recorded rather than sampled, because a loaded model can finish within milliseconds.
+        var seenActivities: [KaiNotchModel.Activity] = []
+        let activityRecorder = model.$activity.sink { seenActivities.append($0) }
         let prompt = "Reply with only the word mango."
         for character in prompt {
             KaiChatSelfTest.sendKey(characters: String(character), keyCode: 0, window: panel)
@@ -73,7 +77,7 @@ enum KaiNotchSelfTest {
         KaiChatSelfTest.sendKey(characters: "\r", keyCode: 36, window: panel)
         try? await Task.sleep(for: .milliseconds(200))
         report("Return sends from the notch", appState.messages.contains { $0.isUser && $0.text == prompt })
-        report("activity shows running", model.activity == .running)
+        report("activity shows running", seenActivities.contains(.running), "\(seenActivities)")
 
         controller.collapse()
         await settle()
@@ -90,7 +94,8 @@ enum KaiNotchSelfTest {
         }
         let reply = appState.messages.last
         report("the reply arrived", reply?.text.lowercased().contains("mango") == true, reply?.text ?? "nil")
-        report("activity shows done", model.activity == .done)
+        report("activity shows done", seenActivities.contains(.done), "\(seenActivities)")
+        activityRecorder.cancel()
         report("the conversation is shared with the main window", appState.messages.contains { $0.text == prompt })
         try? await Task.sleep(for: .seconds(2))
         report("the done state clears", model.activity == .idle)

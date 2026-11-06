@@ -4,6 +4,7 @@
 import Foundation
 @testable import KaiLocalAI
 import CoreGraphics
+@testable import KaiLocalData
 import KaiNotchCore
 
 var failures = 0
@@ -155,6 +156,100 @@ check("a release with no press is not a tap") {
     var gesture = KaiModifierGesture()
     return !gesture.release(at: 10)
 }
+
+// MARK: Assistant tools
+
+check("a streamed tool call is parsed with its arguments") {
+    let line = #"{"message":{"role":"assistant","content":"","tool_calls":[{"function":{"name":"search_files","arguments":{"query":"tax","limit":3}}}]},"done":false}"#
+    guard let call = try KaiOllamaClient.parseStreamLine(line)?.toolCalls.first else { return false }
+    return call.name == "search_files"
+        && call.arguments["query"]?.stringValue == "tax"
+        && call.arguments["limit"]?.intValue == 3
+}
+
+check("the chat request includes tool definitions when given") {
+    let client = KaiOllamaClient(baseURL: URL(string: "http://localhost:11434")!)
+    let tool = KaiOllamaTool(
+        name: "search_files",
+        description: "Search files",
+        parameters: [KaiOllamaTool.Parameter(name: "query", type: "string", description: "Words to find", required: true)]
+    )
+    let request = try client.chatRequest(model: "m", messages: [], tools: [tool])
+    let json = try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]
+    let function = (json?["tools"] as? [[String: Any]])?.first?["function"] as? [String: Any]
+    let parameters = function?["parameters"] as? [String: Any]
+    return function?["name"] as? String == "search_files"
+        && parameters?["required"] as? [String] == ["query"]
+        && (parameters?["properties"] as? [String: Any])?["query"] != nil
+}
+
+check("a tool result message carries the tool name") {
+    let data = try JSONEncoder().encode(KaiOllamaMessage(role: "tool", content: "ok", toolName: "search_files"))
+    let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+    return json?["tool_name"] as? String == "search_files" && json?["tool_calls"] == nil
+}
+
+// MARK: Local data parsing
+
+check("AppleScript records split on the separator characters") {
+    let output = "a\u{1F}b\u{1E}c\u{1F}d\u{1E}\n"
+    return KaiAppleScriptRecords.parse(output) == [["a", "b"], ["c", "d"]]
+}
+
+check("an ISO date from AppleScript is read as local time") {
+    guard let date = KaiAppleScriptRecords.date(fromISO: "2026-11-06T15:30:00") else { return false }
+    let parts = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+    return parts.year == 2026 && parts.month == 11 && parts.day == 6 && parts.hour == 15 && parts.minute == 30
+}
+
+check("a mail record becomes a mail item") {
+    let items = KaiMailSource.items(from: [["42", "Ana <ana@example.com>", "Hello", "2026-11-06T09:00:00", "false", "true"]])
+    return items.count == 1 && items[0].id == "42" && items[0].sender == "Ana <ana@example.com>"
+        && items[0].subject == "Hello" && !items[0].isRead && items[0].isFlagged
+}
+
+check("a malformed mail record is skipped") {
+    KaiMailSource.items(from: [["only", "two"]]).isEmpty
+}
+
+check("a note record becomes a note item") {
+    let items = KaiNotesSource.items(from: [["n1", "Groceries", "Milk", "2026-11-06T09:00:00"]])
+    return items.count == 1 && items[0].title == "Groceries" && items[0].body == "Milk"
+}
+
+check("an automation refusal is reported as not authorized") {
+    let error = KaiSourceError.fromAppleScriptFailure(app: "Mail", message: "execution error: Not authorized to send Apple events to Mail. (-1743)")
+    return error == .notAuthorized("Mail")
+}
+
+check("Spotlight queries cannot be read as command-line flags") {
+    KaiSpotlightSource.sanitizedQuery("  --help me ") == "help me" && KaiSpotlightSource.sanitizedQuery(" - ") == nil
+}
+
+check("Spotlight results skip Library folders and hidden paths") {
+    let home = "/Users/me"
+    let kept = KaiSpotlightSource.isUserFacing(path: "/Users/me/Documents/tax.pdf", home: home)
+    let library = KaiSpotlightSource.isUserFacing(path: "/Users/me/Library/Caches/tax.pdf", home: home)
+    let hidden = KaiSpotlightSource.isUserFacing(path: "/Users/me/.cache/tax.pdf", home: home)
+    return kept && !library && !hidden
+}
+
+// MARK: Scripts and Spotlight on this Mac
+
+func compiles(_ script: String) -> Bool {
+    let output = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".scpt")
+    defer { try? FileManager.default.removeItem(at: output) }
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/osacompile")
+    process.arguments = ["-o", output.path, "-e", script]
+    process.standardError = FileHandle.nullDevice
+    guard (try? process.run()) != nil else { return false }
+    process.waitUntilExit()
+    return process.terminationStatus == 0
+}
+
+check("the Mail script compiles against Mail's dictionary") { compiles(KaiMailSource.script(limit: 5)) }
+check("the Notes script compiles against Notes' dictionary") { compiles(KaiNotesSource.script(limit: 5, bodyLimit: 100)) }
 
 // Nothing listens on port 9, so this exercises the "Ollama is not running" path.
 let closedPort = KaiOllamaClient(baseURL: URL(string: "http://127.0.0.1:9")!)

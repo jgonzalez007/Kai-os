@@ -315,14 +315,16 @@ Kai OS macOS/
 ### Phase 7: Wire Up Missing Features (Days 20-25)
 **Goal:** Connect the dots — stubs become real.
 
+**Status (2026-11-06):** Most modules are still empty stubs, and the "Built" and "Complete" labels elsewhere in this plan predate that audit. Working and tested: local chat through Ollama, the notch panel, read-only Apple Calendar, Mail and Notes, Spotlight search, and assistant tools over those sources. `Kai OS macOS/KaiSources`, `KaiIngestion` and `StubFrameworks.swift` are not used by these features. Calendar, Mail and Notes still need a first test with real permissions on the user's Mac.
+
 - [ ] 7.1 Wire ChatGPT endpoint (OpenAI Responses API) in LocalFallback
 - [ ] 7.2 Wire Claude endpoint (Anthropic Messages API) in LocalFallback
 - [ ] 7.3 Wire Google Calendar connector (copy Apple Calendar pattern)
 - [ ] 7.4 Wire Outlook Calendar (copy Outlook Mail pattern)
 - [ ] 7.5 Wire ProactiveExecutor.fire() → NSUserNotification, calendar, email, computer
-- [ ] 7.6 Wire ProactiveResearch → mdfind, system calls for Spotlight search
+- [x] 7.6 Spotlight search through `mdfind`, as `KaiSpotlightSource` and the `search_files` assistant tool
 - [ ] 7.7 Wire DoubleTap local model fallback
-- [ ] 7.8 Add app-awareness: detect frontmost app via NSWorkspace
+- [x] 7.8 Add app-awareness: detect frontmost app via NSWorkspace
 
 ### Phase 9: Xcodebuild Compilation — COMPLETE
 
