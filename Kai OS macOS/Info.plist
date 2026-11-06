@@ -34,6 +34,8 @@
     <true/>
     <key>NSSupportsSuddenTermination</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Kai OS reads your Apple Mail inbox and Apple Notes so the assistant can answer questions about them. It never changes them.</string>
     <key>NSContactsUsageDescription</key>
     <string>Kai OS needs access to your contacts to help with replies.</string>
     <key>NSCalendarsUsageDescription</key>

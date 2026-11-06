@@ -13,6 +13,8 @@
 #if DEBUG
 import AppKit
 import Foundation
+import KaiLocalAI
+import KaiLocalData
 
 @MainActor
 enum KaiChatSelfTest {
@@ -43,6 +45,7 @@ enum KaiChatSelfTest {
         try? await Task.sleep(for: .seconds(1))
         snapshot(window, to: directory.appendingPathComponent("1-launch.png"))
 
+        report("the chat field has focus at launch", window.firstResponder is NSTextView, "\(String(describing: window.firstResponder.map { Swift.type(of: $0) }))")
         report("a local chat model was discovered", !appState.selectedModel.isEmpty, appState.selectedModel)
 
         // Typing and Return through the real text field.
@@ -76,14 +79,47 @@ enum KaiChatSelfTest {
         let partial = appState.messages.last?.text ?? ""
         report("Stop keeps the partial text", !partial.isEmpty && !partial.contains("500"), "\(partial.count) characters")
 
+        // Assistant tools, against real Spotlight and the real model.
+        if !appState.mailConnected {
+            let mail = await appState.runTool(KaiOllamaToolCall(name: "list_recent_mail", arguments: [:]))
+            report("an unconnected source says so instead of prompting", mail.contains("not connected"), mail)
+        }
+        let unknown = await appState.runTool(KaiOllamaToolCall(name: "delete_everything", arguments: [:]))
+        report("an unknown tool is refused", unknown.hasPrefix("Unknown tool"), unknown)
+
+        let marker = "kaiprobe\(UUID().uuidString.prefix(8).lowercased())"
+        let probe = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("\(marker).txt")
+        try? "Kai OS Spotlight probe".write(to: probe, atomically: true, encoding: .utf8)
+        let importer = Process()
+        importer.executableURL = URL(fileURLWithPath: "/usr/bin/mdimport")
+        importer.arguments = [probe.path]
+        try? importer.run()
+        importer.waitUntilExit()
+        var found = false
+        for _ in 0..<20 where !found {
+            try? await Task.sleep(for: .seconds(1))
+            found = (try? await KaiSpotlightSource.search(marker))?.contains { $0.path == probe.path } == true
+        }
+        report("Spotlight finds a new file", found, marker)
+
+        let toolRunsBefore = appState.toolRunCount
+        appState.sendMessage(text: "Use the search_files tool to find the file named \(marker). Reply with its full path.")
+        await waitForReply(appState: appState, seconds: 180)
+        let toolReply = appState.messages.last?.text ?? ""
+        report("the model calls a tool", appState.toolRunCount > toolRunsBefore, "\(appState.toolRunCount - toolRunsBefore) call(s)")
+        report("the reply uses the tool's result", toolReply.contains(probe.path), toolReply)
+        snapshot(window, to: directory.appendingPathComponent("2b-tool.png"))
+
         appState.activeSidebar = "Mail"
         try? await Task.sleep(for: .milliseconds(500))
         snapshot(window, to: directory.appendingPathComponent("3-mail.png"))
         appState.activeSidebar = "Chat"
         try? await Task.sleep(for: .milliseconds(500))
         snapshot(window, to: directory.appendingPathComponent("4-chat-after-navigation.png"))
+        report("the chat field has focus after navigating back", window.firstResponder is NSTextView)
         report("the transcript survives navigation", appState.messages.contains { $0.text == first })
 
+        try? FileManager.default.removeItem(at: probe)
         finish(log: log, failures: failures, directory: directory)
     }
 
