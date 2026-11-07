@@ -25,9 +25,8 @@ public final class SpeculativeDecoding {
         mainModel: String = "gemma-4b-it",
         maxTokens: Int = 512
     ) async throws -> String {
-        // Phase 1 stub: returns placeholder
-        // Phase 7 will wire this to actual draft + verify loop
-        return "[SpeculativeDecoding] Draft model: \(draftModel), Main: \(mainModel), Max: \(maxTokens) tokens"
+        // The draft-and-verify loop needs an on-device runtime, which is not linked yet.
+        throw KaiEngineError.runtimeUnavailable
     }
     
     /// Verify proposed tokens against the main model

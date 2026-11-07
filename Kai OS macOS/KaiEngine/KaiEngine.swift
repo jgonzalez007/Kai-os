@@ -10,8 +10,8 @@ import Foundation
 import SwiftUI
 
 /// KaiEngine — on-device inference core
-/// Wraps LiteRT-LM / Gemma 4 / Qwen models with Metal GPU acceleration
-/// and speculative decoding for fast local inference.
+/// Planned wrapper for on-device models. No runtime is linked yet, so `infer` throws
+/// `KaiEngineError.runtimeUnavailable`. The app uses Ollama (KaiLocalAI) for local chat.
 public final class KaiEngine {
     
     /// Singleton access
@@ -151,9 +151,9 @@ public actor KaiInferenceRuntime {
     private init() {}
     
     public func run(modelPath: String, prompt: String, config: ModelConfig) async throws -> String {
-        // In production, this calls into the LiteRT-LM / ONNX runtime
-        // For Phase 1, we return a placeholder that will be wired in Phase 7
-        return "[KaiEngine] Inference placeholder — model: \(modelPath.split(separator: "/").last ?? "unknown"), metalGPU: \(config.metalGPU)"
+        // No on-device runtime (LiteRT-LM, ONNX) is linked yet. Fail loudly: a made-up
+        // string here would be shown to the user as a model answer.
+        throw KaiEngineError.runtimeUnavailable
     }
 }
 
@@ -163,6 +163,7 @@ public enum KaiEngineError: Error, LocalizedError {
     case inferenceFailed(String)
     case unknownModel(String)
     case contextTooLong
+    case runtimeUnavailable
     
     public var errorDescription: String? {
         switch self {
@@ -174,6 +175,8 @@ public enum KaiEngineError: Error, LocalizedError {
             return "Unknown model: \(name)"
         case .contextTooLong:
             return "Context exceeds maximum token limit"
+        case .runtimeUnavailable:
+            return "On-device inference is not available yet. Use Ollama or a cloud provider."
         }
     }
 }
