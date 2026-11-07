@@ -90,6 +90,10 @@ extension AppState {
         case "list_recent_mail": return "Checking your mail…"
         case "search_notes": return "Reading your notes…"
         case "search_knowledge": return "Searching your knowledge base…"
+        case "mail_overview": return "Looking through your mailboxes…"
+        case "search_mail": return "Searching your mail…"
+        case "read_mail_message": return "Reading an email…"
+        case "propose_mail_move", "propose_mail_mark_read": return "Checking which messages match…"
         case "search_slack": return "Searching Slack…"
         case "read_slack_screen": return "Reading your Slack window…"
         case "propose_calendar_event", "propose_email_draft", "propose_notification": return "Preparing a proposal…"
@@ -136,7 +140,7 @@ extension AppState {
                     at: call.arguments["at"]?.stringValue
                 ))
             default:
-                output = "Unknown tool: \(call.name)"
+                if let admin = try await mailAdminTool(call) { output = admin } else { output = "Unknown tool: \(call.name)" }
             }
             return String(output.prefix(Self.toolOutputLimit))
         } catch {
@@ -144,7 +148,7 @@ extension AppState {
         }
     }
 
-    private func propose(_ action: KaiProposedAction) throws -> String {
+    func propose(_ action: KaiProposedAction) throws -> String {
         try presentActionCard(KaiActionCard(action: action))
         return "The user now sees a card for this and can approve or decline it. Nothing has happened yet, so don't say it's done."
     }

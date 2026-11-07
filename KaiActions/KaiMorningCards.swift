@@ -182,8 +182,13 @@ public enum KaiBriefingSchedule {
         return formatter.string(from: date)
     }
 
-    public static func isDue(now: Date, lastRunDay: String?) -> Bool {
-        Calendar.current.component(.hour, from: now) >= startHour && lastRunDay != dayKey(for: now)
+    /// After a failure, wait this long before trying again on its own. A slow or stuck Mail keeps working
+    /// on every request it was sent, so retrying quickly makes it worse.
+    public static let retryDelay: TimeInterval = 4 * 60 * 60
+
+    public static func isDue(now: Date, lastRunDay: String?, lastFailure: Date? = nil) -> Bool {
+        if let lastFailure, now.timeIntervalSince(lastFailure) < retryDelay { return false }
+        return Calendar.current.component(.hour, from: now) >= startHour && lastRunDay != dayKey(for: now)
     }
 }
 

@@ -46,6 +46,8 @@ final class KaiMorningCardsController: ObservableObject {
     @Published private(set) var isGenerating = false
     @Published private(set) var errorMessage: String?
     private(set) var lastRunDay: String?
+    /// When the last automatic attempt failed. A manual refresh is never held back by this.
+    private(set) var lastFailure: Date?
 
     /// These are replaced by the self-test, so it never touches real data.
     var inputProvider: any KaiBriefingInputProviding
@@ -93,7 +95,7 @@ final class KaiMorningCardsController: ObservableObject {
     }
 
     func generateIfDue(now: Date = Date()) {
-        guard hasSources, !isGenerating, KaiBriefingSchedule.isDue(now: now, lastRunDay: lastRunDay) else { return }
+        guard hasSources, !isGenerating, KaiBriefingSchedule.isDue(now: now, lastRunDay: lastRunDay, lastFailure: lastFailure) else { return }
         generate()
     }
 
@@ -115,9 +117,11 @@ final class KaiMorningCardsController: ObservableObject {
                 cards = fresh
                 // A day is only marked done once it has worked, so a failure retries at the next check.
                 lastRunDay = KaiBriefingSchedule.dayKey(for: now)
+                lastFailure = nil
                 persist()
             } catch {
                 errorMessage = error.localizedDescription
+                lastFailure = Date()
             }
         }
     }

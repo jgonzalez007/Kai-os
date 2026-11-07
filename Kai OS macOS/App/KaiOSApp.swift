@@ -180,6 +180,9 @@ final class AppState: ObservableObject {
     @Published var isIndexingKnowledge = false
     var knowledge: KaiKnowledgeStore?
     let agent = KaiAgentController()
+    @Published var mailAccess: KaiMailAccess = KaiMailAccess.current {
+        didSet { KaiMailAccess.current = mailAccess }
+    }
     @Published var slackIdentity: KaiSlackIdentity?
     @Published var slackState = KaiSourceState.disconnected
     @Published var slackTokenDraft = ""
@@ -508,7 +511,7 @@ final class AppState: ObservableObject {
             var conversation = history
             for round in 1...Self.maxToolRounds {
                 // The last round offers no tools, so the model has to answer with what it has.
-                let tools = round == Self.maxToolRounds ? [] : Self.assistantTools
+                let tools = round == Self.maxToolRounds ? [] : Self.tools(for: KaiMailAccess.current)
                 var roundText = ""
                 var toolCalls: [KaiOllamaToolCall] = []
                 

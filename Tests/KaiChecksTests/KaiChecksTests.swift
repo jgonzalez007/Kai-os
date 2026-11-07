@@ -1837,4 +1837,164 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+
+    func testMailboxAccess() async throws {
+        let filter = KaiMailFilter(account: "Exchange", mailbox: "Inbox", senderContains: "alerts@example.com", subjectContains: "", unreadOnly: false)
+
+        check("standard access allows neither a whole-mailbox read nor a change") {
+            !KaiMailAccess.standard.allowsWholeMailbox && !KaiMailAccess.standard.allowsChanges
+        }
+        check("read access reads the whole mailbox but cannot change it") {
+            KaiMailAccess.read.allowsWholeMailbox && !KaiMailAccess.read.allowsChanges
+        }
+        check("only the organize level can change mail") {
+            KaiMailAccess.allCases.filter(\.allowsChanges) == [.manage] && KaiMailAccess.manage.allowsWholeMailbox
+        }
+        check("the access level is saved and defaults to standard") {
+            let saved = UserDefaults.standard.string(forKey: KaiMailAccess.defaultsKey)
+            defer { if let saved { UserDefaults.standard.set(saved, forKey: KaiMailAccess.defaultsKey) } else { UserDefaults.standard.removeObject(forKey: KaiMailAccess.defaultsKey) } }
+            UserDefaults.standard.removeObject(forKey: KaiMailAccess.defaultsKey)
+            let fresh = KaiMailAccess.current
+            KaiMailAccess.current = .manage
+            let stored = KaiMailAccess.current
+            UserDefaults.standard.set("nonsense", forKey: KaiMailAccess.defaultsKey)
+            return fresh == .standard && stored == .manage && KaiMailAccess.current == .standard
+        }
+        check("each level explains what it can do, and the top one says it never sends or deletes") {
+            KaiMailAccess.allCases.allSatisfy { !$0.explanation.isEmpty && !$0.title.isEmpty }
+                && KaiMailAccess.manage.explanation.contains("never sends") && KaiMailAccess.manage.explanation.contains("never deletes permanently")
+                && KaiMailAccess.manage.explanation.contains("500")
+        }
+
+        check("a change needs a sender or a subject, so a whole mailbox can't be moved at once") {
+            let everything = KaiMailFilter(account: "Exchange", mailbox: "Inbox", unreadOnly: true)
+            return (try? everything.validated(forChange: true)) == nil && (try? everything.validated(forChange: false)) != nil
+                && (try? filter.validated(forChange: true)) != nil
+        }
+        check("a filter needs an account and a mailbox, and its texts are limited in length") {
+            (try? KaiMailFilter(account: "", mailbox: "Inbox", senderContains: "a").validated(forChange: true)) == nil
+                && (try? KaiMailFilter(account: "A", mailbox: "", senderContains: "a").validated(forChange: true)) == nil
+                && (try? KaiMailFilter(account: "A", mailbox: "Inbox", senderContains: String(repeating: "a", count: 201)).validated(forChange: true)) == nil
+        }
+        check("line breaks in a search text are flattened") {
+            (try? KaiMailFilter(account: "A", mailbox: "Inbox", senderContains: "a\nb").validated(forChange: true))?.senderContains == "a b"
+        }
+        check("the scripts are fixed text: nothing the person or model supplies can become code") {
+            let scripts = [KaiMailAdmin.searchScript, KaiMailAdmin.messageScript, KaiMailAdmin.changeScript(move: true), KaiMailAdmin.changeScript(move: false)]
+            let hostile = "x\" & (do shell script \"rm -rf ~\") & \""
+            return scripts.allSatisfy { !$0.contains(hostile) && !$0.contains("rm -rf") }
+                && KaiMailAdmin.searchScript.contains("item 3 of argv") && KaiMailAdmin.changeScript(move: true).contains("item 7 of argv")
+        }
+        check("the scripts compile") {
+            compiles(KaiMailAdmin.searchScript) && compiles(KaiMailAdmin.changeScript(move: true)) && compiles(KaiMailAdmin.changeScript(move: false))
+                && compiles(KaiMailAdmin.mailboxesScript) && compiles(KaiMailAdmin.messageScript)
+        }
+        check("no mail script can send, delete or empty anything") {
+            let all = KaiMailAdmin.mailboxesScript + KaiMailAdmin.messageScript + KaiMailAdmin.searchScript
+                + KaiMailAdmin.changeScript(move: true) + KaiMailAdmin.changeScript(move: false)
+            let lower = all.lowercased()
+            return !lower.contains("send ") && !lower.contains("delete ") && !lower.contains("empty ") && !lower.contains("do shell script") && !lower.contains("run script")
+        }
+        check("the change script checks the approved limit, and each message's ID right before changing it") {
+            let script = KaiMailAdmin.changeScript(move: true)
+            return script.contains("if (count of picks) > cap then error") && script.contains("if (id of m) is (item idx of theIDs) then")
+                && script.contains("repeat with k from (count of picks) to 1 by -1")
+        }
+        check("Mail's slow filters are never used, so a big mailbox can't be tied up") {
+            let all = [KaiMailAdmin.searchScript, KaiMailAdmin.messageScript, KaiMailAdmin.mailboxesScript,
+                       KaiMailAdmin.changeScript(move: true), KaiMailAdmin.changeScript(move: false)]
+            return all.allSatisfy { !$0.contains(" whose ") }
+        }
+        check("a mailbox too big for Apple Mail's scripting is refused with the reason, a smaller one is allowed") {
+            let big = (try? KaiMailAdmin.requireScriptable(account: "Exchange", mailbox: "Inbox", messageCount: 42_871)) == nil
+            let edge = (try? KaiMailAdmin.requireScriptable(account: "A", mailbox: "I", messageCount: 5_000)) != nil
+            let over = (try? KaiMailAdmin.requireScriptable(account: "A", mailbox: "I", messageCount: 5_001)) == nil
+            var message = ""
+            do { try KaiMailAdmin.requireScriptable(account: "Exchange", mailbox: "Inbox", messageCount: 42_871) } catch { message = error.localizedDescription }
+            return big && edge && over && message.contains("42,871") && message.contains("freeze Mail")
+        }
+        check("the size check is one quick count, and compiles") {
+            compiles(KaiMailAdmin.countScript) && !KaiMailAdmin.countScript.contains(" whose ")
+        }
+        check("after a failure the briefing waits four hours before trying again on its own") {
+            var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone.current
+            let morning = calendar.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 8))!
+            let failed = morning.addingTimeInterval(-60)
+            return KaiBriefingSchedule.isDue(now: morning, lastRunDay: nil)
+                && !KaiBriefingSchedule.isDue(now: morning, lastRunDay: nil, lastFailure: failed)
+                && !KaiBriefingSchedule.isDue(now: failed.addingTimeInterval(3 * 3600), lastRunDay: nil, lastFailure: failed)
+                && KaiBriefingSchedule.isDue(now: failed.addingTimeInterval(4 * 3600 + 1), lastRunDay: nil, lastFailure: failed)
+                && !KaiBriefingSchedule.isDue(now: morning, lastRunDay: KaiBriefingSchedule.dayKey(for: morning))
+        }
+        check("a search looks at a bounded number of messages") {
+            KaiMailAdmin.scanLimit == 500 && KaiMailAdmin.changeScanLimit == 2_000 && KaiMailAdmin.maxChange == 500
+        }
+        check("search results are read, and a bad date is dropped") {
+            let records = [["101", "Ana Ruiz", "Lunch", "2026-11-07T09:30:00", "false"], ["102", "Bob", "Bad", "not a date", "true"], ["103", "short"]]
+            let hits = KaiMailAdmin.hits(from: records, account: "Exchange", mailbox: "Inbox")
+            return hits.count == 1 && hits[0].id == "101" && hits[0].sender == "Ana Ruiz" && !hits[0].isRead && hits[0].mailbox == "Inbox"
+        }
+        check("a message is read with its text, and a long one is cut") {
+            let short = try KaiMailAdmin.messageText(from: "Ana\u{1F}Lunch\u{1F}2026-11-07T09:30:00\u{1F}See you at noon.")
+            let long = try KaiMailAdmin.messageText(from: "Ana\u{1F}Big\u{1F}2026-11-07T09:30:00\u{1F}" + String(repeating: "x", count: 25_000))
+            return short.text == "See you at noon." && !short.truncated && long.text.count == 20_000 && long.truncated
+        }
+        check("a message with the field separator in its text is kept whole") {
+            let message = try KaiMailAdmin.messageText(from: "A\u{1F}S\u{1F}2026-11-07T09:30:00\u{1F}one\u{1F}two")
+            return message.text == "one\u{1F}two"
+        }
+        check("a message that can't be read is an error, not an empty one") {
+            (try? KaiMailAdmin.messageText(from: "garbage")) == nil
+        }
+
+        // The card the person approves
+        let moveAction = try KaiActionParser.mailOrganize(operation: .move(to: "Archive"), filter: filter, count: 37,
+                                                         examples: ["Alerts — CPU high", "Alerts — Disk full"])
+        check("the card says exactly which messages, what happens, and shows examples") {
+            let rows = Dictionary(uniqueKeysWithValues: moveAction.details.map { ($0.label, $0.value) })
+            return rows["Mailbox"] == "Exchange › Inbox" && rows["Messages"] == "from “alerts@example.com”"
+                && rows["Change"] == "Move 37 messages to “Archive”" && rows["Examples"]?.contains("Disk full") == true
+                && rows["Note"] == "Nothing is sent or deleted for good." && moveAction.heading == "Organize Mail" && moveAction.kindName == "mail_organize"
+        }
+        check("the card for one message reads in the singular") {
+            guard case .mailOrganize(let plan) = try KaiActionParser.mailOrganize(operation: .markRead, filter: filter, count: 1, examples: []) else { return false }
+            return plan.change == "Mark 1 message as read"
+        }
+        check("a proposal with nothing to change, or too many, or no narrowing, is refused") {
+            (try? KaiActionParser.mailOrganize(operation: .markRead, filter: filter, count: 0, examples: [])) == nil
+                && (try? KaiActionParser.mailOrganize(operation: .markRead, filter: filter, count: 501, examples: [])) == nil
+                && (try? KaiActionParser.mailOrganize(operation: .markRead, filter: filter, count: 500, examples: [])) != nil
+                && (try? KaiActionParser.mailOrganize(operation: .markRead, filter: KaiMailFilter(account: "A", mailbox: "I"), count: 5, examples: [])) == nil
+        }
+        check("a move needs a destination that is not where the messages already are") {
+            (try? KaiActionParser.mailOrganize(operation: .move(to: " "), filter: filter, count: 5, examples: [])) == nil
+                && (try? KaiActionParser.mailOrganize(operation: .move(to: "inbox"), filter: filter, count: 5, examples: [])) == nil
+        }
+        check("a card shows at most five examples") {
+            guard case .mailOrganize(let plan) = try KaiActionParser.mailOrganize(operation: .markRead, filter: filter, count: 9, examples: (1...9).map { "m\($0)" }) else { return false }
+            return plan.examples.count == 5
+        }
+        check("a mail card survives being saved and loaded") {
+            let data = try JSONEncoder().encode(moveAction)
+            return try JSONDecoder().decode(KaiProposedAction.self, from: data) == moveAction
+        }
+
+        // Approval is checked again when the action runs
+        await checkAsync("approving does nothing if access has been lowered since the proposal") {
+            let executor = KaiSystemActionExecutor(mailAccess: { .read })
+            do { _ = try await executor.perform(moveAction); return false }
+            catch { return (error as? KaiActionError).map { if case .notAllowed = $0 { return true } else { return false } } ?? false }
+        }
+        await checkAsync("standard access also stops an approved mail change") {
+            let executor = KaiSystemActionExecutor(mailAccess: { .standard })
+            do { _ = try await executor.perform(moveAction); return false } catch { return true }
+        }
+        await checkAsync("a change over the limit is refused before Mail is touched") {
+            do { _ = try await KaiMailAdmin.perform(.markRead, filter: filter, approvedCount: 501); return false } catch { return true }
+        }
+        await checkAsync("a change with no narrowing is refused before Mail is touched") {
+            do { _ = try await KaiMailAdmin.perform(.markRead, filter: KaiMailFilter(account: "A", mailbox: "I"), approvedCount: 5); return false } catch { return true }
+        }
+    }
+
 }
