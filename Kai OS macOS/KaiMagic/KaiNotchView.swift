@@ -120,6 +120,9 @@ private struct KaiNotchReplyContent: View {
                     .help("Close and discard this draft")
             }
             content
+            if let warning = doubleTap.factWarning {
+                Label(warning, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+            }
             if doubleTap.context != nil { instructionRow }
             actionRow
         }

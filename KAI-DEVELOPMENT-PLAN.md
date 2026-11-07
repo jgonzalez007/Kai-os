@@ -323,7 +323,7 @@ Kai OS macOS/
 - [ ] 7.4 Wire Outlook Calendar (copy Outlook Mail pattern)
 - [x] 7.5 Replaced ProactiveExecutor, which ran model text as shell commands, with `KaiActions`: proposals only run from a user-approved card. Calendar event, mail draft and notification only; no shell or send. Morning "For You" cards run while the app is open, from 7am; waking a closed or sleeping Mac overnight remains unbuilt.
 - [x] 7.6 Spotlight search through `mdfind`, as `KaiSpotlightSource` and the `search_files` assistant tool
-- [x] 7.7 Double tap writes email replies into the email itself with the local model, from the selected Mail message or a screenshot, and never sends. Writing style learning and caret detection remain unbuilt.
+- [x] 7.7 Double tap writes email replies into the email itself with the local model, from the selected Mail message or a screenshot, and never sends. Writing style is learned from sent mail on request. Caret position display remains unbuilt.
 - [x] 7.8 Add app-awareness: detect frontmost app via NSWorkspace
 
 ### Phase 9: Xcodebuild Compilation — COMPLETE

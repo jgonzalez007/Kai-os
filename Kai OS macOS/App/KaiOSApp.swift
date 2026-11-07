@@ -158,6 +158,7 @@ final class AppState: ObservableObject {
 
     var toolRunCount = 0
     private(set) lazy var morningCards = KaiMorningCardsController(appState: self)
+    private(set) lazy var writingStyle = KaiWritingStyleController(appState: self)
     /// Replaced by the self-test, so testing never touches the user's real calendar or mail.
     var actionExecutor: any KaiActionPerforming = KaiSystemActionExecutor()
     var actionLog = KaiActionLog.standard
@@ -1144,6 +1145,7 @@ struct SettingsView: View {
                 Text("Connections are read-only. To turn Calendar off, use System Settings → Privacy & Security → Calendars.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            KaiWritingStyleSection(controller: appState.writingStyle)
             Section("Privacy") {
                 Text("Chat and connected data stay on this Mac. The assistant reads them through your local Ollama model, and it can change something only after you approve its card. Approved actions are listed in ~/Library/Application Support/Kai OS/action-log.jsonl.").font(.caption).foregroundStyle(.secondary)
             }

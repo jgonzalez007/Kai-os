@@ -361,6 +361,7 @@ enum KaiNotchSelfTest {
             // Typing an instruction holds the draft back so the user can steer.
             inserter.inserted = []
             inserter.focus = .multiline
+            recorder.reset()
             provider.result = .success(.mail(reference: reference, source: email))
             controller.startReply()
             doubleTap.instruction = "Say I can't do Tuesday and suggest Thursday instead."
@@ -377,6 +378,8 @@ enum KaiNotchSelfTest {
             doubleTap.writeDraft()
             await waitForWrite()
             report("the edited draft is what gets written", inserter.inserted == ["Thursday works better for me."], "\(inserter.inserted)")
+            report("a cursor in a text area is written to, with no second Mail reply", recorder.performed.isEmpty, "\(recorder.performed.count) Mail action(s)")
+            report("a cursor write reports plain success", doubleTap.openState == .succeeded("Written into your email. Review it and send it yourself."))
             await closeAndSettle()
 
             // No Accessibility: Mail still works by script, and a cursor explains what's needed.
@@ -401,6 +404,29 @@ enum KaiNotchSelfTest {
             report("a failed write can be retried", doubleTap.canWrite)
             await closeAndSettle()
             inserter.available = true
+
+            // Facts are checked in code, whatever the model does.
+            inserter.inserted = []
+            inserter.focus = .multiline
+            doubleTap.scriptedDrafts = ["sure thing, tmrw noon works", "sure thing, noon works"]
+            controller.startReply()
+            await waitForDraft()
+            await waitForWrite()
+            report("a draft that adds a day is redrafted before writing", inserter.inserted == ["sure thing, noon works"], "\(inserter.inserted)")
+            await closeAndSettle()
+
+            inserter.inserted = []
+            doubleTap.scriptedDrafts = ["sure thing, tmrw noon works", "yep, tomorrow is good"]
+            controller.startReply()
+            await waitForDraft()
+            try? await Task.sleep(for: .milliseconds(300))
+            report("a draft that keeps adding a day is held, not written", inserter.inserted.isEmpty && doubleTap.phase == .ready && doubleTap.factWarning?.contains("tomorrow") == true, doubleTap.factWarning ?? "")
+            KaiChatSelfTest.snapshot(panel, to: directory.appendingPathComponent("5e-fact-warning.png"), background: gray)
+            doubleTap.writeDraft()
+            await waitForWrite()
+            report("the user can still choose to write a held draft", inserter.inserted == ["yep, tomorrow is good"])
+            await closeAndSettle()
+            inserter.inserted = []
 
             // A paste failure keeps the draft safe.
             inserter.failure = KaiTextInsertError.eventFailed

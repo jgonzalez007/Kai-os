@@ -91,6 +91,12 @@ final class KaiDoubleTapController: ObservableObject {
     @Published private(set) var openState: KaiActionCard.State?
 
     @Published private(set) var destination = KaiReplyDestination.awaitingCursor
+    /// Why this draft was held back instead of being written automatically.
+    @Published private(set) var factWarning: String?
+    #if DEBUG
+    /// Used by the self-test in place of the model, to force a specific draft.
+    var scriptedDrafts: [String] = []
+    #endif
 
     /// Set by the self-test; the real provider is built per double tap from the cursor's state.
     var contextProviderOverride: (any KaiReplyContextProviding)?
@@ -174,6 +180,7 @@ final class KaiDoubleTapController: ObservableObject {
         closeTask?.cancel()
         closeTask = nil
         emailCheckPassed = false
+        factWarning = nil
         destination = .awaitingCursor
         phase = .idle
         context = nil
@@ -185,13 +192,14 @@ final class KaiDoubleTapController: ObservableObject {
     private func generate(from context: KaiReplyContext, previousDraft: String?) async {
         phase = .drafting
         openState = nil
+        factWarning = nil
         draft = ""
         let messages: [KaiOllamaMessage]
         switch context {
         case .mail(_, let source):
-            messages = KaiReplyPrompt.messages(source: source, instruction: instruction, previousDraft: previousDraft)
+            messages = KaiReplyPrompt.messages(source: source, instruction: instruction, previousDraft: previousDraft, style: appState.writingStyle.activeStyle)
         case .screen(let jpeg):
-            messages = KaiReplyPrompt.messages(screenshot: jpeg, instruction: instruction, previousDraft: previousDraft)
+            messages = KaiReplyPrompt.messages(screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: appState.writingStyle.activeStyle)
         }
         do {
             if !appState.chatModels.contains(appState.selectedModel) { try await appState.refreshChatModels() }
@@ -206,14 +214,9 @@ final class KaiDoubleTapController: ObservableObject {
                 }
                 emailCheckPassed = true
             }
-            var text = ""
-            // No tools are offered here: drafting from an untrusted email can't trigger anything.
-            for try await event in ollama.streamChat(model: appState.selectedModel, messages: messages, tools: []) {
-                if Task.isCancelled { return }
-                guard case .text(let delta) = event else { continue }
-                text += delta
-                draft = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            }
+            try await streamDraft(messages)
+            if Task.isCancelled { return }
+            if await !passesFactCheck(context: context, messages: messages) { writesAutomatically = false }
             if Task.isCancelled { return }
             draft = KaiReplyPrompt.removingPlaceholderSignature(draft)
             if draft.isEmpty {
@@ -228,6 +231,48 @@ final class KaiDoubleTapController: ObservableObject {
         } catch {
             if !Task.isCancelled { phase = .failed(error.localizedDescription) }
         }
+    }
+
+    private func streamDraft(_ messages: [KaiOllamaMessage]) async throws {
+        draft = ""
+        #if DEBUG
+        if !scriptedDrafts.isEmpty {
+            draft = scriptedDrafts.removeFirst()
+            return
+        }
+        #endif
+        var text = ""
+        // No tools are offered here: drafting from an untrusted email can't trigger anything.
+        for try await event in ollama.streamChat(model: appState.selectedModel, messages: messages, tools: []) {
+            if Task.isCancelled { return }
+            guard case .text(let delta) = event else { continue }
+            text += delta
+            draft = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+    }
+
+    /// Redrafts once if the draft adds a day or time the email doesn't state. If it still does,
+    /// the result is false, so it's held for the user with a warning instead of being written.
+    /// A screenshot's text isn't available to compare, so that path can't be checked.
+    private func passesFactCheck(context: KaiReplyContext, messages: [KaiOllamaMessage]) async -> Bool {
+        guard case .mail(_, let source) = context else { return true }
+        let sources = [source.subject, source.body, instruction]
+        let added = KaiReplyFactCheck.addedTimeWords(draft: draft, sources: sources)
+        guard !added.isEmpty else { return true }
+        let retry = messages + [
+            KaiOllamaMessage(role: "assistant", content: draft),
+            KaiOllamaMessage(role: "user", content: KaiReplyFactCheck.correction(for: added)),
+        ]
+        let original = draft
+        do {
+            try await streamDraft(retry)
+        } catch {
+            draft = original
+        }
+        let remaining = KaiReplyFactCheck.addedTimeWords(draft: draft, sources: sources)
+        guard !remaining.isEmpty else { return true }
+        factWarning = "This draft mentions \(remaining.joined(separator: " and ")), which the email doesn't. Check it before writing it."
+        return false
     }
 
     private func completeText(messages: [KaiOllamaMessage], temperature: Double) async throws -> String {
