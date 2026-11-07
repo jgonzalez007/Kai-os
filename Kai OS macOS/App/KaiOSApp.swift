@@ -15,6 +15,7 @@ import KaiCapture
 import KaiLocalAI
 import KaiLocalData
 import KaiKnowledge
+import KaiSlack
 
 // MARK: - Models
 
@@ -179,6 +180,12 @@ final class AppState: ObservableObject {
     @Published var isIndexingKnowledge = false
     var knowledge: KaiKnowledgeStore?
     let agent = KaiAgentController()
+    @Published var slackIdentity: KaiSlackIdentity?
+    @Published var slackState = KaiSourceState.disconnected
+    @Published var slackTokenDraft = ""
+    @Published var slackIncludeDirectMessages: Bool = UserDefaults.standard.bool(forKey: AppState.slackDirectMessagesKey) {
+        didSet { UserDefaults.standard.set(slackIncludeDirectMessages, forKey: AppState.slackDirectMessagesKey) }
+    }
     @Published var nightShift = KaiNightShiftStore().loadSettings()
     @Published var nightShiftRecord = KaiNightShiftStore().loadRecord()
     @Published var nightShiftMessage: String?
@@ -694,6 +701,7 @@ struct KaiOSApp: App {
                 .frame(minWidth: 800, minHeight: 500)
                 .onAppear {
                     appState.startMonitoring()
+                    appState.restoreSlack()
                     #if DEBUG
                     KaiChatSelfTest.runIfRequested(appState: appState)
                     KaiNotchSelfTest.runIfRequested(appState: appState)

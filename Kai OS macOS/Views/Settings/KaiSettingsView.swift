@@ -152,6 +152,40 @@ struct KaiSettingsView: View {
                     .padding(.top, 4)
                 }
                 
+                // ── Slack ──
+                settingsCard {
+                    SectionHeader(title: "Slack")
+
+                    if let identity = appState.slackIdentity {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill").foregroundStyle(KaiColor.success)
+                            Text("Connected to \(identity.team) as \(identity.user)").font(KaiFont.bodyStrong)
+                            Spacer()
+                            Button("Disconnect") { appState.disconnectSlack() }.controlSize(.small)
+                        }
+                        Toggle("Include direct messages when indexing", isOn: $appState.slackIncludeDirectMessages)
+                        Text("Kai reads and searches Slack. It can't post, edit or delete. Recent messages from your channels go into the knowledge base on this Mac when you click Index now. Direct messages are left out unless you turn them on.")
+                            .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Slack User OAuth Token").font(KaiFont.captionStrong).foregroundStyle(KaiColor.textTertiary)
+                            SecureField("xoxp-…", text: $appState.slackTokenDraft).kaiInput()
+                        }
+                        Button(appState.slackState == .loading ? "Checking…" : "Connect") { appState.connectSlack() }
+                            .buttonStyle(.borderedProminent).controlSize(.small)
+                            .disabled(appState.slackState == .loading)
+                        Text("Create a Slack app for your workspace with read-only user scopes, install it, and paste its User OAuth Token here. Steps and scopes are in BUILD.md. Company workspaces may need an admin to approve the app. The token is kept in your Keychain.")
+                            .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    }
+
+                    if case .failed(let message) = appState.slackState {
+                        Text(message).font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                    }
+
+                    Text("Without a token, Kai can still read the Slack window that's open on this Mac when you ask (for example, \"summarize this channel\"). That needs Accessibility permission and only sees what is on screen.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                }
+
                 // ── Knowledge base ──
                 settingsCard {
                     SectionHeader(title: "Knowledge base")
