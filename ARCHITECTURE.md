@@ -19,10 +19,9 @@ Kai OS macOS/     The app target
   Views/            SwiftUI views and settings
   KaiMagic/         Notch window, notch view, Right Command hotkey
   KaiDoubleTap/     Double Tap reply drafting
-  KaiEngine/        Engine, fallback chain, PII scan (not used by the app yet)
+  KaiEngine/        Engine, fallback chain, PII scan (not used by the app; infer() throws, no runtime linked)
   KaiIngestion/     Connector protocol and REST connectors (not used by the app yet)
   KaiProactive/     Placeholder
-  StubFrameworks.swift   Fake EventKit and UserNotifications types
 Tests/KaiChecksTests/    122 checks, run with `swift test`
 ```
 
@@ -50,9 +49,8 @@ User (notch, hotkey, voice)
 
 ## Not used by the app yet
 
-- `KaiEngine/`: written for on-device inference with a fallback chain. Nothing in the app calls it. I did not verify that its inference is real.
-- `KaiIngestion/`: a `Connector` protocol with Apple, Gmail, Google and Outlook calendar, Notes and Files connectors. The OAuth connectors have no way to sign in (`authenticate()` throws), and the app does not use any of them.
-- `StubFrameworks.swift`: fake EventKit and UserNotifications types in the app target. They can shadow the real frameworks, so do not rely on them.
+- `KaiEngine/`: a planned wrapper for on-device models. No runtime (LiteRT, ONNX) is linked, so `infer` throws `runtimeUnavailable`. Local chat goes through Ollama in `KaiLocalAI`. The fallback chain and PII scan are untested scaffolding.
+- `KaiIngestion/`: a `Connector` protocol with Apple Calendar (real, through `KaiCalendarSource`), Gmail, Google and Outlook calendar, Notes and Files connectors. The OAuth ones have no way to sign in (`authenticate()` throws), and the app does not use any of them.
 
 ## Privacy model
 

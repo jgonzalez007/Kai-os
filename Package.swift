@@ -43,7 +43,7 @@ let package = Package(
             name: "KaiOS",
             dependencies: ["KaiShared", "KaiActions", "KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore"],
             path: "Kai OS macOS",
-            exclude: ["Info.plist", "Info.plist.template"]
+            exclude: ["Info.plist"]
         ),
         .testTarget(
             name: "KaiChecksTests",

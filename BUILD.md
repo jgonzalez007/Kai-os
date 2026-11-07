@@ -1,6 +1,6 @@
 # Kai OS: Build Guide
 
-Kai OS builds with Swift Package Manager. `Kai OS.xcodeproj` is an out-of-date skeleton: it still lists files that were deleted, so do not use it until it is regenerated.
+Kai OS builds with Swift Package Manager. There is no `.xcodeproj`: open the folder (or `Package.swift`) in Xcode and use the `KaiOS` scheme, or build from the command line. `scripts/install-app.sh` builds and installs `~/Applications/Kai OS.app`.
 
 ## Quick start
 
@@ -10,6 +10,7 @@ cd Kai-os
 swift build          # build everything
 swift test           # run the 122 checks (XCTest)
 swift run "Kai OS"   # run the app
+xcodebuild -scheme KaiOS -destination 'platform=macOS' test   # same tests through Xcode
 ```
 
 ## Requirements
