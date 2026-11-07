@@ -24,11 +24,12 @@
 - **Voice and screen.** Hold-to-talk with on-device speech recognition, and user-triggered screen capture sent to a vision model.
 - **App awareness.** The UI adapts to the frontmost app.
 - **Knowledge base.** Kai indexes the Markdown and text files in `~/Kai OS - Knowledge Base/`, plus your Notes, Calendar events and Mail subjects for the sources you connect, and the assistant can search it. Everything stays in a private SQLite file on this Mac. Mail bodies are never indexed. Index it from Settings → Knowledge base.
+- **Night Shift.** Turn it on in Settings and Kai OS starts in the background at a time you pick, updates the knowledge base, prepares the morning cards, and quits. It only prepares cards: nothing is sent or changed without your approval. It skips the run in Low Power Mode, when the Mac is hot, or on a low battery. It does not wake a sleeping Mac; if the Mac is asleep at that time the job runs when it wakes. Needs the installed app (`scripts/install-app.sh`).
 - **Health page.** One screen that shows whether the local model, cloud keys, permissions, sources and the morning briefing are working, and what to do if not.
 
 ## Planned
 
-Not built yet: embeddings and a knowledge graph on top of the knowledge base (search is keyword-based, with stemming), computer-use agent, overnight Night Shift and wake-from-sleep, Gmail, Slack, Notion, WhatsApp and iMessage connectors, Outlook and Google Calendar in the app, on-device engine (LiteRT, Gemma), plugin system, Homebrew cask. See [KAI-DEVELOPMENT-PLAN.md](KAI-DEVELOPMENT-PLAN.md).
+Not built yet: embeddings and a knowledge graph on top of the knowledge base (search is keyword-based, with stemming), computer-use agent, waking a sleeping Mac for Night Shift, Gmail, Slack, Notion, WhatsApp and iMessage connectors, Outlook and Google Calendar in the app, on-device engine (LiteRT, Gemma), plugin system, Homebrew cask. See [KAI-DEVELOPMENT-PLAN.md](KAI-DEVELOPMENT-PLAN.md).
 
 ## Build from source
 

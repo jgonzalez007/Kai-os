@@ -42,26 +42,31 @@ extension AppState {
 
     /// Reads the Markdown folder and every connected source. One source failing does not stop the others.
     func indexKnowledge() {
-        guard !isIndexingKnowledge, let store = openKnowledgeStore() else { return }
+        guard !isIndexingKnowledge else { return }
+        Task { _ = await indexKnowledgeNow() }
+    }
+
+    /// The awaitable form, used by the button and by Night Shift. Returns what was read and what failed.
+    func indexKnowledgeNow(folder: URL? = nil, includeSources: Bool = true) async -> (report: KaiIndexReport, failures: [String]) {
+        guard !isIndexingKnowledge, let store = openKnowledgeStore() else { return (KaiIndexReport(), []) }
         isIndexingKnowledge = true
         knowledgeState = .loading
-        let folder = knowledgeFolder
-        let sources = (calendar: calendarConnected, notes: notesConnected, mail: mailConnected)
-        Task {
-            var failures: [String] = []
-            var report = KaiIndexReport()
-            func attempt(_ name: String, _ work: () async throws -> KaiIndexReport) async {
-                do { report.merge(try await work()) } catch { failures.append("\(name): \(error.localizedDescription)") }
-            }
-            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            await attempt("Files") { try KaiKnowledgeIndexer.indexFolder(folder, into: store) }
-            if sources.calendar { await attempt("Calendar") { try KaiKnowledgeIndexer.indexCalendar(into: store) } }
-            if sources.notes { await attempt("Notes") { try await KaiKnowledgeIndexer.indexNotes(into: store) } }
-            if sources.mail { await attempt("Mail") { try await KaiKnowledgeIndexer.indexMail(into: store) } }
-            refreshKnowledgeCounts()
-            isIndexingKnowledge = false
-            knowledgeState = failures.isEmpty ? .connected : .failed(failures.joined(separator: "\n"))
+        let folder = folder ?? knowledgeFolder
+        let sources = includeSources ? (calendar: calendarConnected, notes: notesConnected, mail: mailConnected) : (calendar: false, notes: false, mail: false)
+        var failures: [String] = []
+        var report = KaiIndexReport()
+        func attempt(_ name: String, _ work: () async throws -> KaiIndexReport) async {
+            do { report.merge(try await work()) } catch { failures.append("\(name): \(error.localizedDescription)") }
         }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        await attempt("Files") { try KaiKnowledgeIndexer.indexFolder(folder, into: store) }
+        if sources.calendar { await attempt("Calendar") { try KaiKnowledgeIndexer.indexCalendar(into: store) } }
+        if sources.notes { await attempt("Notes") { try await KaiKnowledgeIndexer.indexNotes(into: store) } }
+        if sources.mail { await attempt("Mail") { try await KaiKnowledgeIndexer.indexMail(into: store) } }
+        refreshKnowledgeCounts()
+        isIndexingKnowledge = false
+        knowledgeState = failures.isEmpty ? .connected : .failed(failures.joined(separator: "\n"))
+        return (report, failures)
     }
 
     /// The assistant's view of a search: untrusted text, labelled by where it came from.

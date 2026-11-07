@@ -180,6 +180,8 @@ Kai OS macOS/
 | 6.5 | Local model support | Partial | Needs wiring |
 
 ### 3.7 Night Shift Scheduler
+> **2026-11-07:** built as a per-user launchd job that runs the app headless at a set time (index, briefing, record, quit), with power and thermal checks. Not built: waking a sleeping or lid-closed Mac (needs administrator rights for `pmset`), resuming a run that was cut short. Verified with a real launch against a test folder, not yet with real launchd or a real overnight run.
+
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
 | 7.1 | Sleep/wake helper | Built | lid-closed support |

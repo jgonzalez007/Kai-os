@@ -182,6 +182,49 @@ struct KaiSettingsView: View {
                 }
                 .onAppear { appState.refreshKnowledgeCounts() }
 
+                // ── Night Shift ──
+                settingsCard {
+                    SectionHeader(title: "Night Shift")
+
+                    Toggle("Prepare things overnight", isOn: Binding(
+                        get: { appState.nightShift.enabled },
+                        set: { var next = appState.nightShift; next.enabled = $0; appState.updateNightShift(next) }
+                    ))
+
+                    if appState.nightShift.enabled {
+                        DatePicker("Time", selection: Binding(
+                            get: { Calendar.current.date(from: DateComponents(hour: appState.nightShift.hour, minute: appState.nightShift.minute)) ?? Date() },
+                            set: {
+                                var next = appState.nightShift
+                                next.hour = Calendar.current.component(.hour, from: $0)
+                                next.minute = Calendar.current.component(.minute, from: $0)
+                                appState.updateNightShift(next)
+                            }
+                        ), displayedComponents: .hourAndMinute)
+                        if let next = appState.nightShift.nextRun(after: Date()) {
+                            Text("Next run: \(next.formatted(date: .abbreviated, time: .shortened))")
+                                .font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                        }
+                    }
+
+                    if let record = appState.nightShiftRecord {
+                        Text("Last run \(record.ranAt.formatted(date: .abbreviated, time: .shortened)). \(record.summary)")
+                            .font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                    }
+
+                    if let message = appState.nightShiftMessage {
+                        Text(message).font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                    }
+
+                    Button(appState.isRunningNightShift ? "Running…" : "Run now") { appState.runNightShiftNow() }
+                        .controlSize(.small)
+                        .disabled(appState.isRunningNightShift)
+
+                    Text("At the set time, Kai OS starts in the background, updates the knowledge base and prepares your morning cards, then quits. It only prepares cards: nothing is sent or changed without your approval. It skips the run in Low Power Mode, when the Mac is hot, or on a low battery. A sleeping Mac is not woken; if the Mac is asleep at that time, the job runs when it wakes. This adds a launch agent at ~/Library/LaunchAgents/ai.kai.nightshift.plist, and turning it off removes it.")
+                        .font(KaiFont.caption2Strong)
+                        .foregroundStyle(KaiColor.textTertiary)
+                }
+
                 // ── Connections ──
                 settingsCard {
                     SectionHeader(title: "Connections")

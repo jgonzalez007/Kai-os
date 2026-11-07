@@ -35,7 +35,9 @@ struct KaiHealthView: View {
             briefingCardCount: briefing.activeCards.count,
             briefingError: briefing.errorMessage,
             briefingIsRunning: briefing.isGenerating,
-            knowledgeDocuments: appState.knowledgeDocumentCount
+            knowledgeDocuments: appState.knowledgeDocumentCount,
+            nightShift: appState.nightShift,
+            nightShiftRecord: appState.nightShiftRecord
         ))
     }
 
