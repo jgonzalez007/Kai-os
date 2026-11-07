@@ -273,6 +273,24 @@ private struct KaiNotchPanelContent: View {
                 .buttonStyle(.plain)
                 .help("Open Kai OS")
         }
+        .overlay(alignment: .bottomLeading) {
+            adaptiveHint
+        }
+    }
+
+    private var adaptiveHint: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "sparkles")
+                .font(.caption2)
+                .foregroundStyle(.purple)
+            Text(appState.suggestions.first ?? "What do you need?")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
+        .opacity(appState.suggestions.isEmpty ? 0 : 1)
     }
 
     private var placeholder: String {
