@@ -61,6 +61,29 @@ public enum KaiSlackText {
         return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
     }
 
+    /// Only the channels or people whose name contains `channel`, ignoring a leading #.
+    public static func matching(_ documents: [KaiKnowledgeDocument], channel: String?) -> [KaiKnowledgeDocument] {
+        guard let name = channel?.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "#")), !name.isEmpty else { return documents }
+        return documents.filter { $0.title.localizedCaseInsensitiveContains(name) }
+    }
+
+    /// Recent Slack as text for the assistant: newest day first, a channel at a time, each cut to fit.
+    public static func activity(_ documents: [KaiKnowledgeDocument], limit: Int = 5_500, perDocument: Int = 1_100) -> String {
+        let ordered = documents.sorted { ($0.modified ?? .distantPast) > ($1.modified ?? .distantPast) }
+        var out = ""
+        for (index, document) in ordered.enumerated() {
+            var body = document.text
+            if body.count > perDocument { body = String(body.prefix(perDocument)) + " …" }
+            let block = "## \(document.title)\n\(body)"
+            if out.count + block.count + 2 > limit {
+                out += "\n\n(\(ordered.count - index) more channel-days not shown. Ask about a channel or a topic to narrow it.)"
+                break
+            }
+            out += (out.isEmpty ? "" : "\n\n") + block
+        }
+        return out
+    }
+
     /// The Slack window's visible text, cleaned for the assistant: no empty lines, no repeats of
     /// neighbouring lines, and no more than `limit` characters.
     public static func cleanScreen(_ lines: [String], limit: Int = 6_000) -> String {
@@ -82,11 +105,10 @@ public enum KaiSlackText {
 public enum KaiSlackIndexer {
     public static let source = "slack"
 
-    /// Reads recent messages from the person's channels into the knowledge base.
+    /// Recent messages from the person's channels, one document per channel per day, not stored anywhere.
     /// Direct messages are left out unless the person turned them on.
-    public static func index(client: KaiSlackClient, into store: KaiKnowledgeStore, includeDirectMessages: Bool,
-                             days: Int = 14, maxChannels: Int = 30, now: Date = Date()) async throws -> KaiIndexReport {
-        let since = Calendar.current.date(byAdding: .day, value: -days, to: now) ?? now
+    public static func recentDocuments(client: KaiSlackClient, includeDirectMessages: Bool, since: Date,
+                                       maxChannels: Int = 30) async throws -> [KaiKnowledgeDocument] {
         let channels = Array(try await client.channels(includeDirectMessages: includeDirectMessages).prefix(maxChannels))
         var names: [String: String] = [:]
         func name(_ id: String) async -> String {
@@ -95,7 +117,7 @@ public enum KaiSlackIndexer {
             names[id] = resolved
             return resolved
         }
-        var report = KaiIndexReport()
+        var documents: [KaiKnowledgeDocument] = []
         for channel in channels {
             let messages = try await client.history(channel: channel.id, since: since)
             guard !messages.isEmpty else { continue }
@@ -106,9 +128,16 @@ public enum KaiSlackIndexer {
             case .groupDM: title = "Group message \(channel.name)"
             case .directMessage: title = "Direct message with \(await name(channel.userID ?? ""))"
             }
-            let docs = KaiSlackText.documents(channel: channel, title: title, messages: messages, userNames: names)
-            report.merge(try KaiKnowledgeIndexer.index(docs, source: source, into: store, removeMissing: false))
+            documents += KaiSlackText.documents(channel: channel, title: title, messages: messages, userNames: names)
         }
-        return report
+        return documents
+    }
+
+    /// Reads recent messages from the person's channels into the knowledge base.
+    public static func index(client: KaiSlackClient, into store: KaiKnowledgeStore, includeDirectMessages: Bool,
+                             days: Int = 14, maxChannels: Int = 30, now: Date = Date()) async throws -> KaiIndexReport {
+        let since = Calendar.current.date(byAdding: .day, value: -days, to: now) ?? now
+        let documents = try await recentDocuments(client: client, includeDirectMessages: includeDirectMessages, since: since, maxChannels: maxChannels)
+        return try KaiKnowledgeIndexer.index(documents, source: source, into: store, removeMissing: false)
     }
 }

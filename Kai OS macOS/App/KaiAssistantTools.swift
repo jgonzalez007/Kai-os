@@ -44,8 +44,16 @@ extension AppState {
             parameters: [.init(name: "query", type: "string", description: "A few words to search for", required: true)]
         ),
         KaiOllamaTool(
+            name: "slack_recent",
+            description: "Read what was said in the user's Slack channels recently, newest first, grouped by channel and day. Use this for summaries and questions like what happened in Slack yesterday or this week. Read-only. It can take up to a minute.",
+            parameters: [
+                .init(name: "days_back", type: "integer", description: "0 for today only, 1 for yesterday and today, up to 14. Defaults to 1.", required: false),
+                .init(name: "channel", type: "string", description: "Only channels or people whose name contains this", required: false),
+            ]
+        ),
+        KaiOllamaTool(
             name: "search_slack",
-            description: "Search the user's Slack messages with the Slack API. Read-only.",
+            description: "Search the user's Slack messages for specific words with the Slack API. Read-only. For a summary of recent activity use slack_recent instead.",
             parameters: [.init(name: "query", type: "string", description: "A few words to search for", required: true)]
         ),
         KaiOllamaTool(
@@ -95,6 +103,7 @@ extension AppState {
         case "read_mail_message": return "Reading an email…"
         case "propose_mail_move", "propose_mail_mark_read": return "Checking which messages match…"
         case "search_slack": return "Searching Slack…"
+        case "slack_recent": return "Reading recent Slack messages…"
         case "read_slack_screen": return "Reading your Slack window…"
         case "propose_calendar_event", "propose_email_draft", "propose_notification": return "Preparing a proposal…"
         default: return "Working…"
@@ -112,6 +121,8 @@ extension AppState {
                 output = calendarTool(daysAhead: call.arguments["days_ahead"]?.intValue ?? 7)
             case "list_recent_mail":
                 output = try await mailTool(query: call.arguments["query"]?.stringValue)
+            case "slack_recent":
+                output = await slackRecentTool(daysBack: call.arguments["days_back"]?.intValue, channel: call.arguments["channel"]?.stringValue)
             case "search_slack":
                 output = await searchSlackTool(query: call.arguments["query"]?.stringValue)
             case "read_slack_screen":
