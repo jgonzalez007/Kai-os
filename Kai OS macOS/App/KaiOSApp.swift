@@ -128,8 +128,12 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(useCloud, forKey: "kai.useCloud") }
     }
     @Published var selectedCloudProvider: String = "openai"
-    @Published var openAIApiKey: String = UserDefaults.standard.string(forKey: "kai.openai.apiKey") ?? ""
-    @Published var anthropicApiKey: String = UserDefaults.standard.string(forKey: "kai.anthropic.apiKey") ?? ""
+    @Published var openAIApiKey: String = KaiKeychain.apiKey(for: "openai") ?? "" {
+        didSet { KaiKeychain.setApiKey(openAIApiKey, for: "openai") }
+    }
+    @Published var anthropicApiKey: String = KaiKeychain.apiKey(for: "anthropic") ?? "" {
+        didSet { KaiKeychain.setApiKey(anthropicApiKey, for: "anthropic") }
+    }
     @Published var selectedCloudModel: String = ""
 
     @Published var messages: [Message] = []
