@@ -159,6 +159,8 @@ Kai OS macOS/
 | 4.6 | Audit trail | Built | All actions logged |
 
 ### 3.5 Computer Use (Sidekick)
+> **2026-11-07:** rebuilt from scratch as `KaiAgent` plus a Sidekick page. Safety rules, the loop and the key table are unit tested with a fake screen and fake input (60+ checks). Not yet done: a supervised run on a real screen with Accessibility and Screen Recording granted; multi-display support (main display only); reading the screen with accessibility trees instead of only screenshots; resuming after a pause; running it from the notch or by voice. Model quality for this is unproven: `gemma4:e4b` has not been tried as a computer-use model.
+
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
 | 5.1 | Dynamic Island notch UI | Built | macOS notch overlay |

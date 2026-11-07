@@ -12,6 +12,7 @@
 
 #if DEBUG
 import AppKit
+import ApplicationServices
 import AVFoundation
 import Foundation
 import KaiShared
@@ -448,6 +449,19 @@ enum KaiChatSelfTest {
         appState.activeSidebar = "Health"
         try? await Task.sleep(for: .milliseconds(1500))
         snapshot(window, to: directory.appendingPathComponent("9-health.png"))
+
+        appState.activeSidebar = "Sidekick"
+        appState.agent.task = "Open Notes and write a note"
+        try? await Task.sleep(for: .milliseconds(800))
+        snapshot(window, to: directory.appendingPathComponent("10-sidekick.png"))
+        if !AXIsProcessTrusted() {
+            appState.agent.start(appState: appState)
+            try? await Task.sleep(for: .milliseconds(500))
+            report("Sidekick won't start without Accessibility permission", !appState.agent.isRunning && (appState.agent.message ?? "").contains("Accessibility"), appState.agent.message ?? "no message")
+        } else {
+            report("Sidekick start was skipped because Accessibility is granted here, and a test must not move the real mouse", true)
+        }
+        appState.agent.task = ""
 
         styleController.clear()
         report("Clear removes the saved style", styleController.activeStyle == nil && styleController.store.load() == nil)

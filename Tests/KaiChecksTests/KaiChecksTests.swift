@@ -10,11 +10,118 @@ import ImageIO
 @testable import KaiLocalData
 import KaiNotchCore
 @testable import KaiKnowledge
+@testable import KaiAgent
+
+// MARK: - Fakes for the computer-use agent. Nothing here touches the real screen, mouse or keyboard.
+
+final class AgentFakes: @unchecked Sendable {
+    let lock = NSLock()
+    var performed: [KaiPlacedAction] = []
+    var events: [KaiAgentEvent] = []
+    var requests: [KaiApprovalRequest] = []
+    var seenMessages: [[KaiOllamaMessage]] = []
+    var sleeps: [Duration] = []
+    var frontmost: [String?]
+    var interrupts: [Bool]
+    var approvals: [Bool]
+    var script: [(text: String, calls: [KaiOllamaToolCall])]
+    var captureCount = 0
+    var clock = Date(timeIntervalSince1970: 1_000_000)
+    var brainError: Error?
+    /// Set by the approver to mimic the person's own click on Approve.
+    var clickedDuringApproval = false
+    var userInput = false
+
+    init(script: [(String, [KaiOllamaToolCall])], frontmost: [String?] = ["com.apple.Safari"], approvals: [Bool] = [], interrupts: [Bool] = []) {
+        self.script = script.map { (text: $0.0, calls: $0.1) }
+        self.frontmost = frontmost
+        self.approvals = approvals
+        self.interrupts = interrupts
+    }
+
+    static func call(_ name: String, _ arguments: [String: KaiToolArgument] = [:]) -> KaiOllamaToolCall {
+        KaiOllamaToolCall(name: name, arguments: arguments)
+    }
+    static func click(_ x: Int, _ y: Int) -> KaiOllamaToolCall { call("computer_click", ["x": .number(Double(x)), "y": .number(Double(y))]) }
+    static func finish(_ text: String = "Done.") -> KaiOllamaToolCall { call("task_complete", ["summary": .string(text)]) }
+}
+
+struct FakeScreen: KaiAgentScreen {
+    let fakes: AgentFakes
+    func capture() async throws -> KaiAgentFrame {
+        fakes.lock.lock(); fakes.captureCount += 1; fakes.lock.unlock()
+        return KaiAgentFrame(jpeg: Data([1, 2, 3]), pixelWidth: 1000, pixelHeight: 500, screenWidth: 500, screenHeight: 250)
+    }
+}
+struct FakeInput: KaiAgentInput {
+    let fakes: AgentFakes
+    func frontmostBundleIdentifier() async -> String? {
+        fakes.lock.lock(); defer { fakes.lock.unlock() }
+        return fakes.frontmost.count > 1 ? fakes.frontmost.removeFirst() : fakes.frontmost.first ?? nil
+    }
+    func perform(_ action: KaiPlacedAction) async throws {
+        fakes.lock.lock(); fakes.performed.append(action); fakes.lock.unlock()
+    }
+    func userInterrupted() async -> Bool {
+        fakes.lock.lock(); defer { fakes.lock.unlock() }
+        if fakes.userInput { return true }
+        return fakes.interrupts.isEmpty ? false : fakes.interrupts.removeFirst()
+    }
+    func clearInterruption() async { fakes.lock.lock(); fakes.userInput = false; fakes.lock.unlock() }
+}
+struct FakeBrain: KaiAgentBrain {
+    let fakes: AgentFakes
+    func next(messages: [KaiOllamaMessage]) async throws -> (text: String, calls: [KaiOllamaToolCall]) {
+        fakes.lock.lock(); defer { fakes.lock.unlock() }
+        fakes.seenMessages.append(messages)
+        if let error = fakes.brainError { throw error }
+        return fakes.script.isEmpty ? ("", [AgentFakes.finish("script ended")]) : fakes.script.removeFirst()
+    }
+}
+struct FakeApprover: KaiAgentApprover {
+    let fakes: AgentFakes
+    func approve(_ request: KaiApprovalRequest) async -> Bool {
+        fakes.lock.lock(); defer { fakes.lock.unlock() }
+        fakes.requests.append(request)
+        if fakes.clickedDuringApproval { fakes.userInput = true }
+        return fakes.approvals.isEmpty ? false : fakes.approvals.removeFirst()
+    }
+}
+struct FakeObserver: KaiAgentObserver {
+    let fakes: AgentFakes
+    func event(_ event: KaiAgentEvent) { fakes.lock.lock(); fakes.events.append(event); fakes.lock.unlock() }
+}
+struct FakeFailingScreen: KaiAgentScreen {
+    func capture() async throws -> KaiAgentFrame { throw KaiScreenCaptureError.needsPermission }
+}
+
+extension AgentFakes {
+    func runner(mode: KaiAgentMode, limits: KaiAgentLimits = KaiAgentLimits(), stop: KaiAgentStopSwitch = KaiAgentStopSwitch(),
+                screen: KaiAgentScreen? = nil, tick: TimeInterval = 0) -> KaiAgentRunner {
+        KaiAgentRunner(
+            screen: screen ?? FakeScreen(fakes: self), input: FakeInput(fakes: self), brain: FakeBrain(fakes: self),
+            approver: FakeApprover(fakes: self), observer: FakeObserver(fakes: self),
+            policy: KaiAgentPolicy(mode: mode, ownBundleIdentifier: "ai.kai"), limits: limits, stop: stop,
+            now: { [unowned self] in lock.lock(); defer { lock.unlock() }; clock = clock.addingTimeInterval(tick); return clock },
+            sleep: { [unowned self] in lock.lock(); sleeps.append($0); lock.unlock() })
+    }
+}
 
 /// The checks that used to run as the `KaiLocalAIChecks` executable. Each
 /// `check` is reported as its own XCTest activity, so a failure names the check.
 @MainActor
 final class KaiChecksTests: XCTestCase {
+
+    func checkAsync(_ name: String, file: StaticString = #filePath, line: UInt = #line, _ body: () async throws -> Bool) async {
+        let result: Result<Bool, Error>
+        do { result = .success(try await body()) } catch { result = .failure(error) }
+        XCTContext.runActivity(named: name) { _ in
+            switch result {
+            case .success(let passed): XCTAssertTrue(passed, name, file: file, line: line)
+            case .failure(let error): XCTFail("\(name): threw \(error)", file: file, line: line)
+            }
+        }
+    }
 
     func check(_ name: String, file: StaticString = #filePath, line: UInt = #line, _ body: () throws -> Bool) {
         XCTContext.runActivity(named: name) { _ in
@@ -1309,6 +1416,259 @@ final class KaiChecksTests: XCTestCase {
         check("uninstalling when nothing is installed is harmless") {
             try agent.uninstall()
             return !agent.isInstalled
+        }
+    }
+
+
+    func testComputerUseAgent() async throws {
+        func parse(_ name: String, _ args: [String: KaiToolArgument] = [:]) -> Result<KaiAgentAction, KaiAgentParseError> {
+            KaiAgentTools.parse(KaiOllamaToolCall(name: name, arguments: args))
+        }
+        func action(_ r: Result<KaiAgentAction, KaiAgentParseError>) -> KaiAgentAction? { try? r.get() }
+
+        // Parsing what the model asks for
+        check("a click reads its point, and a boolean double flag works") {
+            action(parse("computer_click", ["x": .number(10), "y": .number(20), "double": .bool(true)])) == .click(x: 10, y: 20, double: true, right: false)
+        }
+        check("a click accepts text numbers and a text flag") {
+            action(parse("computer_click", ["x": .string("5"), "y": .number(6.9), "right": .string("true")])) == .click(x: 5, y: 6, double: false, right: true)
+        }
+        check("a click with a missing or negative coordinate is refused") {
+            action(parse("computer_click", ["x": .number(1)])) == nil && action(parse("computer_click", ["x": .number(-1), "y": .number(1)])) == nil
+        }
+        check("typing needs text and is limited in length") {
+            action(parse("computer_type", ["text": .string("hello")])) == .type("hello")
+                && action(parse("computer_type", [:])) == nil
+                && action(parse("computer_type", ["text": .string(String(repeating: "a", count: 501))])) == nil
+        }
+        check("key names and shortcuts are understood") {
+            KaiKeyCombo.parse("cmd+shift+4") == KaiKeyCombo(modifiers: [.command, .shift], key: "4")
+                && KaiKeyCombo.parse("Enter") == KaiKeyCombo(modifiers: [], key: "return")
+                && KaiKeyCombo.parse("opt+left") == KaiKeyCombo(modifiers: [.option], key: "left")
+                && KaiKeyCombo.parse("esc")?.key == "escape"
+        }
+        check("unknown keys and modifiers are refused") {
+            KaiKeyCombo.parse("cmd+banana") == nil && KaiKeyCombo.parse("hyper+a") == nil
+                && KaiKeyCombo.parse("") == nil && KaiKeyCombo.parse("cmd+") == nil && KaiKeyCombo.parse("é") == nil
+        }
+        check("scroll turns a direction into movement and clamps the amount") {
+            action(parse("computer_scroll", ["x": .number(1), "y": .number(2), "direction": .string("down"), "amount": .number(99)])) == .scroll(x: 1, y: 2, dx: 0, dy: 10)
+                && action(parse("computer_scroll", ["x": .number(1), "y": .number(2), "direction": .string("left")])) == .scroll(x: 1, y: 2, dx: -3, dy: 0)
+                && action(parse("computer_scroll", ["x": .number(1), "y": .number(2), "direction": .string("sideways")])) == nil
+        }
+        check("a wait keeps fractions and is capped at ten seconds") {
+            action(parse("computer_wait", ["seconds": .number(2.5)])) == .wait(seconds: 2.5)
+                && action(parse("computer_wait", ["seconds": .number(500)])) == .wait(seconds: 10)
+        }
+        check("an unknown action name is refused") {
+            if case .failure(.unknownTool("rm_rf")) = parse("rm_rf") { return true }
+            return false
+        }
+        check("every tool the model is offered can be parsed, and none is a shell or send") {
+            KaiAgentTools.definitions.map(\.name) == KaiAgentTools.names
+                && !KaiAgentTools.names.contains { $0.contains("shell") || $0.contains("run") || $0.contains("send") || $0.contains("approve") }
+        }
+
+        check("every key the agent may press has a key code, and the codes are unique") {
+            let letters = (97...122).map { String(UnicodeScalar($0)!) } + (0...9).map(String.init)
+            let all = Array(KaiKeyCombo.namedKeys) + letters
+            let codes = all.compactMap { KaiKeyCodes.code(for: $0) }
+            return codes.count == all.count && Set(codes).count == codes.count
+        }
+        check("modifiers become the matching event flags") {
+            let flags = KaiKeyCodes.flags([.command, .shift])
+            return flags.contains(.maskCommand) && flags.contains(.maskShift) && !flags.contains(.maskAlternate) && !flags.contains(.maskControl)
+        }
+
+        // Where a click lands
+        let frame = KaiAgentFrame(jpeg: Data(), pixelWidth: 1000, pixelHeight: 500, screenWidth: 500, screenHeight: 250)
+        check("screenshot pixels map to display points") {
+            let p = frame.screenPoint(x: 500, y: 250)
+            return p != nil && abs(p!.x - 250.25) < 0.01 && abs(p!.y - 125.25) < 0.01
+        }
+        check("points outside the screenshot are refused") {
+            frame.screenPoint(x: 1000, y: 0) == nil && frame.screenPoint(x: 0, y: 500) == nil && frame.screenPoint(x: -1, y: 0) == nil
+        }
+
+        // The rules
+        let ask = KaiAgentPolicy(mode: .askEach, ownBundleIdentifier: "ai.kai")
+        let auto = KaiAgentPolicy(mode: .auto, ownBundleIdentifier: "ai.kai")
+        let click = KaiAgentAction.click(x: 1, y: 1, double: false, right: false)
+        check("terminals, password managers and system settings are never operated, in either mode") {
+            ["com.apple.Terminal", "com.googlecode.iterm2", "com.1password.1password", "com.apple.systempreferences", "com.apple.keychainaccess", "com.apple.Passwords"].allSatisfy { app in
+                if case .deny = ask.decide(click, frontmostBundleIdentifier: app), case .deny = auto.decide(.type("x"), frontmostBundleIdentifier: app) { return true }
+                return false
+            }
+        }
+        check("the agent cannot act while Kai's own window is in front, so it can never press its own Approve") {
+            if case .deny = auto.decide(click, frontmostBundleIdentifier: "ai.kai") { return true }
+            return false
+        }
+        check("an unknown frontmost app means no action") {
+            if case .deny = auto.decide(click, frontmostBundleIdentifier: nil) { return true }
+            return false
+        }
+        check("waiting and finishing are always allowed") {
+            ask.decide(.wait(seconds: 1), frontmostBundleIdentifier: nil) == .allow && ask.decide(.finish("x"), frontmostBundleIdentifier: "com.apple.Terminal") == .allow
+        }
+        check("ask-each mode asks for every click, key and typing, and lets scrolling through") {
+            if case .needsApproval = ask.decide(click, frontmostBundleIdentifier: "com.apple.Safari"),
+               case .needsApproval = ask.decide(.type("hi"), frontmostBundleIdentifier: "com.apple.Safari"),
+               case .needsApproval = ask.decide(.key(KaiKeyCombo(modifiers: [.command], key: "c")), frontmostBundleIdentifier: "com.apple.Safari") {
+                return ask.decide(.scroll(x: 1, y: 1, dx: 0, dy: 3), frontmostBundleIdentifier: "com.apple.Safari") == .allow
+            }
+            return false
+        }
+        check("automatic mode lets a click, plain typing and a copy through") {
+            auto.decide(click, frontmostBundleIdentifier: "com.apple.Safari") == .allow
+                && auto.decide(.type("hello world"), frontmostBundleIdentifier: "com.apple.Safari") == .allow
+                && auto.decide(.key(KaiKeyCombo(modifiers: [.command], key: "c")), frontmostBundleIdentifier: "com.apple.Safari") == .allow
+        }
+        check("automatic mode still asks before Return, delete, quit, a new line and send shortcuts") {
+            let risky: [KaiAgentAction] = [
+                .key(KaiKeyCombo(modifiers: [], key: "return")), .key(KaiKeyCombo(modifiers: [], key: "delete")),
+                .key(KaiKeyCombo(modifiers: [.command], key: "q")), .key(KaiKeyCombo(modifiers: [.command], key: "return")),
+                .key(KaiKeyCombo(modifiers: [.command], key: "w")), .type("line one\nline two"),
+            ]
+            return risky.allSatisfy { if case .needsApproval = auto.decide($0, frontmostBundleIdentifier: "com.apple.Mail") { return true } else { return false } }
+        }
+
+        // The loop
+        await checkAsync("a task that is already done finishes without touching anything") {
+            let f = AgentFakes(script: [("", [AgentFakes.finish("Nothing to do.")])])
+            let outcome = await f.runner(mode: .askEach).run(task: "t")
+            return outcome == .completed("Nothing to do.") && f.performed.isEmpty
+        }
+        await checkAsync("an approved click happens once, at the converted point, after asking") {
+            let f = AgentFakes(script: [("Opening it", [AgentFakes.click(500, 250)]), ("", [AgentFakes.finish()])], approvals: [true])
+            let outcome = await f.runner(mode: .askEach).run(task: "t")
+            guard case .click(let x, let y, false, false)? = f.performed.first else { return false }
+            return outcome == .completed("Done.") && f.performed.count == 1 && f.requests.count == 1
+                && abs(x - 250.25) < 0.01 && abs(y - 125.25) < 0.01 && f.requests[0].application == "com.apple.Safari"
+        }
+        await checkAsync("a declined action does not run, and the model is told") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(5, 5)]), ("", [AgentFakes.finish()])], approvals: [false])
+            _ = await f.runner(mode: .askEach).run(task: "t")
+            let told = f.seenMessages.last?.contains { $0.role == "tool" && $0.content.contains("declined") } ?? false
+            return f.performed.isEmpty && told && f.events.contains { if case .declined = $0 { return true } else { return false } }
+        }
+        await checkAsync("an action in a blocked app is refused without even asking") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(5, 5)]), ("", [AgentFakes.finish()])], frontmost: ["com.apple.Terminal"], approvals: [true])
+            _ = await f.runner(mode: .auto).run(task: "t")
+            return f.performed.isEmpty && f.requests.isEmpty && f.events.contains { if case .blocked = $0 { return true } else { return false } }
+        }
+        await checkAsync("an app that becomes blocked while waiting for approval stops the action") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(5, 5)]), ("", [AgentFakes.finish()])],
+                               frontmost: ["com.apple.Safari", "com.apple.Terminal"], approvals: [true])
+            _ = await f.runner(mode: .askEach).run(task: "t")
+            return f.performed.isEmpty
+        }
+        await checkAsync("automatic mode runs a click without asking, and asks for Return") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(5, 5)]),
+                                        ("", [AgentFakes.call("computer_key", ["keys": .string("return")])]), ("", [AgentFakes.finish()])], approvals: [false])
+            _ = await f.runner(mode: .auto).run(task: "t")
+            return f.performed.count == 1 && f.requests.count == 1 && f.requests[0].summary == "Press return"
+        }
+        await checkAsync("the emergency stop ends the run before anything else happens") {
+            let stop = KaiAgentStopSwitch(); stop.stop()
+            let f = AgentFakes(script: [("", [AgentFakes.click(5, 5)])], approvals: [true])
+            let outcome = await f.runner(mode: .auto, stop: stop).run(task: "t")
+            return outcome == .stopped && f.performed.isEmpty && f.captureCount == 0
+        }
+        await checkAsync("clicking Approve yourself does not count as taking over") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(5, 5)]), ("", [AgentFakes.finish()])], approvals: [true])
+            f.clickedDuringApproval = true
+            let outcome = await f.runner(mode: .askEach).run(task: "t")
+            return outcome == .completed("Done.") && f.performed.count == 1
+        }
+        await checkAsync("using your own mouse or keyboard stops the run") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(5, 5)])], approvals: [true], interrupts: [false, true])
+            let outcome = await f.runner(mode: .auto).run(task: "t")
+            return outcome == .interrupted && f.performed.isEmpty
+        }
+        await checkAsync("the step limit ends a run that never finishes") {
+            var limits = KaiAgentLimits(); limits.maxSteps = 3
+            let f = AgentFakes(script: Array(repeating: ("", [AgentFakes.call("computer_wait", ["seconds": .number(1)])]), count: 10))
+            let outcome = await f.runner(mode: .auto, limits: limits).run(task: "t")
+            if case .limitReached = outcome { return f.captureCount == 3 }
+            return false
+        }
+        await checkAsync("the time limit ends a run") {
+            var limits = KaiAgentLimits(); limits.maxDuration = 60
+            let f = AgentFakes(script: Array(repeating: ("", [AgentFakes.call("computer_wait", ["seconds": .number(1)])]), count: 10))
+            let outcome = await f.runner(mode: .auto, limits: limits, tick: 40).run(task: "t")
+            if case .limitReached(let why) = outcome { return why.contains("time") }
+            return false
+        }
+        await checkAsync("a point outside the screenshot is not clicked") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(5000, 5)]), ("", [AgentFakes.finish()])], approvals: [true])
+            _ = await f.runner(mode: .auto).run(task: "t")
+            return f.performed.isEmpty
+        }
+        await checkAsync("only the first action of several is done") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(5, 5), AgentFakes.click(9, 9)]), ("", [AgentFakes.finish()])])
+            _ = await f.runner(mode: .auto).run(task: "t")
+            return f.performed.count == 1
+        }
+        await checkAsync("a model that never picks an action fails cleanly") {
+            let f = AgentFakes(script: [("I will think", []), ("still thinking", []), ("hmm", [])])
+            let outcome = await f.runner(mode: .auto).run(task: "t")
+            if case .failed = outcome { return f.performed.isEmpty }
+            return false
+        }
+        await checkAsync("repeated blocked actions end the run instead of looping") {
+            let f = AgentFakes(script: Array(repeating: ("", [AgentFakes.click(5, 5)]), count: 10), frontmost: ["com.apple.Terminal"])
+            let outcome = await f.runner(mode: .auto).run(task: "t")
+            if case .failed(let why) = outcome { return why.contains("blocked") && f.performed.isEmpty }
+            return false
+        }
+        await checkAsync("an invalid action is reported back and repeated ones end the run") {
+            let f = AgentFakes(script: Array(repeating: ("", [AgentFakes.call("delete_everything")]), count: 10))
+            let outcome = await f.runner(mode: .auto).run(task: "t")
+            if case .failed = outcome { return f.performed.isEmpty && f.seenMessages.count == 3 }
+            return false
+        }
+        await checkAsync("a model error ends the run with its message") {
+            let f = AgentFakes(script: [])
+            f.brainError = KaiOllamaError.unreachable("http://localhost:11434")
+            let outcome = await f.runner(mode: .auto).run(task: "t")
+            if case .failed = outcome { return f.performed.isEmpty }
+            return false
+        }
+        await checkAsync("a missing screen permission ends the run with the reason") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(5, 5)])])
+            let outcome = await f.runner(mode: .auto, screen: FakeFailingScreen()).run(task: "t")
+            if case .failed(let why) = outcome { return why.contains("Screen Recording") && f.performed.isEmpty }
+            return false
+        }
+        await checkAsync("only the newest screenshot is kept in the conversation") {
+            let f = AgentFakes(script: [("", [AgentFakes.call("computer_wait", ["seconds": .number(0)])]),
+                                        ("", [AgentFakes.call("computer_wait", ["seconds": .number(0)])]), ("", [AgentFakes.finish()])])
+            _ = await f.runner(mode: .auto).run(task: "t")
+            let last = f.seenMessages.last ?? []
+            return last.filter { $0.images != nil }.count == 1 && last.last?.images != nil
+        }
+        await checkAsync("waiting uses the pause, not real time") {
+            let f = AgentFakes(script: [("", [AgentFakes.call("computer_wait", ["seconds": .number(2)])]), ("", [AgentFakes.finish()])])
+            _ = await f.runner(mode: .auto).run(task: "t")
+            return f.sleeps.contains(.milliseconds(2000))
+        }
+        await checkAsync("the model is told the screen is untrusted and to stop for passwords") {
+            KaiAgentRunner.systemPrompt.contains("untrusted") && KaiAgentRunner.systemPrompt.contains("password")
+        }
+
+        // The log
+        let logDir = FileManager.default.temporaryDirectory.appendingPathComponent("kai-agent-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: logDir) }
+        let logURL = logDir.appendingPathComponent("agent-log.jsonl")
+        let log = KaiAgentAuditLog(url: logURL)
+        log.event(.started(task: "Open Notes", mode: .askEach))
+        log.event(.blocked(step: 1, summary: "Click at (1, 1)", reason: "Kai never operates this app (com.apple.Terminal)."))
+        log.event(.finished(.stopped))
+        check("every event is a line in the log, and the file is private") {
+            let lines = (try String(contentsOf: logURL, encoding: .utf8)).split(separator: "\n")
+            let attrs = try FileManager.default.attributesOfItem(atPath: logURL.path)
+            return lines.count == 3 && lines[0].contains("Open Notes") && lines[1].contains("blocked") && (attrs[.posixPermissions] as? Int) == 0o600
         }
     }
 
