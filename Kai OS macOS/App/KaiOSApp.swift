@@ -178,6 +178,7 @@ final class AppState: ObservableObject {
     @Published var knowledgeState = KaiSourceState.disconnected
     @Published var isIndexingKnowledge = false
     var knowledge: KaiKnowledgeStore?
+    let agent = KaiAgentController()
     @Published var nightShift = KaiNightShiftStore().loadSettings()
     @Published var nightShiftRecord = KaiNightShiftStore().loadRecord()
     @Published var nightShiftMessage: String?
@@ -758,6 +759,8 @@ struct KaiMainView: View {
             case "Mail": KaiMailView()
                 .environmentObject(appState)
             case "Notes": KaiNotesView()
+                .environmentObject(appState)
+            case "Sidekick": KaiSidekickView(agent: appState.agent)
                 .environmentObject(appState)
             case "Health": KaiHealthView(briefing: appState.morningCards)
                 .environmentObject(appState)

@@ -142,6 +142,9 @@ struct KaiSidebarView: View {
             
             // ── Bottom ──
             Section {
+                Label("Sidekick", systemImage: "cursorarrow.motionlines")
+                    .tag("Sidekick")
+
                 Label("Health", systemImage: "heart.text.square")
                     .tag("Health")
 
