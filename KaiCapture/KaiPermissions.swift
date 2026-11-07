@@ -115,18 +115,29 @@ public protocol KaiPermissionProviding: AnyObject {
 
 @MainActor
 public final class KaiSystemPermissionProvider: KaiPermissionProviding {
-    private static let screenRequestedKey = "kai.permissions.screenRequested"
+    /// True only for this launch: macOS applies a grant at the next launch, so a restart can
+    /// only help within the launch that asked. Remembering it longer would hide the Allow button
+    /// after the grant is reset, and only asking makes macOS list the app in System Settings.
+    private var screenRequestedThisLaunch = false
+    private let screenAccessGranted: () -> Bool
+    private let requestScreenAccess: () -> Void
     private static let automationGrantPrefix = "kai.permissions.automationGranted."
 
-    public init() {}
+    public init(
+        screenAccessGranted: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() },
+        requestScreenAccess: @escaping () -> Void = { _ = CGRequestScreenCaptureAccess() }
+    ) {
+        self.screenAccessGranted = screenAccessGranted
+        self.requestScreenAccess = requestScreenAccess
+    }
 
     public func status(of permission: KaiPermission) async -> KaiPermissionStatus {
         switch permission {
         case .accessibility:
             return AXIsProcessTrusted() ? .granted : .notRequested
         case .screenRecording:
-            if CGPreflightScreenCaptureAccess() { return .granted }
-            return UserDefaults.standard.bool(forKey: Self.screenRequestedKey) ? .needsRestart : .notRequested
+            if screenAccessGranted() { return .granted }
+            return screenRequestedThisLaunch ? .needsRestart : .notRequested
         case .microphone:
             switch AVCaptureDevice.authorizationStatus(for: .audio) {
             case .authorized: return .granted
@@ -164,8 +175,8 @@ public final class KaiSystemPermissionProvider: KaiPermissionProviding {
             let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
             _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
         case .screenRecording:
-            UserDefaults.standard.set(true, forKey: Self.screenRequestedKey)
-            _ = CGRequestScreenCaptureAccess()
+            screenRequestedThisLaunch = true
+            requestScreenAccess()
         case .microphone:
             _ = await AVCaptureDevice.requestAccess(for: .audio)
         case .speech:
