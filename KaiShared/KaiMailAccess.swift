@@ -33,9 +33,9 @@ public enum KaiMailAccess: String, CaseIterable, Codable, Sendable {
         case .standard:
             return "Kai sees the newest 50 inbox messages (sender and subject) and unread mail for the morning briefing, and can open a reply draft."
         case .read:
-            return "Kai can list every mailbox, search any of them by sender or subject, and read the text of a message you ask about. It never changes anything."
+            return "Kai can list every mailbox, search any of them by sender or subject, and read the text of a message you ask about. It never changes anything. Only for mailboxes under 5,000 messages: Apple Mail is too slow to script anything larger."
         case .manage:
-            return "Everything in \"Read the whole mailbox\", and Kai can propose moving messages to another mailbox or marking them read. Each proposal shows how many messages and examples, and nothing happens until you press Approve. Kai never sends mail, never deletes permanently, and never touches more than 500 messages in one approval."
+            return "Everything in \"Read the whole mailbox\", and Kai can propose moving messages to another mailbox or marking them read. Each proposal shows how many messages and examples, and nothing happens until you press Approve. Kai never sends mail, never deletes permanently, and never touches more than 500 messages in one approval. Only for mailboxes under 5,000 messages."
         }
     }
 }
