@@ -669,7 +669,53 @@ final class AppState: ObservableObject {
     }
 }
 
-// MARK: - Connect Card
+// MARK: - Main App
+
+@main
+struct KaiOSApp: App {
+    @NSApplicationDelegateAdaptor(KaiAppDelegate.self) private var appDelegate
+    @StateObject private var appState = AppState.shared
+
+    var body: some Scene {
+        WindowGroup {
+            KaiMainView()
+                .environmentObject(appState)
+                .preferredColorScheme(appState.preferredColorScheme)
+                .frame(minWidth: 800, minHeight: 500)
+                .onAppear {
+                    appState.startMonitoring()
+                    #if DEBUG
+                    KaiChatSelfTest.runIfRequested(appState: appState)
+                    KaiNotchSelfTest.runIfRequested(appState: appState)
+                    #endif
+                }
+        }
+        .windowToolbarStyle(.unified)
+        .windowStyle(.hiddenTitleBar)
+
+        Settings {
+            KaiSettingsView()
+                .environmentObject(appState)
+                .preferredColorScheme(appState.preferredColorScheme)
+        }
+    }
+}
+
+final class KaiAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        KaiNotchWindowController.shared.start(appState: AppState.shared)
+        let permissions = KaiPermissionsModel.shared
+        permissions.onGranted = { AppState.shared.permissionGranted($0) }
+        Task {
+            await permissions.refresh()
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["KAI_UI_SELFTEST_DIR"] != nil { return }
+            #endif
+            AppState.shared.morningCards.start()
+        }
+    }
+}
+
 struct KaiMainView: View {
     @EnvironmentObject var appState: AppState
 
