@@ -1000,4 +1000,57 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+
+    func testHealth() async throws {
+        func item(_ id: String, _ input: KaiHealthInputs) -> KaiHealthItem? { KaiHealth.items(input).first { $0.id == id } }
+
+        check("an unreachable Ollama needs attention") {
+            item("ollama", KaiHealthInputs(ollamaModels: nil))?.status == .attention
+        }
+        check("Ollama with no models says how to pull one") {
+            let i = item("ollama", KaiHealthInputs(ollamaModels: []))
+            return i?.status == .attention && i?.detail.contains("ollama pull") == true
+        }
+        check("Ollama with models is healthy and names the model without its prefix") {
+            let i = item("ollama", KaiHealthInputs(ollamaModels: ["gemma4:e4b"], selectedModel: "ollama: gemma4:e4b"))
+            return i?.status == .ok && i?.detail == "1 model available. Using gemma4:e4b."
+        }
+        check("cloud is off by default and says chat stays local") {
+            let i = item("cloud", KaiHealthInputs())
+            return i?.status == .off && i?.detail.contains("stays on this Mac") == true
+        }
+        check("cloud on without a key needs attention") {
+            item("cloud", KaiHealthInputs(useCloud: true))?.status == .attention
+        }
+        check("cloud on with a key is healthy and names the provider") {
+            let i = item("cloud", KaiHealthInputs(useCloud: true, hasAnthropicKey: true))
+            return i?.status == .ok && i?.detail.contains("Anthropic") == true
+        }
+        check("missing permissions are counted") {
+            let i = item("permissions", KaiHealthInputs(permissionsMissing: 3))
+            return i?.status == .attention && i?.detail.hasPrefix("3 not granted") == true
+        }
+        check("no missing permissions is healthy") {
+            item("permissions", KaiHealthInputs())?.status == .ok
+        }
+        check("connected sources are listed") {
+            let i = item("sources", KaiHealthInputs(calendarConnected: true, notesConnected: true))
+            return i?.status == .ok && i?.detail == "Connected: Calendar, Notes."
+        }
+        check("no sources is off") {
+            item("sources", KaiHealthInputs())?.status == .off
+        }
+        check("a briefing error is shown") {
+            let i = item("briefing", KaiHealthInputs(briefingError: "The model is not running"))
+            return i?.status == .attention && i?.detail == "The model is not running"
+        }
+        check("briefing cards are counted, with the right plural") {
+            item("briefing", KaiHealthInputs(briefingCardCount: 1))?.detail == "1 card today."
+                && item("briefing", KaiHealthInputs(briefingCardCount: 3))?.detail == "3 cards today."
+        }
+        check("a running briefing says so, ahead of an old error") {
+            item("briefing", KaiHealthInputs(briefingError: "old", briefingIsRunning: true))?.detail == "Running now."
+        }
+    }
+
 }

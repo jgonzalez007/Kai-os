@@ -741,6 +741,8 @@ struct KaiMainView: View {
                 .environmentObject(appState)
             case "Notes": KaiNotesView()
                 .environmentObject(appState)
+            case "Health": KaiHealthView(briefing: appState.morningCards)
+                .environmentObject(appState)
             case "Settings": KaiSettingsView()
                 .environmentObject(appState)
             case "Permissions": KaiPermissionsView(permissions: .shared)
