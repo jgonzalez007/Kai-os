@@ -495,3 +495,27 @@ public enum KaiMailBriefing {
         }
     }
 }
+
+// MARK: - Sent mail
+
+public enum KaiMailSent {
+    /// Returns the bodies of recent sent messages, which may include other people's quoted text.
+    public static func recentBodies(limit: Int = 30) async throws -> [String] {
+        try await KaiAppleScriptRecords.run(script: script(limit: limit), app: "Mail", timeout: 120).compactMap(\.first)
+    }
+
+    static func script(limit: Int) -> String {
+        KaiAppleScriptRecords.prelude + """
+        set out to ""
+        tell application "Mail"
+            set total to count of messages of sent mailbox
+            set n to total
+            if n > \(limit) then set n to \(limit)
+            repeat with i from 1 to n
+                set out to out & my cleaned(content of (message i of sent mailbox)) & RS
+            end repeat
+        end tell
+        return out
+        """
+    }
+}
