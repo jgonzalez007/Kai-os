@@ -1,0 +1,23 @@
+# Paste this into Slack: https://api.slack.com/apps → Create New App → From a manifest.
+# It makes a private Slack app that can only READ your own Slack, as you. It has no bot and
+# no permission to post, edit or delete.
+display_information:
+  name: Kai OS (read-only)
+  description: Lets Kai OS on my Mac search and read my Slack. It cannot post.
+oauth_config:
+  scopes:
+    user:
+      - channels:read
+      - groups:read
+      - im:read
+      - mpim:read
+      - channels:history
+      - groups:history
+      - im:history
+      - mpim:history
+      - users:read
+      - search:read
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
