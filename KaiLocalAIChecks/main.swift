@@ -2,6 +2,7 @@
 // nor the Swift Testing macros, so `swift test` is unavailable without Xcode.
 // Run with: swift run KaiLocalAIChecks
 import Foundation
+import KaiShared
 @testable import KaiLocalAI
 import AppKit
 import CoreGraphics
@@ -860,7 +861,7 @@ check("the Notes script compiles against Notes' dictionary") { compiles(KaiNotes
 // Nothing listens on port 9, so this exercises the "Ollama is not running" path.
 let closedPort = KaiOllamaClient(baseURL: URL(string: "http://127.0.0.1:9")!)
 do {
-    _ = try await closedPort.listChatModels()
+    _ = try await closedPort.listModels()
     print("FAIL  a stopped server reports unreachable: request succeeded")
     failures += 1
 } catch let error as KaiOllamaError where error == .unreachable("http://127.0.0.1:9") {
@@ -871,7 +872,7 @@ do {
 }
 
 do {
-    for try await _ in closedPort.streamChat(model: "m", messages: []) {}
+    for try await _ in closedPort.stream(model: "m", messages: []) {}
     print("FAIL  a stopped server fails the chat stream: stream finished")
     failures += 1
 } catch let error as KaiOllamaError where error == .unreachable("http://127.0.0.1:9") {

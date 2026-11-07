@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import KaiShared
 import KaiActions
 import KaiLocalAI
 import KaiLocalData

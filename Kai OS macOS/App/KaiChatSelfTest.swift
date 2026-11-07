@@ -14,6 +14,7 @@
 import AppKit
 import AVFoundation
 import Foundation
+import KaiShared
 import Speech
 import KaiActions
 import KaiCapture

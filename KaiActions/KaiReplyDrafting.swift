@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import KaiShared
 import KaiLocalAI
 import KaiLocalData
 
