@@ -119,6 +119,8 @@ Kai OS macOS/
 | 1.5 | Multi-model support | Built | Qwen, Gemma, Claude, ChatGPT |
 
 ### 3.2 Data Connectors
+> **2026-11-07, parked:** optional mailbox access (search, read, organize with approval) is built and stays as is, limited to mailboxes under 5,000 messages. On a 43,000-message Exchange inbox Apple Mail's scripting was too slow and left Mail at 100% CPU, so larger mailboxes are refused. Open options if it is picked up again: Microsoft Graph for Exchange (needs an app registration and possibly admin approval), or Spotlight with Full Disk Access (unconfirmed). Never verified against a real mailbox of any size.
+
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
 | 2.1 | Apple Mail connector | Built | IMAP/Events |
