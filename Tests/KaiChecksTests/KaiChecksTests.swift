@@ -1828,6 +1828,39 @@ final class KaiChecksTests: XCTestCase {
             let again = try await KaiSlackIndexer.index(client: KaiSlackClient(token: "t", transport: slack), into: store, includeDirectMessages: false, now: now)
             return again.added == 0 && again.updated == 0 && again.unchanged >= 1
         }
+        await checkAsync("recent messages are fetched from the start time given, and not stored") {
+            let recent = FakeSlack(["users.conversations": channelsJSON, "conversations.history": historyJSON,
+                                    "users.info": #"{"ok":true,"user":{"name":"x","real_name":"Ana Ruiz","profile":{"display_name":"Ana"}}}"#])
+            let since = now.addingTimeInterval(-3 * 86_400)
+            let docs = try await KaiSlackIndexer.recentDocuments(client: KaiSlackClient(token: "t", transport: recent), includeDirectMessages: false, since: since)
+            let historyIndex = recent.methods.firstIndex(of: "conversations.history")!
+            return !docs.isEmpty && docs.allSatisfy { $0.source == "slack" } && Double(recent.query(historyIndex, "oldest")!)! == since.timeIntervalSince1970
+                && Set(recent.methods).isSubset(of: ["users.conversations", "conversations.history", "users.info"])
+        }
+        check("the activity summary lists the newest day first, one channel at a time") {
+            func doc(_ title: String, _ text: String, _ at: Double) -> KaiKnowledgeDocument {
+                KaiKnowledgeDocument(source: "slack", sourceID: title, title: title, text: text, modified: Date(timeIntervalSince1970: at), fingerprint: title)
+            }
+            let summary = KaiSlackText.activity([doc("#old — 2026-11-05", "older talk", 100), doc("#new — 2026-11-06", "newer talk", 200)])
+            return summary == "## #new — 2026-11-06\nnewer talk\n\n## #old — 2026-11-05\nolder talk"
+        }
+        check("a long summary is cut to fit and says how much was left out") {
+            let docs = (0..<40).map { i in KaiKnowledgeDocument(source: "slack", sourceID: "\(i)", title: "#c\(i)", text: String(repeating: "word ", count: 150),
+                                                                modified: Date(timeIntervalSince1970: Double(i)), fingerprint: "\(i)") }
+            let summary = KaiSlackText.activity(docs)
+            return summary.count <= 5_700 && summary.contains("more channel-days not shown")
+        }
+        check("an empty day gives an empty summary") {
+            KaiSlackText.activity([]) == ""
+        }
+        check("a channel filter ignores case and a leading #, and no filter keeps everything") {
+            let docs = ["#Launch — d", "#general — d", "Direct message with Ana — d"].map {
+                KaiKnowledgeDocument(source: "slack", sourceID: $0, title: $0, text: "x", fingerprint: $0)
+            }
+            return KaiSlackText.matching(docs, channel: "#launch").map(\.title) == ["#Launch — d"]
+                && KaiSlackText.matching(docs, channel: "ana").count == 1
+                && KaiSlackText.matching(docs, channel: nil).count == 3 && KaiSlackText.matching(docs, channel: "  ").count == 3
+        }
         await checkAsync("a channel with no recent messages adds nothing") {
             let quiet = FakeSlack(["users.conversations": channelsJSON, "conversations.history": #"{"ok":true,"messages":[]}"#])
             let freshStore = try KaiKnowledgeStore(url: dir.appendingPathComponent("quiet.sqlite"))
