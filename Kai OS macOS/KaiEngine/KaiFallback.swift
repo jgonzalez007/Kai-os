@@ -118,15 +118,18 @@ public final class KaiFallbackManager {
         }
         
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let choices = json?["choices"] as? [[String: Any]] ?? []
-        let content = choices.compactMap { $0["message"] as? [String: Any] }?
-            .compactMap { $0["content"] as? String }.joined(separator: "\n")
+        let choices: [[String: Any]] = json?["choices"] as? [[String: Any]] ?? []
+        guard !choices.isEmpty else {
+            throw KaiFallbackError.emptyResponse(provider: "chatgpt")
+        }
+        let messages = choices.compactMap { $0["message"] as? [String: Any] }
+        let content = messages.compactMap { $0["content"] as? String }.joined(separator: "\n")
         
-        guard let text = content, !text.isEmpty else {
+        guard !content.isEmpty else {
             throw KaiFallbackError.emptyResponse(provider: "chatgpt")
         }
         
-        return text
+        return content
     }
     
     /// Call Claude via Anthropic Messages API
