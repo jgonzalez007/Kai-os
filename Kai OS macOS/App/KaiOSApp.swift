@@ -178,6 +178,10 @@ final class AppState: ObservableObject {
     @Published var knowledgeState = KaiSourceState.disconnected
     @Published var isIndexingKnowledge = false
     var knowledge: KaiKnowledgeStore?
+    @Published var nightShift = KaiNightShiftStore().loadSettings()
+    @Published var nightShiftRecord = KaiNightShiftStore().loadRecord()
+    @Published var nightShiftMessage: String?
+    @Published var isRunningNightShift = false
     @Published var mailConnected = UserDefaults.standard.bool(forKey: AppState.mailConnectedKey)
     @Published var notesConnected = UserDefaults.standard.bool(forKey: AppState.notesConnectedKey)
 
@@ -707,7 +711,16 @@ struct KaiOSApp: App {
 }
 
 final class KaiAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // Night Shift runs from launchd: no Dock icon and no window.
+        if KaiNightShiftRunner.isRequested { NSApp.setActivationPolicy(.accessory) }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if KaiNightShiftRunner.isRequested {
+            Task { @MainActor in await KaiNightShiftRunner.runUnattended(appState: AppState.shared) }
+            return
+        }
         KaiNotchWindowController.shared.start(appState: AppState.shared)
         let permissions = KaiPermissionsModel.shared
         permissions.onGranted = { AppState.shared.permissionGranted($0) }

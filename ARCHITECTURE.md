@@ -33,6 +33,7 @@ Tests/KaiChecksTests/    122 checks, run with `swift test`
 | `KaiLocalData` | Read-only access to Apple Calendar (EventKit), Mail and Notes (AppleScript), and Spotlight search (`mdfind`). |
 | `KaiCapture` | Permission status and requests, screen capture, speech transcription, and writing text into other apps. |
 | `KaiKnowledge` | `KaiKnowledgeStore` keeps documents and their chunks in one SQLite file (`~/Library/Application Support/Kai OS/knowledge.sqlite`, readable only by you) with an FTS5 index using Porter stemming. `KaiKnowledgeIndexer` fills it from a Markdown folder, Notes, Calendar and Mail subjects, skipping unchanged items. The assistant reaches it through the `search_knowledge` tool. |
+| Night Shift | `KaiNightShiftSettings`, `KaiNightShiftPolicy`, `KaiNightShiftStore` and `KaiNightShiftAgent` (in `KaiShared`) hold the schedule, the power rules, the saved settings and last run, and the per-user launchd job (`~/Library/LaunchAgents/ai.kai.nightshift.plist`). `KaiNightShiftRunner` (in the app) does the run: index the knowledge base, generate today's briefing if there isn't one, record the outcome and quit. launchd starts the app with `--night-shift`, which hides it from the Dock and windows. |
 | `KaiNotchCore` | Notch layout for each Mac and the hold-to-talk gesture state machine. |
 | `KaiActions` | Parses model proposals into actions. Only a user-approved card runs. Calendar event, mail draft and notification only. No shell, no send. Also morning cards and reply drafting. |
 

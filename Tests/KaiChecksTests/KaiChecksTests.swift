@@ -1049,6 +1049,24 @@ final class KaiChecksTests: XCTestCase {
             item("knowledge", KaiHealthInputs(knowledgeDocuments: 1))?.detail == "1 document indexed."
                 && item("knowledge", KaiHealthInputs(knowledgeDocuments: 42))?.detail == "42 documents indexed."
         }
+        check("Night Shift is off by default") {
+            item("nightshift", KaiHealthInputs())?.status == .off
+        }
+        check("an enabled Night Shift shows its time and that it hasn't run") {
+            let i = item("nightshift", KaiHealthInputs(nightShift: KaiNightShiftSettings(enabled: true, hour: 3, minute: 5)))
+            return i?.status == .ok && i?.detail == "Scheduled for 3:05 AM. It hasn't run yet."
+        }
+        check("clock times use 12 hours") {
+            KaiHealth.clock(hour: 0, minute: 0) == "12:00 AM" && KaiHealth.clock(hour: 12, minute: 30) == "12:30 PM"
+                && KaiHealth.clock(hour: 23, minute: 59) == "11:59 PM"
+        }
+        check("a failed Night Shift run needs attention and a skipped one does not") {
+            let on = KaiNightShiftSettings(enabled: true)
+            let failed = KaiNightShiftRecord(ranAt: Date(), outcome: .failed("Ollama is not running"))
+            let skipped = KaiNightShiftRecord(ranAt: Date(), outcome: .skipped("Low Power Mode is on."))
+            return item("nightshift", KaiHealthInputs(nightShift: on, nightShiftRecord: failed))?.status == .attention
+                && item("nightshift", KaiHealthInputs(nightShift: on, nightShiftRecord: skipped))?.status == .ok
+        }
         check("a briefing error is shown") {
             let i = item("briefing", KaiHealthInputs(briefingError: "The model is not running"))
             return i?.status == .attention && i?.detail == "The model is not running"
@@ -1198,6 +1216,99 @@ final class KaiChecksTests: XCTestCase {
             let a = KaiKnowledgeIndexer.document(for: KaiNoteItem(id: "n", title: "T", body: "one", modified: Date()))
             let b = KaiKnowledgeIndexer.document(for: KaiNoteItem(id: "n", title: "T", body: "two", modified: Date()))
             return a.fingerprint != b.fingerprint
+        }
+    }
+
+
+    func testNightShift() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Chicago")!
+        func at(_ hour: Int, _ minute: Int, day: Int = 7) -> Date {
+            calendar.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))!
+        }
+
+        check("the next run is later today when the time hasn't passed") {
+            KaiNightShiftSettings(enabled: true, hour: 3, minute: 0).nextRun(after: at(1, 0), calendar: calendar) == at(3, 0)
+        }
+        check("the next run is tomorrow when the time has passed") {
+            KaiNightShiftSettings(enabled: true, hour: 3, minute: 0).nextRun(after: at(3, 0), calendar: calendar) == at(3, 0, day: 8)
+        }
+        check("settings keep the hour and minute in range") {
+            let s = KaiNightShiftSettings(enabled: true, hour: 99, minute: -5)
+            return s.hour == 23 && s.minute == 0
+        }
+
+        check("nothing blocks a run on a healthy Mac") {
+            KaiNightShiftPolicy.skipReason(KaiPowerState()) == nil
+        }
+        check("Low Power Mode blocks a run") {
+            KaiNightShiftPolicy.skipReason(KaiPowerState(lowPowerMode: true)) == "Low Power Mode is on."
+        }
+        check("a hot Mac blocks a run, a warm one does not") {
+            KaiNightShiftPolicy.skipReason(KaiPowerState(thermal: .serious)) == "The Mac is running hot."
+                && KaiNightShiftPolicy.skipReason(KaiPowerState(thermal: .critical)) != nil
+                && KaiNightShiftPolicy.skipReason(KaiPowerState(thermal: .fair)) == nil
+        }
+        check("a low battery blocks a run only when unplugged") {
+            KaiNightShiftPolicy.skipReason(KaiPowerState(isOnBattery: true, batteryPercent: 20)) == "The battery is at 20% and not charging."
+                && KaiNightShiftPolicy.skipReason(KaiPowerState(isOnBattery: false, batteryPercent: 20)) == nil
+                && KaiNightShiftPolicy.skipReason(KaiPowerState(isOnBattery: true, batteryPercent: 30)) == nil
+        }
+        check("the real power state can be read") {
+            let power = KaiPowerState.current()
+            return power.batteryPercent.map { (0...100).contains($0) } ?? true
+        }
+
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("kai-ns-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = KaiNightShiftStore(directory: dir)
+        check("settings default to off at 3:00") {
+            store.loadSettings() == KaiNightShiftSettings(enabled: false, hour: 3, minute: 0)
+        }
+        check("settings and the last run are saved and read back") {
+            try store.save(KaiNightShiftSettings(enabled: true, hour: 4, minute: 30))
+            let record = KaiNightShiftRecord(ranAt: Date(timeIntervalSince1970: 1_800_000_000), outcome: .completed, documentsIndexed: 5, cardsPrepared: 2)
+            try store.save(record)
+            return store.loadSettings() == KaiNightShiftSettings(enabled: true, hour: 4, minute: 30) && store.loadRecord() == record
+        }
+        check("the saved files are private to the user") {
+            let attrs = try FileManager.default.attributesOfItem(atPath: dir.appendingPathComponent("night-shift-settings.json").path)
+            return (attrs[.posixPermissions] as? Int) == 0o600
+        }
+        check("each outcome has a plain summary") {
+            KaiNightShiftRecord(ranAt: Date(), outcome: .completed, documentsIndexed: 1, cardsPrepared: 1).summary == "Indexed 1 document, prepared 1 card."
+                && KaiNightShiftRecord(ranAt: Date(), outcome: .completed, documentsIndexed: 3, cardsPrepared: 0).summary == "Indexed 3 documents, prepared 0 cards."
+                && KaiNightShiftRecord(ranAt: Date(), outcome: .skipped("Low Power Mode is on.")).summary == "Skipped: Low Power Mode is on."
+                && KaiNightShiftRecord(ranAt: Date(), outcome: .failed("Ollama is not running")).summary == "Failed: Ollama is not running"
+        }
+
+        final class Calls: @unchecked Sendable { var list: [[String]] = []; let lock = NSLock()
+            func add(_ a: [String]) { lock.lock(); list.append(a); lock.unlock() } }
+        let calls = Calls()
+        let agent = KaiNightShiftAgent(
+            agentsDirectory: dir.appendingPathComponent("LaunchAgents"), logDirectory: dir.appendingPathComponent("Logs"),
+            userID: 501, launchctl: { calls.add($0); return true })
+        check("the launch agent file names the job, the app, the flag and the time") {
+            let data = try agent.plist(executable: "/Apps/Kai OS.app/Contents/MacOS/Kai OS", hour: 3, minute: 15)
+            let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+            let interval = plist?["StartCalendarInterval"] as? [String: Int]
+            return plist?["Label"] as? String == "ai.kai.nightshift"
+                && plist?["ProgramArguments"] as? [String] == ["/Apps/Kai OS.app/Contents/MacOS/Kai OS", "--night-shift"]
+                && interval == ["Hour": 3, "Minute": 15] && plist?["RunAtLoad"] as? Bool == false
+        }
+        check("installing writes the file and loads it, replacing any older copy first") {
+            let loaded = try agent.install(executable: "/x/Kai OS", hour: 2, minute: 0)
+            return loaded && agent.isInstalled
+                && calls.list == [["bootout", "gui/501/ai.kai.nightshift"], ["bootstrap", "gui/501", agent.plistURL.path]]
+        }
+        check("uninstalling unloads the job and deletes the file") {
+            calls.list.removeAll()
+            try agent.uninstall()
+            return !agent.isInstalled && calls.list == [["bootout", "gui/501/ai.kai.nightshift"]]
+        }
+        check("uninstalling when nothing is installed is harmless") {
+            try agent.uninstall()
+            return !agent.isInstalled
         }
     }
 
