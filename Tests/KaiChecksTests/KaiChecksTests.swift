@@ -9,6 +9,7 @@ import ImageIO
 @testable import KaiCapture
 @testable import KaiLocalData
 import KaiNotchCore
+@testable import KaiKnowledge
 
 /// The checks that used to run as the `KaiLocalAIChecks` executable. Each
 /// `check` is reported as its own XCTest activity, so a failure names the check.
@@ -1040,6 +1041,14 @@ final class KaiChecksTests: XCTestCase {
         check("no sources is off") {
             item("sources", KaiHealthInputs())?.status == .off
         }
+        check("an empty knowledge base is off and says how to fill it") {
+            let i = item("knowledge", KaiHealthInputs())
+            return i?.status == .off && i?.detail.contains("Index now") == true
+        }
+        check("indexed documents are counted") {
+            item("knowledge", KaiHealthInputs(knowledgeDocuments: 1))?.detail == "1 document indexed."
+                && item("knowledge", KaiHealthInputs(knowledgeDocuments: 42))?.detail == "42 documents indexed."
+        }
         check("a briefing error is shown") {
             let i = item("briefing", KaiHealthInputs(briefingError: "The model is not running"))
             return i?.status == .attention && i?.detail == "The model is not running"
@@ -1050,6 +1059,145 @@ final class KaiChecksTests: XCTestCase {
         }
         check("a running briefing says so, ahead of an old error") {
             item("briefing", KaiHealthInputs(briefingError: "old", briefingIsRunning: true))?.detail == "Running now."
+        }
+    }
+
+
+    func testKnowledgeBase() async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("kai-kb-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try KaiKnowledgeStore(url: dir.appendingPathComponent("kb.sqlite"))
+        func doc(_ id: String, _ title: String, _ text: String, source: String = "notes", fp: String? = nil) -> KaiKnowledgeDocument {
+            KaiKnowledgeDocument(source: source, sourceID: id, title: title, text: text, fingerprint: fp ?? text)
+        }
+
+        check("a new document is added, then found by a word in it") {
+            try store.upsert(doc("1", "Trip plan", "Book the flight to Lisbon before Friday.")) == .added
+                && (try store.search("lisbon")).first?.title == "Trip plan"
+        }
+        check("search matches word forms and prefixes") {
+            try (try store.search("flights")).count == 1 && (try store.search("lisb")).count == 1
+        }
+        check("the same fingerprint is unchanged and a new one is updated") {
+            try store.upsert(doc("1", "Trip plan", "Book the flight to Lisbon before Friday.")) == .unchanged
+                && (try store.upsert(doc("1", "Trip plan", "Hotel in Porto instead.", fp: "v2"))) == .updated
+                && (try store.search("lisbon")).isEmpty && (try store.search("porto")).count == 1
+        }
+        check("every word must match when some documents match them all") {
+            try store.upsert(doc("2", "Budget", "Quarterly budget review with Ana."))
+            try store.upsert(doc("3", "Ana", "Lunch with Ana on Tuesday."))
+            return (try store.search("budget ana")).map(\.sourceID) == ["2"]
+        }
+        check("with no full match, any word is enough") {
+            (try store.search("budget tuesday")).count == 2
+        }
+        check("search syntax in a query is harmless") {
+            try (try? store.search("\"; DROP TABLE documents; -- AND OR NOT ( * :")) != nil && (try store.count()) == 3
+        }
+        check("an empty or symbol-only query finds nothing") {
+            try (try store.search("")).isEmpty && (try store.search("  ***  ")).isEmpty
+        }
+        check("each document appears once, with the source kept") {
+            try store.upsert(doc("4", "Notes", Array(repeating: "alpha beta gamma", count: 600).joined(separator: " "), source: "files"))
+            let hits = try store.search("alpha")
+            return hits.count == 1 && hits[0].source == "files"
+        }
+        check("counts are per source") {
+            let counts = try store.counts()
+            return try counts["notes"] == 3 && counts["files"] == 1 && (try store.count(source: "notes")) == 3
+        }
+        check("documents missing from a source are removed and no longer found") {
+            try store.removeMissing(source: "notes", keeping: ["2"]) == 2
+                && (try store.search("porto")).isEmpty && (try store.count(source: "notes")) == 1
+        }
+        check("clear empties the store") {
+            try store.clear()
+            return try (try store.count()) == 0 && (try store.search("alpha")).isEmpty
+        }
+        check("the database file is private to the user") {
+            let attrs = try FileManager.default.attributesOfItem(atPath: dir.appendingPathComponent("kb.sqlite").path)
+            return (attrs[.posixPermissions] as? Int) == 0o600
+        }
+
+        check("short text is one chunk") {
+            KaiChunker.chunks("One.\n\nTwo.", maxCharacters: 100) == ["One.\n\nTwo."]
+        }
+        check("paragraphs are packed up to the limit") {
+            let chunks = KaiChunker.chunks("aaaa\n\nbbbb\n\ncccc", maxCharacters: 10)
+            return chunks == ["aaaa\n\nbbbb", "cccc"]
+        }
+        check("a long paragraph is cut at spaces and loses no words") {
+            let text = (1...200).map { "word\($0)" }.joined(separator: " ")
+            let chunks = KaiChunker.chunks(text, maxCharacters: 100)
+            return chunks.count > 1 && chunks.allSatisfy { $0.count <= 100 }
+                && chunks.joined(separator: " ").split(separator: " ").count == 200
+        }
+        check("a word longer than the limit is cut and kept") {
+            let chunks = KaiChunker.chunks(String(repeating: "x", count: 250), maxCharacters: 100)
+            return chunks.map(\.count) == [100, 100, 50]
+        }
+        check("blank text gives no chunks") {
+            KaiChunker.chunks("  \n\n \n", maxCharacters: 100).isEmpty
+        }
+
+        let folder = dir.appendingPathComponent("folder", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder.appendingPathComponent("sub"), withIntermediateDirectories: true)
+        try "# Garden notes\n\nPlant tomatoes in May.".write(to: folder.appendingPathComponent("garden.md"), atomically: true, encoding: .utf8)
+        try "Plain text about sourdough starters.".write(to: folder.appendingPathComponent("sub/bread.txt"), atomically: true, encoding: .utf8)
+        try "ignore me".write(to: folder.appendingPathComponent("image.png"), atomically: true, encoding: .utf8)
+        try "hidden".write(to: folder.appendingPathComponent(".secret.md"), atomically: true, encoding: .utf8)
+        let folderStore = try KaiKnowledgeStore(url: dir.appendingPathComponent("folder.sqlite"))
+        let first = try KaiKnowledgeIndexer.indexFolder(folder, into: folderStore)
+        check("the folder indexer reads Markdown and text files, skipping other files and hidden ones") {
+            try first.added == 2 && (try folderStore.count()) == 2
+        }
+        check("a Markdown heading becomes the title, and a plain file uses its name") {
+            try (folderStore.search("tomatoes")).first?.title == "Garden notes"
+                && (try folderStore.search("sourdough")).first?.title == "bread"
+        }
+        check("the source ID is the path inside the folder") {
+            (try folderStore.search("sourdough")).first?.sourceID == "sub/bread.txt"
+        }
+        check("a second pass reads nothing again") {
+            let again = try KaiKnowledgeIndexer.indexFolder(folder, into: folderStore)
+            return again.unchanged == 2 && again.added == 0 && again.updated == 0
+        }
+        check("an edited file is updated and a deleted file is removed") {
+            try "# Garden notes\n\nPlant beans in June.".write(to: folder.appendingPathComponent("garden.md"), atomically: true, encoding: .utf8)
+            try FileManager.default.removeItem(at: folder.appendingPathComponent("sub/bread.txt"))
+            let report = try KaiKnowledgeIndexer.indexFolder(folder, into: folderStore)
+            return try report.updated == 1 && report.removed == 1
+                && (try folderStore.search("beans")).count == 1 && (try folderStore.search("sourdough")).isEmpty
+        }
+        check("a missing folder indexes nothing") {
+            let report = try KaiKnowledgeIndexer.indexFolder(dir.appendingPathComponent("nope"), into: folderStore)
+            return report.total == 0
+        }
+
+        check("a note becomes a searchable document") {
+            let note = KaiNoteItem(id: "n1", title: "Gift ideas", body: "A kayak paddle for Sam", modified: Date(timeIntervalSince1970: 1_000))
+            let d = KaiKnowledgeIndexer.document(for: note)
+            return d.source == "notes" && d.title == "Gift ideas" && d.text.contains("kayak")
+        }
+        check("a note with no title is called Untitled note") {
+            KaiKnowledgeIndexer.document(for: KaiNoteItem(id: "n2", title: "", body: "x", modified: Date())).title == "Untitled note"
+        }
+        check("an email is indexed by sender and subject, with no body") {
+            let mail = KaiMailItem(id: "m1", sender: "Ana Ruiz <ana@example.com>", subject: "Lunch Tuesday", date: Date(), isRead: false, isFlagged: false)
+            let d = KaiKnowledgeIndexer.document(for: mail)
+            return d.source == "mail" && d.title == "Lunch Tuesday" && d.text.contains("Ana Ruiz") && !d.text.contains("body")
+        }
+        check("an event is indexed with its time and place") {
+            let event = KaiCalendarItem(id: "e1", title: "Dentist", start: Date(timeIntervalSince1970: 1_800_000_000),
+                                        end: Date(timeIntervalSince1970: 1_800_001_800), isAllDay: false, location: "Main St", calendarName: "Home")
+            let d = KaiKnowledgeIndexer.document(for: event)
+            return d.source == "calendar" && d.text.contains("Where: Main St") && d.text.contains("Calendar: Home")
+        }
+        check("a changed document gets a different fingerprint") {
+            let a = KaiKnowledgeIndexer.document(for: KaiNoteItem(id: "n", title: "T", body: "one", modified: Date()))
+            let b = KaiKnowledgeIndexer.document(for: KaiNoteItem(id: "n", title: "T", body: "two", modified: Date()))
+            return a.fingerprint != b.fingerprint
         }
     }
 

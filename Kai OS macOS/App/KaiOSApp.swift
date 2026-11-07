@@ -14,6 +14,7 @@ import KaiActions
 import KaiCapture
 import KaiLocalAI
 import KaiLocalData
+import KaiKnowledge
 
 // MARK: - Models
 
@@ -173,6 +174,10 @@ final class AppState: ObservableObject {
     @Published var mailState = KaiSourceState.disconnected
     @Published var notesState = KaiSourceState.disconnected
     @Published var calendarConnected = false
+    @Published var knowledgeCounts: [String: Int] = [:]
+    @Published var knowledgeState = KaiSourceState.disconnected
+    @Published var isIndexingKnowledge = false
+    var knowledge: KaiKnowledgeStore?
     @Published var mailConnected = UserDefaults.standard.bool(forKey: AppState.mailConnectedKey)
     @Published var notesConnected = UserDefaults.standard.bool(forKey: AppState.notesConnectedKey)
 

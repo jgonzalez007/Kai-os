@@ -152,6 +152,36 @@ struct KaiSettingsView: View {
                     .padding(.top, 4)
                 }
                 
+                // ── Knowledge base ──
+                settingsCard {
+                    SectionHeader(title: "Knowledge base")
+
+                    Text(appState.knowledgeDocumentCount == 0
+                         ? "Nothing indexed yet. Kai searches the Markdown and text files in your knowledge folder, plus Notes, Calendar and Mail subjects for the sources you've connected. It all stays on this Mac."
+                         : appState.knowledgeCounts.sorted { $0.key < $1.key }
+                            .map { "\(AppState.knowledgeSourceNames[$0.key] ?? $0.key): \($0.value)" }
+                            .joined(separator: " · "))
+                        .font(KaiFont.caption)
+                        .foregroundStyle(KaiColor.textSecondary)
+
+                    HStack {
+                        Button(appState.isIndexingKnowledge ? "Indexing…" : "Index now") { appState.indexKnowledge() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(appState.isIndexingKnowledge)
+                        Button("Open folder") { appState.openKnowledgeFolder() }
+                    }
+                    .controlSize(.small)
+
+                    Text(appState.knowledgeFolder.path)
+                        .font(KaiFont.caption2Strong)
+                        .foregroundStyle(KaiColor.textTertiary)
+
+                    if case .failed(let message) = appState.knowledgeState {
+                        Text(message).font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                    }
+                }
+                .onAppear { appState.refreshKnowledgeCounts() }
+
                 // ── Connections ──
                 settingsCard {
                     SectionHeader(title: "Connections")

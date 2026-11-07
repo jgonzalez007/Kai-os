@@ -34,7 +34,8 @@ struct KaiHealthView: View {
             hasAnthropicKey: KaiKeychain.hasApiKey(for: "anthropic"),
             briefingCardCount: briefing.activeCards.count,
             briefingError: briefing.errorMessage,
-            briefingIsRunning: briefing.isGenerating
+            briefingIsRunning: briefing.isGenerating,
+            knowledgeDocuments: appState.knowledgeDocumentCount
         ))
     }
 
@@ -68,6 +69,7 @@ struct KaiHealthView: View {
     private func check() async {
         checking = true
         defer { checking = false }
+        appState.refreshKnowledgeCounts()
         ollamaModels = try? await KaiOllamaClient().listModels().map(\.name)
     }
 
