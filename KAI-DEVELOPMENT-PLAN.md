@@ -127,7 +127,7 @@ Kai OS macOS/
 | 2.4 | iMessage connector | Built | SQLite db read |
 | 2.5 | Apple Notes connector | Built | Text extraction |
 | 2.6 | Gmail connector | Built | IMAP + OAuth |
-| 2.7 | Outlook connector | Built | Microsoft Graph API, wired in ConnectorFactory |
+| 2.7 | Outlook connector | Not built | Parked. A working attempt (sign-in, Graph calendar view, tests) is in git history at 42d5a46 and was reverted in fd128bd. `ConnectorFactory` no longer exists. |
 | 2.8 | Slack connector | Built | Workspace read |
 | 2.9 | Notion connector | Built | API read |
 | 2.10 | SiYuan connector | Built | Local db read |
