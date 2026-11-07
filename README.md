@@ -18,6 +18,7 @@
 
 - **Chat in the notch.** Local chat through [Ollama](https://ollama.com) (`localhost:11434`), or ChatGPT and Claude with your own API key. Keys are stored in the macOS Keychain.
 - **Ask about your Mac.** The assistant can read your Apple Calendar, Apple Mail and Apple Notes (read-only) and search files with Spotlight.
+- **Outlook Calendar.** Sign in with Microsoft to add your Outlook events next to Apple Calendar (read-only, not yet tested against a live account). You register your own Microsoft app: see [Outlook Calendar setup](BUILD.md#outlook-calendar-setup).
 - **Approved actions only.** Kai can propose a calendar event, a mail draft or a notification. You see a card and decide. Kai never sends mail and never runs shell commands.
 - **Double Tap.** In Apple Mail, Kai drafts a reply with the local model, from the selected message or a screenshot. It writes the draft into the email and never sends it. Your writing style can be learned from your sent mail, on request.
 - **Morning "For You" cards.** While the app is open, from 7 am, Kai prepares suggested actions as cards.
@@ -26,7 +27,7 @@
 
 ## Planned
 
-Not built yet: knowledge base (RAG, vector store, knowledge graph), computer-use agent, overnight Night Shift and wake-from-sleep, Gmail, Slack, Notion, WhatsApp and iMessage connectors, Outlook and Google Calendar in the app, on-device engine (LiteRT, Gemma), plugin system, Homebrew cask. See [KAI-DEVELOPMENT-PLAN.md](KAI-DEVELOPMENT-PLAN.md).
+Not built yet: knowledge base (RAG, vector store, knowledge graph), computer-use agent, overnight Night Shift and wake-from-sleep, Gmail, Slack, Notion, WhatsApp and iMessage connectors, Google Calendar, on-device engine (LiteRT, Gemma), plugin system, Homebrew cask. See [KAI-DEVELOPMENT-PLAN.md](KAI-DEVELOPMENT-PLAN.md).
 
 ## Build from source
 
