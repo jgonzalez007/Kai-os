@@ -8,6 +8,7 @@
 import KaiActions
 import KaiLocalAI
 import KaiLocalData
+import KaiShared
 import SwiftUI
 
 /// Abstracted so the flow can be tested without the user's real sent mail.
@@ -81,7 +82,7 @@ final class KaiWritingStyleController: ObservableObject {
                 guard !appState.selectedModel.isEmpty else { throw KaiOllamaError.noChatModel }
                 var text = ""
                 // No tools are offered, because even sent mail can carry text from someone else.
-                for try await event in ollama.streamChat(model: appState.selectedModel, messages: KaiStylePrompt.messages(samples: samples), tools: [], temperature: 0.2) {
+                for try await event in ollama.stream(model: appState.selectedModel, messages: KaiStylePrompt.messages(samples: samples), tools: [], temperature: 0.2) {
                     if case .text(let delta) = event { text += delta }
                 }
                 let learned = text.trimmingCharacters(in: .whitespacesAndNewlines)

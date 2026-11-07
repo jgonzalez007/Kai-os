@@ -9,6 +9,7 @@
 import SwiftUI
 import Foundation
 import AppKit
+import KaiShared
 import KaiActions
 import KaiCapture
 import KaiLocalAI
@@ -116,6 +117,21 @@ final class AppState: ObservableObject {
     private var activeReplyID: String?
     private var workspaceObserver: NSObjectProtocol?
 
+    /// The unified chat service for local + cloud LLM backends.
+    lazy var chatService: KaiChatService = { 
+        let service = KaiChatService(ollama: nil)
+        return service
+    }()
+    
+    /// Whether to use cloud AI (OpenAI/Anthropic) instead of local Ollama.
+    @Published var useCloud: Bool = UserDefaults.standard.bool(forKey: "kai.useCloud") {
+        didSet { UserDefaults.standard.set(useCloud, forKey: "kai.useCloud") }
+    }
+    @Published var selectedCloudProvider: String = "openai"
+    @Published var openAIApiKey: String = UserDefaults.standard.string(forKey: "kai.openai.apiKey") ?? ""
+    @Published var anthropicApiKey: String = UserDefaults.standard.string(forKey: "kai.anthropic.apiKey") ?? ""
+    @Published var selectedCloudModel: String = ""
+
     @Published var messages: [Message] = []
     @Published var chatDraft = ""
     @Published var chatModels: [String] = []
@@ -175,7 +191,7 @@ final class AppState: ObservableObject {
 
     private static func welcomeMessage() -> Message {
         Message(
-            text: "Welcome to **Kai OS**. Replies come from a local model through Ollama, so this chat stays on your Mac.\n\nAsk me to find files. Connect Calendar, Mail and Notes from the sidebar, and I can read those too.",
+            text: "Welcome to **Kai OS**. Replies come from a local model through Ollama, or from cloud AI (ChatGPT, Claude) — connect your API key in Settings.\n\nAsk me to find files. Connect Calendar, Mail and Notes from the sidebar, and I can read those too.",
             kind: .notice
         )
     }
@@ -358,10 +374,29 @@ final class AppState: ObservableObject {
     // MARK: Chat
 
     func refreshChatModels() async throws {
-        modelInfo = try await ollama.listChatModels()
-        let models = modelInfo.map(\.name)
-        chatModels = models
-        if !models.contains(selectedModel) { selectedModel = models.first ?? "" }
+        // Ollama models
+        modelInfo = try await ollama.listModels()
+        let ollamaModels = modelInfo.map { m in "ollama: " + m.name }
+        
+        // Cloud models from selected provider
+        var cloudModels: [String] = []
+        if useCloud && selectedCloudProvider == "openai" && !openAIApiKey.isEmpty {
+            do {
+                let openaiModels = try await OpenAIChatClient(apiKey: openAIApiKey).listModels()
+                cloudModels.append(contentsOf: openaiModels.map { m in "openai: " + m.name })
+            } catch { /* Provider unavailable */ }
+        } else if useCloud && selectedCloudProvider == "anthropic" && !anthropicApiKey.isEmpty {
+            do {
+                let anthropicModels = try await AnthropicChatClient(apiKey: anthropicApiKey).listModels()
+                cloudModels.append(contentsOf: anthropicModels.map { m in "anthropic: " + m.name })
+            } catch { /* Provider unavailable */ }
+        }
+        
+        let allModels = ollamaModels + cloudModels
+        chatModels = allModels
+        if !allModels.contains(selectedModel) {
+            selectedModel = ollamaModels.first ?? cloudModels.first ?? ""
+        }
     }
 
     var selectedModelSupportsVision: Bool {
@@ -446,7 +481,28 @@ final class AppState: ObservableObject {
                 let tools = round == Self.maxToolRounds ? [] : Self.assistantTools
                 var roundText = ""
                 var toolCalls: [KaiOllamaToolCall] = []
-                for try await event in ollama.streamChat(model: selectedModel, messages: conversation, tools: tools) {
+                
+                // Use the chat service (cloud first, local fallback)
+                let isCloudModel = selectedModel.hasPrefix("openai:") || selectedModel.hasPrefix("anthropic:")
+                let streamProvider = (useCloud || isCloudModel) && selectedCloudProvider == "openai" && !openAIApiKey.isEmpty ? "openai" 
+                    : (useCloud || isCloudModel) && selectedCloudProvider == "anthropic" && !anthropicApiKey.isEmpty ? "anthropic"
+                    : "ollama"
+                
+                let stream: AsyncThrowingStream<KaiOllamaEvent, Error>
+                switch streamProvider {
+                case "openai" where !openAIApiKey.isEmpty:
+                    stream = OpenAIChatClient(apiKey: openAIApiKey).stream(
+                        model: selectedModel, messages: conversation,
+                        tools: tools.isEmpty ? nil : tools, temperature: nil)
+                case "anthropic" where !anthropicApiKey.isEmpty:
+                    stream = AnthropicChatClient(apiKey: anthropicApiKey).stream(
+                        model: selectedModel, messages: conversation,
+                        tools: tools.isEmpty ? nil : tools, temperature: nil)
+                default:
+                    stream = ollama.stream(model: selectedModel, messages: conversation, tools: tools.isEmpty ? nil : tools)
+                }
+                
+                for try await event in stream {
                     switch event {
                     case .text(let delta):
                         roundText += delta
@@ -910,7 +966,7 @@ struct ChatView: View {
         HStack(spacing: 8) {
             Image(systemName: "cpu").foregroundStyle(.secondary).font(.caption)
             if appState.chatModels.isEmpty {
-                Text("Ollama not connected").font(.caption).foregroundStyle(.secondary)
+                Text("No models available — connect Ollama or add an API key in Settings").font(.caption).foregroundStyle(.secondary)
             } else {
                 Picker("Model", selection: $appState.selectedModel) {
                     ForEach(appState.chatModels, id: \.self) { Text($0).tag($0) }
@@ -1096,14 +1152,24 @@ struct SettingsView: View {
                 }
             }
             Section("AI") {
-                if appState.chatModels.isEmpty {
-                    Text("Ollama not connected. Start Ollama, then refresh.").foregroundStyle(.secondary)
-                } else {
-                    Picker("Local model", selection: $appState.selectedModel) {
-                        ForEach(appState.chatModels, id: \.self) { Text($0).tag($0) }
-                    }
+                Picker("Mode", selection: $appState.selectedModel) {
+                    ForEach(appState.chatModels, id: \.self) { Text($0).tag($0) }
                 }
                 Button("Refresh Models") { Task { try? await appState.refreshChatModels() } }
+                
+                Section {
+                    Toggle("Cloud AI", isOn: $appState.useCloud)
+                    if appState.useCloud {
+                        Picker("Provider", selection: $appState.selectedCloudProvider) {
+                            Text("OpenAI").tag("openai")
+                            Text("Anthropic").tag("anthropic")
+                        }
+                        SecureField("OpenAI API Key", text: $appState.openAIApiKey)
+                        SecureField("Anthropic API Key", text: $appState.anthropicApiKey)
+                        Text("Cloud AI uses the OpenAI Chat Completions API or Anthropic Messages API. API keys are stored in your keychain.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 Toggle("Enable Proactive Suggestions", isOn: $appState.enableProactive)
             }
             Section("Notch") {
@@ -1147,7 +1213,7 @@ struct SettingsView: View {
             }
             KaiWritingStyleSection(controller: appState.writingStyle)
             Section("Privacy") {
-                Text("Chat and connected data stay on this Mac. The assistant reads them through your local Ollama model, and it can change something only after you approve its card. Approved actions are listed in ~/Library/Application Support/Kai OS/action-log.jsonl.").font(.caption).foregroundStyle(.secondary)
+                Text("Chat stays on this Mac when using a local Ollama model. Cloud AI (OpenAI/Anthropic) sends data to their services — configure API keys above. Approved actions are logged in ~/Library/Application Support/Kai OS/action-log.jsonl.").font(.caption).foregroundStyle(.secondary)
             }
             Section("About") {
                 Text("Kai OS v1.0.0").fontWeight(.semibold)

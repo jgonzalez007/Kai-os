@@ -14,7 +14,12 @@ let package = Package(
     ],
     targets: [
         .target(
+            name: "KaiShared",
+            path: "KaiShared"
+        ),
+        .target(
             name: "KaiLocalAI",
+            dependencies: ["KaiShared"],
             path: "KaiLocalAI"
         ),
         .target(
@@ -36,7 +41,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "KaiOS",
-            dependencies: ["KaiActions", "KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore"],
+            dependencies: ["KaiShared", "KaiActions", "KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore"],
             path: "Kai OS macOS",
             exclude: ["Info.plist", "Info.plist.template"]
         ),

@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import KaiShared
 import KaiActions
 import KaiLocalAI
 import KaiLocalData
@@ -171,12 +172,11 @@ final class KaiMorningCardsController: ObservableObject {
         guard !appState.selectedModel.isEmpty else { throw KaiOllamaError.noChatModel }
         var text = ""
         // No tools: morning cards come from untrusted subjects, so only parsed JSON comes back.
-        let stream = ollama.streamChat(
+        let stream = ollama.stream(
             model: appState.selectedModel,
             messages: KaiBriefingPrompt.messages(input: input, now: now),
             tools: [],
-            temperature: 0.2,
-            format: "json"
+            temperature: 0.2
         )
         for try await event in stream {
             if case .text(let delta) = event { text += delta }
