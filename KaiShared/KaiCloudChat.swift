@@ -277,7 +277,7 @@ public final class AnthropicChatClient: KaiChatClient {
                 do {
                     var request = URLRequest(url: Self.baseURL.appendingPathComponent("/v1/messages"))
                     request.httpMethod = "POST"
-                    request.setValue("api-key \(apiKey)", forHTTPHeaderField: "x-api-key")
+                    request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     request.setValue("2024-10-22", forHTTPHeaderField: "anthropic-version")
                     request.timeoutInterval = 300
@@ -330,7 +330,7 @@ public final class AnthropicChatClient: KaiChatClient {
         
         var request = URLRequest(url: Self.baseURL.appendingPathComponent("/v1/models"))
         request.httpMethod = "GET"
-        request.setValue("api-key \(apiKey)", forHTTPHeaderField: "x-api-key")
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("2024-10-22", forHTTPHeaderField: "anthropic-version")
         request.timeoutInterval = 10
