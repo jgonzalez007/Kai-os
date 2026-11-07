@@ -13,9 +13,12 @@ public enum KaiSourceError: LocalizedError, Equatable, Sendable {
     case notAuthorized(String)
     case timedOut(String)
     case failed(String)
+    case invalid(String)
 
     public var errorDescription: String? {
         switch self {
+        case .invalid(let message):
+            return message
         case .notAuthorized(let app):
             return "Kai OS isn't allowed to read \(app). Turn it on in System Settings → Privacy & Security, then try again."
         case .timedOut(let app):
@@ -447,7 +450,8 @@ public struct KaiBriefingMail: Codable, Equatable, Sendable {
 
 public enum KaiMailBriefing {
     /// How far back to look in the inbox, which keeps the script quick on large mailboxes.
-    private static let scanLimit = 150
+    /// Each message is read one at a time, and Mail can be slow, so this stays small.
+    private static let scanLimit = 60
 
     public static func unreadMessages(limit: Int = 30) async throws -> [KaiBriefingMail] {
         items(from: try await KaiAppleScriptRecords.run(script: script(limit: limit), app: "Mail"))

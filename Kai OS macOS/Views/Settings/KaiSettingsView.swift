@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import KaiShared
 
 struct KaiSettingsView: View {
     @EnvironmentObject var appState: AppState
@@ -257,6 +258,29 @@ struct KaiSettingsView: View {
                     Text("At the set time, Kai OS starts in the background, updates the knowledge base and prepares your morning cards, then quits. It only prepares cards: nothing is sent or changed without your approval. It skips the run in Low Power Mode, when the Mac is hot, or on a low battery. A sleeping Mac is not woken; if the Mac is asleep at that time, the job runs when it wakes. This adds a launch agent at ~/Library/LaunchAgents/ai.kai.nightshift.plist, and turning it off removes it.")
                         .font(KaiFont.caption2Strong)
                         .foregroundStyle(KaiColor.textTertiary)
+                }
+
+                // ── Mailbox access ──
+                settingsCard {
+                    SectionHeader(title: "Mailbox access")
+
+                    Picker("Mailbox access", selection: $appState.mailAccess) {
+                        ForEach(KaiMailAccess.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.radioGroup)
+                    .labelsHidden()
+
+                    Text(appState.mailAccess.explanation)
+                        .font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+
+                    if appState.mailAccess.allowsChanges {
+                        Text("Check each card before you approve it. A move is reversible by moving the messages back, but Kai won't do that for you without another approval.")
+                            .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.warning)
+                    }
+                    if !appState.mailConnected {
+                        Text("Mail isn't connected yet. Connect it below to use any of this.")
+                            .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    }
                 }
 
                 // ── Connections ──
