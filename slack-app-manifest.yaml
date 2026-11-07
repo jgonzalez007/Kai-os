@@ -1,4 +1,4 @@
-# Paste this into Slack: https://api.slack.com/apps → Create New App → From a manifest.
+# Paste this into Slack: https://api.slack.com/apps -> Create New App -> From a manifest.
 # It makes a private Slack app that can only READ your own Slack, as you. It has no bot and
 # no permission to post, edit or delete.
 display_information:
