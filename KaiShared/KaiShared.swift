@@ -87,6 +87,13 @@ public struct KaiOllamaMessage: Codable, Equatable, Sendable {
     public let toolName: String?
     public let images: [Data]?
 
+    // Ollama's wire format is snake_case: tool_calls and tool_name.
+    private enum CodingKeys: String, CodingKey {
+        case role, content, images
+        case toolCalls = "tool_calls"
+        case toolName = "tool_name"
+    }
+
     public init(role: String, content: String, toolCalls: [KaiOllamaToolCall]? = nil, toolName: String? = nil, images: [Data]? = nil) {
         self.role = role
         self.content = content
