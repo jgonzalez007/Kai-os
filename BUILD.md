@@ -8,7 +8,7 @@ Kai OS builds with Swift Package Manager. `Kai OS.xcodeproj` is an out-of-date s
 git clone https://github.com/jgonzalez007/Kai-os
 cd Kai-os
 swift build          # build everything
-swift test           # run the checks (XCTest)
+swift test           # run the 122 checks (XCTest)
 swift run "Kai OS"   # run the app
 ```
 
@@ -40,17 +40,6 @@ If `swift build` fails with a dyld or SDK-mismatch error, your Command Line Tool
 ## Tests
 
 `swift test` runs one XCTest method per section. Each check is reported as its own activity, so a failure names the check. A few checks use real macOS tools (`osacompile`, `mdfind`) and need to run on a Mac.
-
-## Outlook Calendar setup
-
-Kai reads Outlook events through Microsoft Graph and needs an app registration that you own. There is no shared client ID.
-
-1. In [Microsoft Entra](https://entra.microsoft.com) → App registrations → New registration. Choose accounts in any organizational directory and personal Microsoft accounts.
-2. Under Authentication, add a **Mobile and desktop applications** platform with the redirect URI `kai-os://auth/microsoft`, and allow public client flows.
-3. Under API permissions, add the delegated Microsoft Graph permission `Calendars.Read`. Some work accounts need an admin to consent.
-4. Copy the **Application (client) ID**, paste it into Kai OS → Settings → Connections → Outlook Calendar, and click Connect.
-
-Tokens are stored in the Keychain. Disconnect signs out and deletes them.
 
 ## Signing and release
 

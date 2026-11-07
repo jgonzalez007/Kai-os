@@ -163,28 +163,6 @@ struct KaiSettingsView: View {
                     )
                     
                     connectionRow(
-                        title: "Outlook Calendar",
-                        connected: appState.outlookConnected,
-                        action: appState.outlookConnected ? appState.disconnectOutlook : appState.connectOutlook
-                    )
-
-                    if !appState.outlookConnected {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Microsoft application (client) ID").font(KaiFont.captionStrong)
-                                .foregroundStyle(KaiColor.textTertiary)
-                            TextField("", text: $appState.outlookClientID)
-                                .kaiInput()
-                            Text("Register a desktop app in Microsoft Entra with redirect URI kai-os://auth/microsoft and the Calendars.Read permission. Kai only reads your calendar.")
-                                .font(KaiFont.caption2Strong)
-                                .foregroundStyle(KaiColor.textTertiary)
-                        }
-                    }
-
-                    if case .failed(let message) = appState.outlookState {
-                        Text(message).font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
-                    }
-
-                    connectionRow(
                         title: "Mail",
                         connected: appState.mailConnected,
                         action: appState.disconnectMail
