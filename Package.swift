@@ -33,6 +33,7 @@ let package = Package(
         ),
         .target(
             name: "KaiLocalData",
+            dependencies: ["KaiShared"],
             path: "KaiLocalData"
         ),
         .target(

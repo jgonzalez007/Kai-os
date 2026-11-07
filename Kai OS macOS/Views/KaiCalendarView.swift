@@ -21,7 +21,7 @@ struct KaiCalendarView: View {
     
     var body: some View {
         Group {
-            if appState.calendarConnected {
+            if appState.calendarConnected || appState.outlookConnected {
                 VStack(spacing: 0) {
                     // ── Header ──
                     HStack(spacing: 12) {
@@ -97,7 +97,7 @@ struct KaiCalendarView: View {
             }
         }
         .onAppear {
-            if appState.calendarConnected { appState.refreshCalendar() }
+            if appState.calendarConnected || appState.outlookConnected { appState.refreshCalendar() }
         }
     }
     

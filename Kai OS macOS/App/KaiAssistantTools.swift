@@ -87,7 +87,7 @@ extension AppState {
             case "search_files":
                 output = try await searchFilesTool(call.arguments["query"]?.stringValue ?? "")
             case "list_calendar_events":
-                output = calendarTool(daysAhead: call.arguments["days_ahead"]?.intValue ?? 7)
+                output = await calendarTool(daysAhead: call.arguments["days_ahead"]?.intValue ?? 7)
             case "list_recent_mail":
                 output = try await mailTool(query: call.arguments["query"]?.stringValue)
             case "search_notes":
@@ -134,12 +134,14 @@ extension AppState {
         }.joined(separator: "\n")
     }
 
-    private func calendarTool(daysAhead: Int) -> String {
-        guard calendarConnected else { return Self.notConnected("Calendar") }
+    private func calendarTool(daysAhead: Int) async -> String {
+        guard calendarConnected || outlookConnected else { return Self.notConnected("Calendar") }
         let start = Calendar.current.startOfDay(for: Date())
         let days = min(max(daysAhead, 1), 60)
         let end = Calendar.current.date(byAdding: .day, value: days, to: start) ?? start
-        let events = KaiCalendarSource.events(from: start, to: end)
+        var events = calendarConnected ? KaiCalendarSource.events(from: start, to: end) : []
+        events += await outlookEvents(from: start, to: end)
+        events.sort { $0.start < $1.start }
         guard !events.isEmpty else { return "No events in the next \(days) days." }
         return events.map { event in
             let when = event.isAllDay

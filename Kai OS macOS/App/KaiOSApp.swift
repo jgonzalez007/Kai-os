@@ -173,6 +173,9 @@ final class AppState: ObservableObject {
     @Published var mailState = KaiSourceState.disconnected
     @Published var notesState = KaiSourceState.disconnected
     @Published var calendarConnected = false
+    @Published var outlookConnected = KaiMicrosoftAuth.isSignedIn
+    @Published var outlookState = KaiSourceState.disconnected
+    @Published var outlookClientID = KaiMicrosoftAuth.clientID
     @Published var mailConnected = UserDefaults.standard.bool(forKey: AppState.mailConnectedKey)
     @Published var notesConnected = UserDefaults.standard.bool(forKey: AppState.notesConnectedKey)
 
@@ -223,16 +226,23 @@ final class AppState: ObservableObject {
     }
 
     func refreshCalendar() {
-        guard KaiCalendarSource.access == .granted else {
-            calendarConnected = false
-            calendarEvents = []
-            return
-        }
-        calendarConnected = true
-        calendarState = .connected
         let start = Calendar.current.startOfDay(for: Date())
         let end = Calendar.current.date(byAdding: .day, value: 15, to: start) ?? start
-        calendarEvents = KaiCalendarSource.events(from: start, to: end).map(Self.calendarEvent)
+        if KaiCalendarSource.access == .granted {
+            calendarConnected = true
+            calendarState = .connected
+            calendarEvents = KaiCalendarSource.events(from: start, to: end).map(Self.calendarEvent)
+        } else {
+            calendarConnected = false
+            calendarEvents = []
+        }
+        guard outlookConnected else { return }
+        Task {
+            let items = await outlookEvents(from: start, to: end)
+            let known = Set(calendarEvents.map(\.id))
+            calendarEvents += items.filter { !known.contains($0.id) }.map(Self.calendarEvent)
+            calendarEvents.sort { $0.date < $1.date }
+        }
     }
 
     func connectMail() {
@@ -316,7 +326,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    private static func calendarEvent(from item: KaiCalendarItem) -> CalendarEvent {
+    static func calendarEvent(from item: KaiCalendarItem) -> CalendarEvent {
         let duration = DateComponentsFormatter.localizedString(
             from: DateComponents(minute: Int(item.end.timeIntervalSince(item.start) / 60)),
             unitsStyle: .abbreviated

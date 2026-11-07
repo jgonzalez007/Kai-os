@@ -964,4 +964,105 @@ final class KaiChecksTests: XCTestCase {
 
     }
 
+
+    func testOutlookCalendar() async throws {
+        // PKCE: the example from RFC 7636 appendix B.
+        check("the PKCE challenge matches the RFC 7636 example") {
+            KaiMicrosoftAuth.challenge(for: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
+                == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+        }
+        check("a PKCE verifier is 43 URL-safe characters and different each time") {
+            let a = KaiMicrosoftAuth.makeVerifier()
+            let b = KaiMicrosoftAuth.makeVerifier()
+            let safe = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+            return a.count == 43 && a != b && a.unicodeScalars.allSatisfy { safe.contains($0) }
+        }
+        check("the authorize URL carries the client, PKCE challenge, state and scopes") {
+            guard let url = KaiMicrosoftAuth.authorizeURL(clientID: "client-1", challenge: "chal", state: "st"),
+                  let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return false }
+            func v(_ n: String) -> String? { items.first { $0.name == n }?.value }
+            return url.host == "login.microsoftonline.com"
+                && v("client_id") == "client-1" && v("code_challenge") == "chal"
+                && v("code_challenge_method") == "S256" && v("state") == "st"
+                && v("redirect_uri") == "kai-os://auth/microsoft"
+                && v("scope") == "Calendars.Read offline_access" && v("response_type") == "code"
+        }
+        check("the redirect yields its code when the state matches") {
+            let url = URL(string: "kai-os://auth/microsoft?code=abc&state=st")!
+            return (try? KaiMicrosoftAuth.authorizationCode(from: url, expectedState: "st")) == "abc"
+        }
+        check("the redirect is rejected when the state differs") {
+            let url = URL(string: "kai-os://auth/microsoft?code=abc&state=other")!
+            return (try? KaiMicrosoftAuth.authorizationCode(from: url, expectedState: "st")) == nil
+        }
+        check("an error in the redirect is surfaced") {
+            let url = URL(string: "kai-os://auth/microsoft?error=access_denied&error_description=No")!
+            do { _ = try KaiMicrosoftAuth.authorizationCode(from: url, expectedState: "st"); return false }
+            catch { return error as? KaiMicrosoftAuth.AuthError == .server("No") }
+        }
+        check("the token request is a form POST with an encoded body") {
+            let request = KaiMicrosoftAuth.codeExchangeRequest(clientID: "c", code: "a b+c", verifier: "v")
+            let body = String(data: request.httpBody ?? Data(), encoding: .utf8) ?? ""
+            return request.httpMethod == "POST"
+                && request.value(forHTTPHeaderField: "Content-Type") == "application/x-www-form-urlencoded"
+                && body.contains("code=a%20b%2Bc") && body.contains("grant_type=authorization_code")
+                && body.contains("redirect_uri=kai-os%3A%2F%2Fauth%2Fmicrosoft")
+        }
+        check("a token response parses with its expiry") {
+            let now = Date(timeIntervalSince1970: 1_000)
+            let json = #"{"access_token":"A","refresh_token":"R","expires_in":3600}"#
+            let tokens = try KaiMicrosoftAuth.parseTokens(Data(json.utf8), now: now)
+            return tokens == KaiMicrosoftAuth.Tokens(accessToken: "A", refreshToken: "R", expiresAt: now.addingTimeInterval(3600))
+        }
+        check("a token error response throws the server message") {
+            let json = #"{"error":"invalid_grant","error_description":"expired"}"#
+            do { _ = try KaiMicrosoftAuth.parseTokens(Data(json.utf8)); return false }
+            catch { return error as? KaiMicrosoftAuth.AuthError == .server("expired") }
+        }
+
+        check("the calendar request asks for UTC times and sends the bearer token") {
+            let start = Date(timeIntervalSince1970: 1_793_000_000)
+            let request = KaiOutlookCalendarSource.request(from: start, to: start.addingTimeInterval(86_400), accessToken: "tok")
+            let query = request.url?.query ?? ""
+            return request.url?.host == "graph.microsoft.com"
+                && request.value(forHTTPHeaderField: "Authorization") == "Bearer tok"
+                && request.value(forHTTPHeaderField: "Prefer") == "outlook.timezone=\"UTC\""
+                && query.contains("startDateTime=") && query.contains("endDateTime=") && query.contains("$top=100")
+        }
+        let graphJSON = """
+        {"@odata.nextLink":"https://graph.microsoft.com/v1.0/me/calendarView?$skiptoken=x","value":[
+          {"id":"e1","subject":"Standup","isAllDay":false,"isCancelled":false,
+           "start":{"dateTime":"2026-11-09T14:30:00.0000000","timeZone":"UTC"},
+           "end":{"dateTime":"2026-11-09T15:00:00.0000000","timeZone":"UTC"},
+           "location":{"displayName":"Room 4"}},
+          {"id":"e2","subject":"Cancelled","isAllDay":false,"isCancelled":true,
+           "start":{"dateTime":"2026-11-09T16:00:00.0000000","timeZone":"UTC"},
+           "end":{"dateTime":"2026-11-09T17:00:00.0000000","timeZone":"UTC"}},
+          {"id":"e3","subject":"","isAllDay":true,"isCancelled":false,
+           "start":{"dateTime":"2026-11-10T00:00:00.0000000","timeZone":"UTC"},
+           "end":{"dateTime":"2026-11-11T00:00:00.0000000","timeZone":"UTC"}},
+          {"id":"e4","subject":"No end"}
+        ]}
+        """
+        let page = try KaiOutlookCalendarSource.parse(Data(graphJSON.utf8))
+        check("a calendar page keeps events, drops cancelled and malformed ones, and keeps the next link") {
+            page.items.map(\.id) == ["outlook-e1", "outlook-e3"] && page.nextLink?.host == "graph.microsoft.com"
+        }
+        check("a timed event is read as UTC") {
+            let event = page.items[0]
+            return event.start == ISO8601DateFormatter().date(from: "2026-11-09T14:30:00Z")
+                && event.end == ISO8601DateFormatter().date(from: "2026-11-09T15:00:00Z")
+                && event.title == "Standup" && event.location == "Room 4" && !event.isAllDay
+        }
+        check("an all-day event starts at local midnight and a blank subject becomes Untitled") {
+            let event = page.items[1]
+            let midnight = Calendar.current.date(from: DateComponents(year: 2026, month: 11, day: 10))
+            return event.isAllDay && event.start == midnight && event.title == "Untitled"
+        }
+        check("a response without a value list is rejected") {
+            do { _ = try KaiOutlookCalendarSource.parse(Data(#"{"error":{}}"#.utf8)); return false }
+            catch { return error as? KaiOutlookCalendarSource.SourceError == .badResponse }
+        }
+    }
+
 }
