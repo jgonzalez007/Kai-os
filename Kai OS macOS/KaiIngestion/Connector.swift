@@ -134,6 +134,8 @@ public final class ConnectorFactory {
             return AppleCalendarConnector()
         case "Google Calendar":
             return GoogleCalendarConnector()
+        case "Outlook Calendar":
+            return OutlookCalendarConnector()
         case "Apple Notes":
             return NotesConnector()
         case "Files":
