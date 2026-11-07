@@ -23,7 +23,12 @@ done
 cp "$BIN_DIR/Kai OS" "$CONTENTS/MacOS/Kai OS"
 cp "Kai OS macOS/Info.plist" "$CONTENTS/Info.plist"
 read -r SIGNING_SHA SIGNING_KEYCHAIN <<< "$(scripts/setup-signing.sh)"
-codesign --force --sign "$SIGNING_SHA" --keychain "$SIGNING_KEYCHAIN" --identifier ai.kai "$APP"
+if ! codesign --force --sign "$SIGNING_SHA" --keychain "$SIGNING_KEYCHAIN" --identifier ai.kai "$APP" 2>/dev/null; then
+    # macOS refuses an untrusted self-signed identity. An ad-hoc signature still runs, but
+    # macOS forgets permission grants (Calendar, Mail, microphone) after every rebuild.
+    echo "warning: the local signing identity is not trusted, so this build is ad-hoc signed." >&2
+    codesign --force --sign - --identifier ai.kai "$APP"
+fi
 
 open "$APP"
 sleep 2
