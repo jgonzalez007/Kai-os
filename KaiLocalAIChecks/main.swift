@@ -882,5 +882,31 @@ do {
     failures += 1
 }
 
+// API keys live in the Keychain, and a legacy plaintext key migrates out of UserDefaults.
+do {
+    let provider = "kaicheck\(UInt32.random(in: 0...UInt32.max))"
+    let legacyKey = "kai.\(provider).apiKey"
+    defer {
+        KaiKeychain.deleteApiKey(for: provider)
+        UserDefaults.standard.removeObject(forKey: legacyKey)
+    }
+
+    check("a saved API key reads back from the Keychain") {
+        KaiKeychain.setApiKey("secret-1", for: provider) && KaiKeychain.apiKey(for: provider) == "secret-1"
+    }
+    check("saving an API key leaves nothing in UserDefaults") {
+        UserDefaults.standard.string(forKey: legacyKey) == nil
+    }
+    check("an empty API key deletes it") {
+        KaiKeychain.setApiKey("", for: provider) && KaiKeychain.apiKey(for: provider) == nil
+    }
+    check("a legacy UserDefaults key migrates to the Keychain") {
+        UserDefaults.standard.set("legacy-1", forKey: legacyKey)
+        let migrated = KaiKeychain.apiKey(for: provider) == "legacy-1"
+        return migrated && UserDefaults.standard.string(forKey: legacyKey) == nil
+            && KaiKeychain.apiKey(for: provider) == "legacy-1"
+    }
+}
+
 print(failures == 0 ? "All checks passed." : "\(failures) check(s) failed.")
 exit(failures == 0 ? 0 : 1)

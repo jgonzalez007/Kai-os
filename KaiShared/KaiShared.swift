@@ -235,8 +235,7 @@ public final class KaiChatService: Sendable {
     }
 
     public func hasApiKey(for provider: String) -> Bool {
-        let key = "kai.\(provider).apiKey"
-        return UserDefaults.standard.string(forKey: key) != nil
+        KaiKeychain.hasApiKey(for: provider)
     }
 
     public func refreshModels() async {

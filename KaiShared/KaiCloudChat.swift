@@ -23,7 +23,7 @@ public final class OpenAIChatClient: KaiChatClient {
     
     public init(apiKey: String? = nil) {
         if let key = apiKey {
-            UserDefaults.standard.set(key, forKey: "kai.openai.apiKey")
+            KaiKeychain.setApiKey(key, for: "openai")
         }
     }
     
@@ -57,7 +57,7 @@ public final class OpenAIChatClient: KaiChatClient {
     
     /// List available OpenAI models.
     public func listModels() async throws -> [KaiOllamaModelInfo] {
-        let apiKey = UserDefaults.standard.string(forKey: "kai.openai.apiKey") ?? ""
+        let apiKey = KaiKeychain.apiKey(for: "openai") ?? ""
         guard !apiKey.isEmpty else { return [] }
         
         var request = URLRequest(url: Self.baseURL.appendingPathComponent("/models"))
@@ -91,7 +91,7 @@ public final class OpenAIChatClient: KaiChatClient {
         tools: [KaiOllamaTool]? = nil,
         temperature: Double? = nil) -> AsyncThrowingStream<KaiOllamaEvent, Error> {
         
-        let apiKey = UserDefaults.standard.string(forKey: "kai.openai.apiKey") ?? ""
+        let apiKey = KaiKeychain.apiKey(for: "openai") ?? ""
         guard !apiKey.isEmpty else {
             return AsyncThrowingStream { continuation in
                 continuation.finish(throwing: KaiOllamaError.unreachable("OpenAI API key is not set."))
@@ -188,7 +188,7 @@ public final class AnthropicChatClient: KaiChatClient {
     
     public init(apiKey: String? = nil) {
         if let key = apiKey {
-            UserDefaults.standard.set(key, forKey: "kai.anthropic.apiKey")
+            KaiKeychain.setApiKey(key, for: "anthropic")
         }
     }
     
@@ -199,7 +199,7 @@ public final class AnthropicChatClient: KaiChatClient {
         tools: [KaiOllamaTool]? = nil,
         temperature: Double? = nil) -> AsyncThrowingStream<KaiOllamaEvent, Error> {
         
-        let apiKey = UserDefaults.standard.string(forKey: "kai.anthropic.apiKey") ?? ""
+        let apiKey = KaiKeychain.apiKey(for: "anthropic") ?? ""
         guard !apiKey.isEmpty else {
             return AsyncThrowingStream { continuation in
                 continuation.finish(throwing: KaiOllamaError.unreachable("Anthropic API key is not set."))
@@ -325,7 +325,7 @@ public final class AnthropicChatClient: KaiChatClient {
     
     /// List available Anthropic models.
     public func listModels() async throws -> [KaiOllamaModelInfo] {
-        let apiKey = UserDefaults.standard.string(forKey: "kai.anthropic.apiKey") ?? ""
+        let apiKey = KaiKeychain.apiKey(for: "anthropic") ?? ""
         guard !apiKey.isEmpty else { return [] }
         
         var request = URLRequest(url: Self.baseURL.appendingPathComponent("/v1/models"))
