@@ -113,9 +113,16 @@ public enum KaiBriefingParser {
     private static let maxCards = 5
     private static let maxTextLength = 300
 
+    /// Models often wrap their JSON in a code fence or a sentence. Take the outermost braces.
+    /// What comes out is still parsed as JSON and checked card by card, so this adds no trust.
+    static func jsonObjectText(in text: String) -> String {
+        guard let open = text.firstIndex(of: "{"), let close = text.lastIndex(of: "}"), open < close else { return text }
+        return String(text[open...close])
+    }
+
     /// Anything unexpected is dropped, card by card, so bad output can't do more than show less.
     public static func cards(from json: String, input: KaiBriefingInput, now: Date) -> [KaiMorningCard] {
-        guard let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any],
+        guard let object = try? JSONSerialization.jsonObject(with: Data(jsonObjectText(in: json).utf8)) as? [String: Any],
               let raw = object["cards"] as? [[String: Any]] else { return [] }
         var repliedTo = Set<String>()
         var cards: [KaiMorningCard] = []
