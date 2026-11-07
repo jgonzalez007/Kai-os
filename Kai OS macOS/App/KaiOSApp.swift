@@ -413,7 +413,7 @@ final class AppState: ObservableObject {
     }
 
     var selectedModelSupportsVision: Bool {
-        modelInfo.first { $0.name == selectedModel }?.supportsVision ?? true
+        modelInfo.first { $0.name == KaiModelTag.name(from: selectedModel) }?.supportsVision ?? true
     }
 
     /// Captures only the display under the cursor, and only because the user asked for it here.
@@ -505,14 +505,14 @@ final class AppState: ObservableObject {
                 switch streamProvider {
                 case "openai" where !openAIApiKey.isEmpty:
                     stream = OpenAIChatClient(apiKey: openAIApiKey).stream(
-                        model: selectedModel, messages: conversation,
+                        model: KaiModelTag.name(from: selectedModel), messages: conversation,
                         tools: tools.isEmpty ? nil : tools, temperature: nil)
                 case "anthropic" where !anthropicApiKey.isEmpty:
                     stream = AnthropicChatClient(apiKey: anthropicApiKey).stream(
-                        model: selectedModel, messages: conversation,
+                        model: KaiModelTag.name(from: selectedModel), messages: conversation,
                         tools: tools.isEmpty ? nil : tools, temperature: nil)
                 default:
-                    stream = ollama.stream(model: selectedModel, messages: conversation, tools: tools.isEmpty ? nil : tools)
+                    stream = ollama.stream(model: KaiModelTag.name(from: selectedModel), messages: conversation, tools: tools.isEmpty ? nil : tools)
                 }
                 
                 for try await event in stream {

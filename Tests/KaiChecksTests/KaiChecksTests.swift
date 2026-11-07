@@ -964,4 +964,40 @@ final class KaiChecksTests: XCTestCase {
 
     }
 
+
+    func testModelTags() async throws {
+        check("a provider prefix is removed from a listed model") {
+            KaiModelTag.name(from: "ollama: gemma4:e4b") == "gemma4:e4b"
+                && KaiModelTag.name(from: "openai: gpt-4o") == "gpt-4o"
+                && KaiModelTag.name(from: "anthropic: claude-sonnet") == "claude-sonnet"
+        }
+        check("a model name without a prefix is left alone") {
+            KaiModelTag.name(from: "gemma4:e4b") == "gemma4:e4b" && KaiModelTag.name(from: "") == ""
+        }
+    }
+
+
+    func testBriefingJSONExtraction() async throws {
+        check("JSON inside a code fence is found") {
+            KaiBriefingParser.jsonObjectText(in: "```json\n{\"cards\":[]}\n```") == "{\"cards\":[]}"
+        }
+        check("JSON after a sentence is found") {
+            KaiBriefingParser.jsonObjectText(in: "Here you go: {\"cards\":[{\"a\":1}]} Thanks") == "{\"cards\":[{\"a\":1}]}"
+        }
+        check("bare JSON is unchanged") {
+            KaiBriefingParser.jsonObjectText(in: "{\"cards\":[]}") == "{\"cards\":[]}"
+        }
+        check("text without JSON is left for the parser to reject") {
+            KaiBriefingParser.jsonObjectText(in: "no cards today") == "no cards today"
+        }
+        check("a fenced briefing still produces a card") {
+            let input = KaiBriefingInput(events: [], mail: [])
+            let fenced = "```json\n{\"cards\":[{\"kind\":\"note\",\"title\":\"Dentist today\",\"why\":\"It is on the calendar.\"}]}\n```"
+            return KaiBriefingParser.cards(from: fenced, input: input, now: Date()).map(\.title) == ["Dentist today"]
+        }
+        check("prose with no JSON produces no cards") {
+            KaiBriefingParser.cards(from: "Nothing to report.", input: KaiBriefingInput(events: [], mail: []), now: Date()).isEmpty
+        }
+    }
+
 }

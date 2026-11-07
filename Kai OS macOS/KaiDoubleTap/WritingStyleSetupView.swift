@@ -82,7 +82,7 @@ final class KaiWritingStyleController: ObservableObject {
                 guard !appState.selectedModel.isEmpty else { throw KaiOllamaError.noChatModel }
                 var text = ""
                 // No tools are offered, because even sent mail can carry text from someone else.
-                for try await event in ollama.stream(model: appState.selectedModel, messages: KaiStylePrompt.messages(samples: samples), tools: [], temperature: 0.2) {
+                for try await event in ollama.stream(model: KaiModelTag.name(from: appState.selectedModel), messages: KaiStylePrompt.messages(samples: samples), tools: [], temperature: 0.2) {
                     if case .text(let delta) = event { text += delta }
                 }
                 let learned = text.trimmingCharacters(in: .whitespacesAndNewlines)
