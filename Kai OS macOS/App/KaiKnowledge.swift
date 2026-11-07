@@ -11,7 +11,7 @@ import Foundation
 import KaiKnowledge
 
 extension AppState {
-    static let knowledgeSourceNames = ["files": "Files", "notes": "Notes", "calendar": "Calendar", "mail": "Mail"]
+    static let knowledgeSourceNames = ["files": "Files", "notes": "Notes", "calendar": "Calendar", "mail": "Mail", "slack": "Slack"]
 
     var knowledgeFolder: URL { KaiKnowledgeIndexer.defaultFolder() }
 
@@ -63,6 +63,7 @@ extension AppState {
         if sources.calendar { await attempt("Calendar") { try KaiKnowledgeIndexer.indexCalendar(into: store) } }
         if sources.notes { await attempt("Notes") { try await KaiKnowledgeIndexer.indexNotes(into: store) } }
         if sources.mail { await attempt("Mail") { try await KaiKnowledgeIndexer.indexMail(into: store) } }
+        if includeSources, slackClient != nil { await attempt("Slack") { try await indexSlack(into: store) } }
         refreshKnowledgeCounts()
         isIndexingKnowledge = false
         knowledgeState = failures.isEmpty ? .connected : .failed(failures.joined(separator: "\n"))

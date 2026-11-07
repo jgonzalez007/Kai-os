@@ -11,6 +11,7 @@ import ImageIO
 import KaiNotchCore
 @testable import KaiKnowledge
 @testable import KaiAgent
+@testable import KaiSlack
 
 // MARK: - Fakes for the computer-use agent. Nothing here touches the real screen, mouse or keyboard.
 
@@ -104,6 +105,34 @@ extension AgentFakes {
             policy: KaiAgentPolicy(mode: mode, ownBundleIdentifier: "ai.kai"), limits: limits, stop: stop,
             now: { [unowned self] in lock.lock(); defer { lock.unlock() }; clock = clock.addingTimeInterval(tick); return clock },
             sleep: { [unowned self] in lock.lock(); sleeps.append($0); lock.unlock() })
+    }
+}
+
+// MARK: - A fake Slack. No network is used.
+
+final class FakeSlack: KaiSlackTransport, @unchecked Sendable {
+    private let lock = NSLock()
+    var requests: [URLRequest] = []
+    var responses: [String: [(status: Int, headers: [String: String], body: String)]]
+
+    init(_ responses: [String: [(Int, [String: String], String)]]) {
+        self.responses = responses.mapValues { $0.map { (status: $0.0, headers: $0.1, body: $0.2) } }
+    }
+    convenience init(_ simple: [String: String]) { self.init(simple.mapValues { [(200, [:], $0)] }) }
+
+    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        lock.lock(); defer { lock.unlock() }
+        requests.append(request)
+        let method = request.url!.lastPathComponent
+        var queue = responses[method] ?? [(404, [:], "{}")]
+        let next = queue.count > 1 ? queue.removeFirst() : queue[0]
+        responses[method] = queue
+        let http = HTTPURLResponse(url: request.url!, statusCode: next.status, httpVersion: nil, headerFields: next.headers)!
+        return (Data(next.body.utf8), http)
+    }
+    var methods: [String] { lock.lock(); defer { lock.unlock() }; return requests.map { $0.url!.lastPathComponent } }
+    func query(_ i: Int, _ name: String) -> String? {
+        URLComponents(url: requests[i].url!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == name }?.value
     }
 }
 
@@ -1669,6 +1698,142 @@ final class KaiChecksTests: XCTestCase {
             let lines = (try String(contentsOf: logURL, encoding: .utf8)).split(separator: "\n")
             let attrs = try FileManager.default.attributesOfItem(atPath: logURL.path)
             return lines.count == 3 && lines[0].contains("Open Notes") && lines[1].contains("blocked") && (attrs[.posixPermissions] as? Int) == 0o600
+        }
+    }
+
+
+    func testSlack() async throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        func ts(_ offset: Double) -> String { String(format: "%.6f", now.timeIntervalSince1970 - offset) }
+        let channelsJSON = #"{"ok":true,"channels":[{"id":"C1","name":"general"},{"id":"G1","name":"leads","is_private":true},{"id":"D1","is_im":true,"user":"U2"},{"id":"M1","name":"mpdm-a--b","is_mpim":true}]}"#
+        let historyJSON = """
+        {"ok":true,"messages":[
+         {"ts":"\(ts(100))","user":"U1","text":"Lunch with <@U2> at <https://maps.example.com/cafe|the cafe>? &amp; bring <#C1|general> notes"},
+         {"ts":"\(ts(200))","user":"U2","text":"Yes, ping <!here>"},
+         {"ts":"\(ts(150))","user":"U1","text":"joined","subtype":"channel_join"},
+         {"ts":"\(ts(120))","user":"U2","text":""}]}
+        """
+
+        await checkAsync("a client without a token refuses to call Slack") {
+            let slack = FakeSlack([String: String]())
+            do { _ = try await KaiSlackClient(token: "", transport: slack).identity(); return false }
+            catch { return error as? KaiSlackError == .noToken && slack.requests.isEmpty }
+        }
+        await checkAsync("the token goes in the Authorization header, never the address") {
+            let slack = FakeSlack(["auth.test": #"{"ok":true,"team":"Acme","team_id":"T1","user":"jose","user_id":"U1","url":"https://acme.slack.com/"}"#])
+            let who = try await KaiSlackClient(token: "xoxp-secret", transport: slack).identity()
+            return who == KaiSlackIdentity(team: "Acme", teamID: "T1", user: "jose", userID: "U1", url: "https://acme.slack.com/")
+                && slack.requests[0].value(forHTTPHeaderField: "Authorization") == "Bearer xoxp-secret"
+                && !slack.requests[0].url!.absoluteString.contains("xoxp")
+        }
+        await checkAsync("Slack's own errors become readable messages") {
+            let bad = FakeSlack(["auth.test": #"{"ok":false,"error":"invalid_auth"}"#])
+            let scope = FakeSlack(["users.conversations": #"{"ok":false,"error":"missing_scope","needed":"groups:read"}"#])
+            var first = false, second = false
+            do { _ = try await KaiSlackClient(token: "t", transport: bad).identity() } catch { first = (error as? KaiSlackError)?.errorDescription?.contains("fresh") == true }
+            do { _ = try await KaiSlackClient(token: "t", transport: scope).channels(includeDirectMessages: false) } catch { second = error as? KaiSlackError == .missingScope("groups:read") }
+            return first && second
+        }
+        await checkAsync("a rate limit waits for Retry-After and tries once more") {
+            let slack = FakeSlack(["auth.test": [(429, ["Retry-After": "7"], "{}"), (200, [:], #"{"ok":true,"team":"A","team_id":"T","user":"u","user_id":"U"}"#)]])
+            final class Pauses: @unchecked Sendable { var list: [Duration] = [] }
+            let pauses = Pauses()
+            _ = try await KaiSlackClient(token: "t", transport: slack, pause: { pauses.list.append($0) }).identity()
+            return slack.requests.count == 2 && pauses.list == [.seconds(7)]
+        }
+        await checkAsync("a second rate limit gives up instead of looping") {
+            let slack = FakeSlack(["auth.test": [(429, [:], "{}")]])
+            do { _ = try await KaiSlackClient(token: "t", transport: slack, pause: { _ in }).identity(); return false }
+            catch { return error as? KaiSlackError == .http(429) && slack.requests.count == 2 }
+        }
+        await checkAsync("direct messages are only asked for when turned on") {
+            let off = FakeSlack(["users.conversations": channelsJSON]); let on = FakeSlack(["users.conversations": channelsJSON])
+            _ = try await KaiSlackClient(token: "t", transport: off).channels(includeDirectMessages: false)
+            _ = try await KaiSlackClient(token: "t", transport: on).channels(includeDirectMessages: true)
+            return off.query(0, "types") == "public_channel,private_channel" && on.query(0, "types") == "public_channel,private_channel,mpim,im"
+        }
+        await checkAsync("channels are read with their kinds, and paging follows the cursor") {
+            let page1 = #"{"ok":true,"channels":[{"id":"C1","name":"general"}],"response_metadata":{"next_cursor":"abc"}}"#
+            let page2 = #"{"ok":true,"channels":[{"id":"G1","name":"leads","is_private":true},{"id":"D1","is_im":true,"user":"U2"},{"id":"M1","name":"x","is_mpim":true}]}"#
+            let slack = FakeSlack(["users.conversations": [(200, [:], page1), (200, [:], page2)]])
+            let found = try await KaiSlackClient(token: "t", transport: slack).channels(includeDirectMessages: true)
+            return found.map(\.kind) == [.channel, .privateChannel, .directMessage, .groupDM] && slack.query(1, "cursor") == "abc" && found[2].userID == "U2"
+        }
+        await checkAsync("history is asked from a start time and comes back oldest first") {
+            let slack = FakeSlack(["conversations.history": historyJSON])
+            let found = try await KaiSlackClient(token: "t", transport: slack).history(channel: "C1", since: now.addingTimeInterval(-86_400))
+            return found.map(\.ts) == found.map(\.ts).sorted() && found.count == 4 && slack.query(0, "channel") == "C1"
+                && Double(slack.query(0, "oldest")!)! == now.timeIntervalSince1970 - 86_400
+        }
+        await checkAsync("search results are read") {
+            let json = #"{"ok":true,"messages":{"matches":[{"text":"the launch is Friday","username":"ana","ts":"1.0","permalink":"https://acme.slack.com/p1","channel":{"name":"launch"}}]}}"#
+            let hits = try await KaiSlackClient(token: "t", transport: FakeSlack(["search.messages": json])).search("launch")
+            return hits == [KaiSlackSearchHit(text: "the launch is Friday", username: "ana", channelName: "launch", ts: "1.0", permalink: "https://acme.slack.com/p1")]
+        }
+        await checkAsync("a user's display name falls back to their real name, then their handle") {
+            func name(_ json: String) async throws -> String {
+                try await KaiSlackClient(token: "t", transport: FakeSlack(["users.info": json])).displayName(userID: "U9")
+            }
+            let a = try await name(#"{"ok":true,"user":{"name":"aruiz","real_name":"Ana Ruiz","profile":{"display_name":"ana"}}}"#)
+            let b = try await name(#"{"ok":true,"user":{"name":"aruiz","real_name":"Ana Ruiz","profile":{"display_name":""}}}"#)
+            let c = try await name(#"{"ok":true,"user":{"name":"aruiz","profile":{}}}"#)
+            return a == "ana" && b == "Ana Ruiz" && c == "aruiz"
+        }
+
+        check("Slack markup becomes plain text") {
+            KaiSlackText.plain("Lunch with <@U2> at <https://maps.example.com/cafe|the cafe>? &amp; bring <#C1|general> notes, <!here> <!subteam^S1|@eng>",
+                               userNames: ["U2": "Ana"])
+                == "Lunch with @Ana at the cafe (https://maps.example.com/cafe)? & bring #general notes, @here @eng"
+        }
+        check("an unknown user keeps their ID, and a bare link or email stays readable") {
+            KaiSlackText.plain("<@U404> <https://x.com> <mailto:a@b.com|a@b.com> 1 &lt; 2") == "@U404 https://x.com a@b.com (mailto:a@b.com) 1 < 2"
+        }
+        check("a day of a channel becomes one searchable document, skipping joins and empty messages") {
+            let messages = [KaiSlackMessage(ts: ts(100), user: "U1", text: "Lunch with <@U2>?", threadTS: nil, subtype: nil),
+                            KaiSlackMessage(ts: ts(200), user: "U2", text: "Yes", threadTS: nil, subtype: nil),
+                            KaiSlackMessage(ts: ts(150), user: "U1", text: "joined", threadTS: nil, subtype: "channel_join"),
+                            KaiSlackMessage(ts: ts(120), user: "U2", text: "  ", threadTS: nil, subtype: nil)]
+            let docs = KaiSlackText.documents(channel: KaiSlackChannel(id: "C1", name: "general", kind: .channel, userID: nil),
+                                              title: "#general", messages: messages, userNames: ["U1": "Jose", "U2": "Ana"])
+            return docs.count == 1 && docs[0].source == "slack" && docs[0].title.hasPrefix("#general — ")
+                && docs[0].text == "Ana: Yes\n\nJose: Lunch with @Ana?" && docs[0].sourceID.hasPrefix("C1:")
+        }
+        check("the same text gives the same fingerprint, so unchanged days are skipped") {
+            let m = [KaiSlackMessage(ts: ts(10), user: "U1", text: "hi", threadTS: nil, subtype: nil)]
+            let c = KaiSlackChannel(id: "C1", name: "g", kind: .channel, userID: nil)
+            return KaiSlackText.documents(channel: c, title: "#g", messages: m, userNames: [:])[0].fingerprint
+                == KaiSlackText.documents(channel: c, title: "#g", messages: m, userNames: [:])[0].fingerprint
+        }
+        check("the screen text is cleaned: blanks and repeats removed, and a hard length cap") {
+            KaiSlackText.cleanScreen(["  ", "Ana", "Ana", "Hello", "", "Hello there"]) == "Ana\nHello\nHello there"
+                && KaiSlackText.cleanScreen(Array(repeating: "line", count: 3).enumerated().map { "line \($0.offset) " + String(repeating: "x", count: 50) }, limit: 80).hasSuffix("…")
+        }
+
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("kai-slack-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = try KaiKnowledgeStore(url: dir.appendingPathComponent("kb.sqlite"))
+        let slack = FakeSlack([
+            "users.conversations": channelsJSON, "conversations.history": historyJSON,
+            "users.info": #"{"ok":true,"user":{"name":"x","real_name":"Ana Ruiz","profile":{"display_name":"Ana"}}}"#,
+        ])
+        let report = try await KaiSlackIndexer.index(client: KaiSlackClient(token: "t", transport: slack), into: store, includeDirectMessages: false, now: now)
+        await checkAsync("indexing puts channel messages in the knowledge base and finds them by word") {
+            let hit = try store.search("lunch").first
+            return report.added >= 1 && hit?.source == "slack" && hit?.title.hasPrefix("#general") == true
+        }
+        await checkAsync("indexing only ever calls Slack methods that read") {
+            Set(slack.methods).isSubset(of: ["users.conversations", "conversations.history", "users.info"])
+        }
+        await checkAsync("indexing twice changes nothing the second time") {
+            let again = try await KaiSlackIndexer.index(client: KaiSlackClient(token: "t", transport: slack), into: store, includeDirectMessages: false, now: now)
+            return again.added == 0 && again.updated == 0 && again.unchanged >= 1
+        }
+        await checkAsync("a channel with no recent messages adds nothing") {
+            let quiet = FakeSlack(["users.conversations": channelsJSON, "conversations.history": #"{"ok":true,"messages":[]}"#])
+            let freshStore = try KaiKnowledgeStore(url: dir.appendingPathComponent("quiet.sqlite"))
+            let r = try await KaiSlackIndexer.index(client: KaiSlackClient(token: "t", transport: quiet), into: freshStore, includeDirectMessages: false, now: now)
+            let stored = try freshStore.count()
+            return r.total == 0 && stored == 0
         }
     }
 

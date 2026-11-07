@@ -450,6 +450,19 @@ enum KaiChatSelfTest {
         try? await Task.sleep(for: .milliseconds(1500))
         snapshot(window, to: directory.appendingPathComponent("9-health.png"))
 
+        // The Slack window reader. Only a count is recorded, never the text of anyone's messages.
+        let slackRunning = !NSRunningApplication.runningApplications(withBundleIdentifier: KaiSlackScreenReader.bundleIdentifier).isEmpty
+        if AXIsProcessTrusted(), slackRunning {
+            let read = try? await KaiSlackScreenReader.read()
+            report("the Slack window can be read", (read?.count ?? 0) > 0, "\(read?.count ?? 0) characters")
+        } else {
+            log.append("INFO  the Slack window check was skipped (Accessibility granted: \(AXIsProcessTrusted()), Slack running: \(slackRunning))")
+        }
+        let missing = await appState.readSlackScreenTool()
+        report("the Slack tools answer plainly when they can't read", !missing.isEmpty)
+        let noToken = await appState.searchSlackTool(query: "launch")
+        report("Slack search says how to connect when there is no token", appState.slackClient != nil || noToken.contains("isn't connected"), noToken.prefix(80).description)
+
         appState.activeSidebar = "Sidekick"
         appState.agent.task = "Open Notes and write a note"
         try? await Task.sleep(for: .milliseconds(800))

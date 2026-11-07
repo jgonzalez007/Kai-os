@@ -46,18 +46,23 @@ let package = Package(
             path: "KaiAgent"
         ),
         .target(
+            name: "KaiSlack",
+            dependencies: ["KaiShared", "KaiKnowledge"],
+            path: "KaiSlack"
+        ),
+        .target(
             name: "KaiNotchCore",
             path: "KaiNotchCore"
         ),
         .executableTarget(
             name: "KaiOS",
-            dependencies: ["KaiShared", "KaiActions", "KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore", "KaiKnowledge", "KaiAgent"],
+            dependencies: ["KaiShared", "KaiActions", "KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore", "KaiKnowledge", "KaiAgent", "KaiSlack"],
             path: "Kai OS macOS",
             exclude: ["Info.plist"]
         ),
         .testTarget(
             name: "KaiChecksTests",
-            dependencies: ["KaiActions", "KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore", "KaiShared", "KaiKnowledge", "KaiAgent"],
+            dependencies: ["KaiActions", "KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore", "KaiShared", "KaiKnowledge", "KaiAgent", "KaiSlack"],
             path: "Tests/KaiChecksTests"
         )
     ]
