@@ -2,7 +2,8 @@
 //  KaiForYouView.swift
 //  Kai OS macOS
 //
-//  The morning cards. Reading them is free; anything that acts waits for a click here.
+//  The morning cards — modern, adaptive, with clean styling
+//  Copyright © 2026 Kai OS Labs. All rights reserved.
 //
 
 import KaiActions
@@ -14,26 +15,50 @@ struct KaiForYouView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("For You").font(.title).fontWeight(.bold)
-                    Text("Refreshed each morning from your calendar and unread mail.").font(.callout).foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            // ── Header ──
+            HStack(spacing: 12) {
+                Image(systemName: "sun.max")
+                    .font(KaiFont.labelStrong)
+                    .foregroundStyle(KaiColor.warning)
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("For You").font(KaiFont.title3)
+                    Text("Refreshed each morning from your calendar, mail, and notes").font(KaiFont.caption)
+                        .foregroundStyle(KaiColor.textTertiary)
                 }
+                
                 Spacer()
-                if controller.isGenerating { ProgressView().controlSize(.small) }
-                Button("Refresh", action: controller.generate)
+                
+                if controller.isGenerating {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: KaiColor.primary))
+                        .scaleEffect(0.7)
+                }
+                
+                Button("Refresh") { controller.generate() }
                     .disabled(controller.isGenerating || !controller.hasSources)
+                    .buttonBorderShape(.roundedRectangle)
+                    .controlSize(.small)
             }
-            .padding()
+            .padding(KaiSpacing.regular)
+            
+            // ── Error ──
             if let error = controller.errorMessage {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(KaiColor.warning)
+                        .font(KaiFont.caption2Strong)
+                    Text(error).font(KaiFont.caption)
+                        .foregroundStyle(KaiColor.textSecondary)
+                }
+                .padding(KaiSpacing.regular)
+                .background(KaiColor.warning.opacity(0.08), in: RoundedRectangle(cornerRadius: KaiSpacing.cornerRadius))
             }
-            Divider()
+            
+            Divider().kaiDivider()
+            
+            // ── Content ──
             content
         }
     }
@@ -46,32 +71,54 @@ struct KaiForYouView: View {
                 title: "Nothing connected yet",
                 detail: "Turn on Calendar or Apple Mail, and Kai OS will prepare cards each morning."
             ) {
-                Button("Open Permissions") { appState.activeSidebar = "Permissions" }.buttonStyle(.borderedProminent)
+                Button("Open Permissions") { appState.activeSidebar = "Permissions" }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.roundedRectangle)
             }
         } else if controller.activeCards.isEmpty {
             emptyState(
-                icon: "sun.max",
-                title: controller.isGenerating ? "Looking through today…" : "Nothing needs you right now",
+                icon: controller.isGenerating ? "arrow.triangle.2.circlepath" : "sun.max",
+                title: controller.isGenerating ? "Looking through today..." : "Nothing needs you right now",
                 detail: "Cards appear here the first time Kai OS is running after \(KaiBriefingSchedule.startHour) each morning."
             ) { EmptyView() }
         } else {
             ScrollView {
-                VStack(spacing: 12) {
-                    ForEach(controller.activeCards) { KaiMorningCardRow(card: $0, controller: controller) }
+                LazyVStack(spacing: 12) {
+                    ForEach(controller.activeCards) { card in
+                        KaiMorningCardRow(card: card, controller: controller)
+                    }
                 }
-                .padding()
+                .padding(KaiSpacing.regular)
             }
+            .scrollIndicators(.automatic)
         }
     }
 
-    private func emptyState<Actions: View>(icon: String, title: String, detail: String, @ViewBuilder actions: () -> Actions) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon).font(.system(size: 40)).foregroundStyle(.secondary)
-            Text(title).font(.title2).fontWeight(.semibold)
-            Text(detail).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 380)
+    private func emptyState<Actions: View>(
+        icon: String,
+        title: String,
+        detail: String,
+        @ViewBuilder actions: () -> Actions
+    ) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: icon)
+                .font(KaiFont.title2)
+                .foregroundStyle(KaiColor.textTertiary)
+                .padding(.bottom, 8)
+            
+            Text(title).font(KaiFont.bodyStrong)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
+            
+            Text(detail).font(KaiFont.caption)
+                .foregroundStyle(KaiColor.textTertiary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 380)
+            
             actions()
         }
-        .padding(32)
+        .padding(KaiSpacing.xxlarge)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
@@ -89,24 +136,48 @@ private struct KaiMorningCardRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: icon).foregroundStyle(.purple).frame(width: 22)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(card.title).fontWeight(.semibold)
-                    if !card.why.isEmpty { Text(card.why).font(.callout).foregroundStyle(.secondary) }
+                Image(systemName: icon)
+                    .font(KaiFont.caption2Strong)
+                    .foregroundStyle(KaiColor.primary)
+                    .padding(6)
+                    .background(KaiColor.primary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(card.title).font(KaiFont.bodyStrong)
+                    
+                    if !card.why.isEmpty {
+                        Text(card.why).font(KaiFont.caption)
+                            .foregroundStyle(KaiColor.textTertiary)
+                    }
+                    
                     details
                 }
+                
                 Spacer()
-                Button { controller.dismiss(card.id) } label: { Image(systemName: "xmark").foregroundStyle(.secondary) }
-                    .buttonStyle(.plain)
-                    .help("Dismiss")
+                
+                Button { controller.dismiss(card.id) } label: {
+                    Image(systemName: "xmark")
+                        .foregroundStyle(KaiColor.textTertiary)
+                        .font(KaiFont.caption2Strong)
+                }
+                .buttonStyle(.plain)
+                .help("Dismiss")
             }
+            
             actions
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+        .padding(KaiSpacing.cardPadding)
+        .background(
+            RoundedRectangle(cornerRadius: KaiSpacing.cornerRadiusLarge)
+                .fill(KaiColor.surfaceBg)
+                .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: KaiSpacing.cornerRadiusLarge)
+                        .stroke(KaiColor.border.opacity(0.3), lineWidth: 0.5)
+                )
+        )
     }
 
     @ViewBuilder
@@ -115,10 +186,18 @@ private struct KaiMorningCardRow: View {
         case .note:
             EmptyView()
         case .reply(let mail):
-            Text("\(mail.sender): \(mail.subject)").font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            Text("\(mail.sender): \(mail.subject)").font(KaiFont.caption)
+                .foregroundStyle(KaiColor.textTertiary)
+                .lineLimit(2)
         case .action(let actionCard):
             ForEach(actionCard.action.details.filter { $0.label != "Title" && $0.label != "Text" }, id: \.label) { row in
-                Text("\(row.label): \(row.value)").font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text(row.label).font(KaiFont.caption2Strong)
+                        .foregroundStyle(KaiColor.textTertiary)
+                    Text(row.value).font(KaiFont.caption)
+                        .foregroundStyle(KaiColor.textSecondary)
+                    Spacer()
+                }
             }
         }
     }
@@ -131,22 +210,44 @@ private struct KaiMorningCardRow: View {
         case .reply(let mail):
             Button("Draft Reply") { KaiNotchWindowController.shared.startReply(to: mail) }
                 .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.roundedRectangle)
                 .controlSize(.small)
         case .action(let actionCard):
             switch actionCard.state {
             case .pending:
-                HStack {
-                    Button("Approve") { controller.approve(card.id) }.buttonStyle(.borderedProminent).controlSize(.small)
-                    Button("Decline") { controller.decline(card.id) }.controlSize(.small)
+                HStack(spacing: 10) {
+                    Button("Approve") { controller.approve(card.id) }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.roundedRectangle)
+                        .controlSize(.small)
+                        .tint(KaiColor.success)
+                    
+                    Button("Decline") { controller.decline(card.id) }
+                        .buttonBorderShape(.roundedRectangle)
+                        .controlSize(.small)
                 }
             case .running:
-                ProgressView().controlSize(.small)
+                HStack(spacing: 8) {
+                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: KaiColor.primary))
+                    Text("Running...").font(KaiFont.captionStrong)
+                        .foregroundStyle(KaiColor.textSecondary)
+                }
             case .declined:
                 EmptyView()
             case .succeeded(let detail):
-                Label(detail, systemImage: "checkmark.circle.fill").font(.caption).foregroundStyle(.green)
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(KaiColor.success)
+                    Text(detail).font(KaiFont.captionStrong)
+                        .foregroundStyle(KaiColor.success)
+                }
             case .failed(let detail):
-                Label(detail, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(KaiColor.error)
+                    Text(detail).font(KaiFont.captionStrong)
+                        .foregroundStyle(KaiColor.error)
+                }
             }
         }
     }
