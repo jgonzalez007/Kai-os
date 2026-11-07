@@ -56,7 +56,7 @@
 ### Building
 ```bash
 cd kai-os
-xcodebuild -project "Kai OS.xcodeproj" -scheme "Kai OS" build
+swift build
 ```
 
 ### Package Naming

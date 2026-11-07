@@ -10,7 +10,7 @@
 [![Swift](https://img.shields.io/badge/Swift-5.9-orange.svg)](BUILD.md)
 
 > **Status:** early development. The features below work. Everything under
-> [Planned](#planned) does not exist yet. The Xcode project is out of date: build with SwiftPM (see [BUILD.md](BUILD.md)).
+> [Planned](#planned) does not exist yet. There is no Xcode project: build with SwiftPM or open `Package.swift` in Xcode (see [BUILD.md](BUILD.md)).
 
 ---
 

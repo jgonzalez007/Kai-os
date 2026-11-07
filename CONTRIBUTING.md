@@ -35,7 +35,7 @@ chore: rename project to Kai OS
 
 Run all tests in Xcode or via command line:
 ```bash
-xcodebuild test -project "Kai OS.xcodeproj" -scheme "Kai OS Tests"
+swift test
 ```
 
 ## Security
