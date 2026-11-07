@@ -19,8 +19,6 @@ Kai OS macOS/     The app target
   Views/            SwiftUI views and settings
   KaiMagic/         Notch window, notch view, Right Command hotkey
   KaiDoubleTap/     Double Tap reply drafting
-  KaiEngine/        Engine, fallback chain, PII scan (not used by the app; infer() throws, no runtime linked)
-  KaiIngestion/     Connector protocol and REST connectors (not used by the app yet)
   KaiProactive/     Placeholder
 Tests/KaiChecksTests/    122 checks, run with `swift test`
 ```
@@ -47,10 +45,9 @@ User (notch, hotkey, voice)
         propose_calendar_event / mail draft / notification → KaiActions → approval card → user decides
 ```
 
-## Not used by the app yet
+## Removed scaffolding
 
-- `KaiEngine/`: a planned wrapper for on-device models. No runtime (LiteRT, ONNX) is linked, so `infer` throws `runtimeUnavailable`. Local chat goes through Ollama in `KaiLocalAI`. The fallback chain and PII scan are untested scaffolding.
-- `KaiIngestion/`: a `Connector` protocol with Apple Calendar (real, through `KaiCalendarSource`), Gmail, Google and Outlook calendar, Notes and Files connectors. The OAuth ones have no way to sign in (`authenticate()` throws), and the app does not use any of them.
+`KaiEngine` (on-device inference, fallback chain, PII scan) and `KaiIngestion` (a connector protocol with unused REST connectors) were deleted on 2026-11-07. Nothing used them: local chat goes through Ollama in `KaiLocalAI` and cloud chat through `KaiShared`. They are in git history (`1a91b08` and earlier) and the plan describes what is still wanted.
 
 ## Privacy model
 
