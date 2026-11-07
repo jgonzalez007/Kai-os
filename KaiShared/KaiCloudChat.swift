@@ -279,7 +279,7 @@ public final class AnthropicChatClient: KaiChatClient {
                     request.httpMethod = "POST"
                     request.setValue("api-key \(apiKey)", forHTTPHeaderField: "x-api-key")
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+                    request.setValue("2024-10-22", forHTTPHeaderField: "anthropic-version")
                     request.timeoutInterval = 300
                     request.httpBody = try JSONSerialization.data(withJSONObject: body)
                     
@@ -332,7 +332,7 @@ public final class AnthropicChatClient: KaiChatClient {
         request.httpMethod = "GET"
         request.setValue("api-key \(apiKey)", forHTTPHeaderField: "x-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("2024-10-22", forHTTPHeaderField: "anthropic-version")
         request.timeoutInterval = 10
         
         let (data, response) = try await URLSession.shared.data(for: request)
