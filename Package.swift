@@ -45,10 +45,10 @@ let package = Package(
             path: "Kai OS macOS",
             exclude: ["Info.plist", "Info.plist.template"]
         ),
-        .executableTarget(
-            name: "KaiLocalAIChecks",
-            dependencies: ["KaiActions", "KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore"],
-            path: "KaiLocalAIChecks"
+        .testTarget(
+            name: "KaiChecksTests",
+            dependencies: ["KaiActions", "KaiCapture", "KaiLocalAI", "KaiLocalData", "KaiNotchCore", "KaiShared"],
+            path: "Tests/KaiChecksTests"
         )
     ]
 )
