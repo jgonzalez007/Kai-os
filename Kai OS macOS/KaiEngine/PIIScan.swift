@@ -94,7 +94,7 @@ public final class PIIScan {
     /// Get a summary of what PII was found
     public func getPIISummary(_ text: String) -> [String: Int] {
         var summary: [String: Int] = [:]
-        var working = text
+        let working = text
         
         for pattern in patterns {
             let regex = try? NSRegularExpression(
