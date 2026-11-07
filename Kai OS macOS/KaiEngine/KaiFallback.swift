@@ -9,6 +9,14 @@
 
 import Foundation
 
+// MARK: - Default Models
+
+/// Default model names for cloud endpoints. Override these to switch models.
+public enum KaiFallbackModels {
+    public static var chatGPT: String = "gpt-4o"
+    public static var claude: String = "claude-sonnet-4-20250514"
+}
+
 /// Fallback chain order
 public enum FallbackOrder: String {
     case chatgpt = "chatgpt"
@@ -79,21 +87,23 @@ public final class KaiFallbackManager {
         throw KaiFallbackError.allProvidersFailed
     }
     
-    /// Call ChatGPT via OpenAI Responses API (v1)
+    /// Call ChatGPT via OpenAI Chat Completions API
     private func callChatGPT(prompt: String) async throws -> String {
         guard let apiKey = openAIAPIKey else {
             throw KaiFallbackError.noAPIKey(provider: "chatgpt")
         }
         
-        let url = URL(string: "https://api.openai.com/v1/responses")!
+        let url = URL(string: "https://api.openai.com/v1/chat/completions")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let body: [String: Any] = [
-            "model": "gpt-4o",
-            "input": prompt,
+            "model": KaiFallbackModels.chatGPT,
+            "messages": [
+                ["role": "user", "content": prompt]
+            ],
             "max_tokens": 4096,
             "temperature": 0.7
         ]
@@ -108,18 +118,18 @@ public final class KaiFallbackManager {
         }
         
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let output: Any? = json?["output"]
-        let arr: [[String: Any]] = (output as? [[String: Any]]) ?? []
-        let content = arr.compactMap { $0["content"] as? String }.joined(separator: "\n")
+        let choices = json?["choices"] as? [[String: Any]] ?? []
+        let content = choices.compactMap { $0["message"] as? [String: Any] }?
+            .compactMap { $0["content"] as? String }.joined(separator: "\n")
         
-        guard !content.isEmpty else {
+        guard let text = content, !text.isEmpty else {
             throw KaiFallbackError.emptyResponse(provider: "chatgpt")
         }
         
-        return content
+        return text
     }
     
-    /// Call Claude via Anthropic Messages API (v1)
+    /// Call Claude via Anthropic Messages API
     private func callClaude(prompt: String) async throws -> String {
         guard let apiKey = anthropicAPIKey else {
             throw KaiFallbackError.noAPIKey(provider: "claude")
@@ -128,12 +138,12 @@ public final class KaiFallbackManager {
         let url = URL(string: "https://api.anthropic.com/v1/messages")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("x-api-key: \(apiKey)", forHTTPHeaderField: "X-Api-Key")
-        request.setValue("anthropic-version: 2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("api-key \(apiKey)", forHTTPHeaderField: "x-api-key")
+        request.setValue("2024-10-22", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let body: [String: Any] = [
-            "model": "claude-sonnet-4-20250514",
+            "model": KaiFallbackModels.claude,
             "max_tokens": 4096,
             "messages": [
                 ["role": "user", "content": prompt]
