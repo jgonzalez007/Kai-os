@@ -377,8 +377,9 @@ Export the entire knowledge graph to JSON, CSV, or Mermaid diagrams. One-click s
 ### 6.5 Plugin System (NEW)
 A simple plugin API for community connectors. Define a protocol `KaiPlugin`, drop a `.kaiplugin` bundle into `~/Library/Application Support/Kai OS/Plugins/`. Each plugin implements: `name`, `description`, `sources`, `actions`.
 
-### 6.6 Health Dashboard (NEW)
-A dedicated Health pane showing: inference latency, connector status, battery/thermal state, storage usage, model version, last analysis timestamp. Quick actions: restart engine, re-sync connectors, clear cache, export diagnostics.
+### 6.6 Health Dashboard (NEW) — first version built 2026-11-07
+A Health page in the sidebar shows the local model, cloud keys, permissions, connected sources and the morning briefing, each as ok, needs attention or off. Not built yet: inference latency, battery and thermal state, storage, quick actions (restart engine, clear cache, export diagnostics).
+
 
 ---
 

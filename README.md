@@ -23,6 +23,7 @@
 - **Morning "For You" cards.** While the app is open, from 7 am, Kai prepares suggested actions as cards.
 - **Voice and screen.** Hold-to-talk with on-device speech recognition, and user-triggered screen capture sent to a vision model.
 - **App awareness.** The UI adapts to the frontmost app.
+- **Health page.** One screen that shows whether the local model, cloud keys, permissions, sources and the morning briefing are working, and what to do if not.
 
 ## Planned
 

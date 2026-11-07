@@ -142,6 +142,9 @@ struct KaiSidebarView: View {
             
             // ── Bottom ──
             Section {
+                Label("Health", systemImage: "heart.text.square")
+                    .tag("Health")
+
                 Label("Permissions", systemImage: "lock.shield")
                     .badge(permissions.missingCount)
                     .tag("Permissions")
