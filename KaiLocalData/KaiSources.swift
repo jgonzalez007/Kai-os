@@ -102,6 +102,12 @@ enum KaiAppleScriptRecords {
     static let prelude = """
     set US to (ASCII character 31)
     set RS to (ASCII character 30)
+
+    """ + handlers
+
+    /// Kept apart from `prelude` for scripts with their own run handler, where the
+    /// top-level statements above aren't allowed.
+    static let handlers = """
     on isoDate(d)
         return (d as «class isot») as string
     end isoDate
@@ -132,8 +138,8 @@ enum KaiAppleScriptRecords {
         return formatter.date(from: text)
     }
 
-    static func run(script: String, app: String, timeout: TimeInterval = 45) async throws -> [[String]] {
-        guard let output = try await KaiProcessRunner.run("/usr/bin/osascript", arguments: ["-e", script], timeout: timeout) else {
+    static func run(script: String, app: String, arguments: [String] = [], timeout: TimeInterval = 45) async throws -> [[String]] {
+        guard let output = try await KaiProcessRunner.run("/usr/bin/osascript", arguments: ["-e", script] + arguments, timeout: timeout) else {
             throw KaiSourceError.timedOut(app)
         }
         guard output.exitCode == 0 else {
@@ -384,11 +390,108 @@ public enum KaiMailSelection {
     end tell
     """
 
+    /// Reads one known message, wherever the user's selection is.
+    public static func email(at reference: KaiMailMessageReference) async throws -> (reference: KaiMailMessageReference, source: KaiEmailDraftSource)? {
+        email(from: try await KaiAppleScriptRecords.run(
+            script: referencedScript,
+            app: "Mail",
+            arguments: [reference.id, reference.mailbox, reference.account]
+        ))
+    }
+
+    /// Values arrive as arguments, never as script text.
+    static let referencedScript = KaiAppleScriptRecords.handlers + """
+    on run argv
+        set US to (ASCII character 31)
+        set RS to (ASCII character 30)
+        set targetID to item 1 of argv
+        set boxName to item 2 of argv
+        set accountName to item 3 of argv
+        tell application "Mail"
+            if accountName is "" then
+                set m to first message of mailbox boxName whose id is (targetID as integer)
+            else
+                set m to first message of mailbox boxName of account accountName whose id is (targetID as integer)
+            end if
+            return (id of m as string) & US & my cleaned(boxName) & US & my cleaned(accountName) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & my cleaned(content of m) & RS
+        end tell
+    end run
+    """
+
     static func email(from records: [[String]]) -> (reference: KaiMailMessageReference, source: KaiEmailDraftSource)? {
         guard let fields = records.first, fields.count == 7 else { return nil }
         return (
             KaiMailMessageReference(id: fields[0], mailbox: fields[1], account: fields[2]),
             KaiEmailDraftSource(sender: fields[3], subject: fields[4], body: fields[6])
         )
+    }
+}
+
+// MARK: - Unread mail for the morning briefing
+
+public struct KaiBriefingMail: Codable, Equatable, Sendable {
+    public let reference: KaiMailMessageReference
+    public let sender: String
+    public let subject: String
+    public let date: Date
+    public let isFlagged: Bool
+
+    public init(reference: KaiMailMessageReference, sender: String, subject: String, date: Date, isFlagged: Bool) {
+        self.reference = reference
+        self.sender = sender
+        self.subject = subject
+        self.date = date
+        self.isFlagged = isFlagged
+    }
+}
+
+public enum KaiMailBriefing {
+    /// How far back to look in the inbox, which keeps the script quick on large mailboxes.
+    private static let scanLimit = 150
+
+    public static func unreadMessages(limit: Int = 30) async throws -> [KaiBriefingMail] {
+        items(from: try await KaiAppleScriptRecords.run(script: script(limit: limit), app: "Mail"))
+    }
+
+    static func script(limit: Int) -> String {
+        KaiAppleScriptRecords.prelude + """
+        set out to ""
+        set found to 0
+        tell application "Mail"
+            set total to count of messages of inbox
+            set n to total
+            if n > \(scanLimit) then set n to \(scanLimit)
+            repeat with i from 1 to n
+                set m to message i of inbox
+                if not (read status of m) then
+                    set boxName to ""
+                    set accountName to ""
+                    try
+                        set boxName to name of (mailbox of m)
+                    end try
+                    try
+                        set accountName to name of (account of (mailbox of m))
+                    end try
+                    set out to out & (id of m as string) & US & my cleaned(boxName) & US & my cleaned(accountName) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & (flagged status of m as string) & RS
+                    set found to found + 1
+                    if found is \(limit) then exit repeat
+                end if
+            end repeat
+        end tell
+        return out
+        """
+    }
+
+    static func items(from records: [[String]]) -> [KaiBriefingMail] {
+        records.compactMap { fields in
+            guard fields.count == 7, let date = KaiAppleScriptRecords.date(fromISO: fields[5]) else { return nil }
+            return KaiBriefingMail(
+                reference: KaiMailMessageReference(id: fields[0], mailbox: fields[1], account: fields[2]),
+                sender: fields[3],
+                subject: fields[4],
+                date: date,
+                isFlagged: fields[6] == "true"
+            )
+        }
     }
 }

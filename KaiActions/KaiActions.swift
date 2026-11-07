@@ -161,8 +161,8 @@ public enum KaiActionParser {
 
 // MARK: - Approval
 
-public struct KaiActionCard: Identifiable, Equatable, Sendable {
-    public enum State: Equatable, Sendable {
+public struct KaiActionCard: Identifiable, Codable, Equatable, Sendable {
+    public enum State: Codable, Equatable, Sendable {
         case pending, running, declined
         case succeeded(String)
         case failed(String)

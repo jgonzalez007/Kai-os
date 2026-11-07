@@ -63,6 +63,19 @@ struct KaiSystemReplyContextProvider: KaiReplyContextProviding {
     }
 }
 
+/// Replies to one known message, for a card that names it.
+@MainActor
+struct KaiReferencedMailProvider: KaiReplyContextProviding {
+    let reference: KaiMailMessageReference
+
+    func currentContext() async throws -> KaiReplyContext {
+        guard let email = try await KaiMailSelection.email(at: reference) else {
+            throw KaiActionError.invalid("That message is no longer in Mail.")
+        }
+        return .mail(reference: email.reference, source: email.source)
+    }
+}
+
 @MainActor
 final class KaiDoubleTapController: ObservableObject {
     enum Phase: Equatable {
@@ -118,12 +131,12 @@ final class KaiDoubleTapController: ObservableObject {
 
     private var trimmedDraft: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    func start() {
+    func start(provider requested: (any KaiReplyContextProviding)? = nil) {
         cancel()
         phase = .reading
         // Read now, before the panel opens and takes keyboard focus.
         let focus = inserter.currentFocus()
-        let provider = contextProviderOverride ?? KaiSystemReplyContextProvider(appState: appState, cursorIsInTextArea: focus == .multiline)
+        let provider = contextProviderOverride ?? requested ?? KaiSystemReplyContextProvider(appState: appState, cursorIsInTextArea: focus == .multiline)
         writesAutomatically = true
         task = Task {
             do {
