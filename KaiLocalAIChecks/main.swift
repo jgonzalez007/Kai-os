@@ -550,6 +550,29 @@ check("the missing count ignores granted permissions and unknown ones count as m
     KaiPermissionPlan.missingCount(statuses: [.accessibility: .granted, .microphone: .denied]) == KaiPermission.allCases.count - 1
 }
 
+// A grant that was reset must offer Allow again: only asking makes macOS list the app in Settings.
+var screenRequests = 0
+let screenProvider = await KaiSystemPermissionProvider(screenAccessGranted: { false }, requestScreenAccess: { screenRequests += 1 })
+let screenBefore = await screenProvider.status(of: .screenRecording)
+await screenProvider.request(.screenRecording)
+let screenAfter = await screenProvider.status(of: .screenRecording)
+let relaunchedProvider = await KaiSystemPermissionProvider(screenAccessGranted: { false }, requestScreenAccess: {})
+let screenRelaunched = await relaunchedProvider.status(of: .screenRecording)
+let grantedProvider = await KaiSystemPermissionProvider(screenAccessGranted: { true }, requestScreenAccess: {})
+let screenGranted = await grantedProvider.status(of: .screenRecording)
+
+check("Screen Recording asks macOS, then waits for a restart") {
+    screenBefore == .notRequested && screenRequests == 1 && screenAfter == .needsRestart
+}
+
+check("a new launch without the grant offers Allow again instead of Restart") {
+    screenRelaunched == .notRequested
+}
+
+check("a granted Screen Recording reads as on") {
+    screenGranted == .granted
+}
+
 // MARK: Writing into other apps
 
 func item(_ text: String, _ pasteboard: NSPasteboard) { pasteboard.clearContents(); pasteboard.setString(text, forType: .string) }
