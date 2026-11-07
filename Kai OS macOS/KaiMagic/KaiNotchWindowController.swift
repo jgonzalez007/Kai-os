@@ -9,6 +9,7 @@
 import AppKit
 import Combine
 import KaiCapture
+import KaiLocalData
 import KaiNotchCore
 import SwiftUI
 
@@ -184,6 +185,15 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         guard KaiNotchPreferences.isEnabled else { return }
         cancelVoice()
         doubleTap?.start()
+        model.panelMode = .reply
+        expand()
+    }
+
+    /// Starts a reply from a morning card.
+    func startReply(to mail: KaiBriefingMail) {
+        guard KaiNotchPreferences.isEnabled else { return }
+        cancelVoice()
+        doubleTap?.start(provider: KaiReferencedMailProvider(reference: mail.reference))
         model.panelMode = .reply
         expand()
     }

@@ -157,6 +157,7 @@ final class AppState: ObservableObject {
     @Published var notesQuery = ""
 
     var toolRunCount = 0
+    private(set) lazy var morningCards = KaiMorningCardsController(appState: self)
     /// Replaced by the self-test, so testing never touches the user's real calendar or mail.
     var actionExecutor: any KaiActionPerforming = KaiSystemActionExecutor()
     var actionLog = KaiActionLog.standard
@@ -1201,7 +1202,21 @@ final class KaiAppDelegate: NSObject, NSApplicationDelegate {
         KaiNotchWindowController.shared.start(appState: AppState.shared)
         let permissions = KaiPermissionsModel.shared
         permissions.onGranted = { AppState.shared.permissionGranted($0) }
-        Task { await permissions.refresh() }
+        Task {
+            await permissions.refresh()
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["KAI_UI_SELFTEST_DIR"] != nil { return }
+            #endif
+            AppState.shared.morningCards.start()
+        }
+    }
+}
+
+private struct KaiForYouSidebarLabel: View {
+    @ObservedObject var controller: KaiMorningCardsController
+
+    var body: some View {
+        Label("For You", systemImage: "sun.max").badge(controller.activeCards.count).tag("ForYou")
     }
 }
 
@@ -1221,6 +1236,7 @@ struct KaiMainView: View {
             sidebar.navigationSplitViewColumnWidth(min: 220, ideal: 260)
         } detail: {
             switch appState.activeSidebar {
+            case "ForYou": KaiForYouView(controller: appState.morningCards)
             case "Calendar": CalendarView()
             case "Mail": MailView()
             case "Notes": NotesView()
@@ -1244,6 +1260,7 @@ struct KaiMainView: View {
             }
             Section {
                 Label("Chat", systemImage: "bubble.left.and.bubble.right").tag("Chat")
+                KaiForYouSidebarLabel(controller: appState.morningCards)
                 Label("Calendar", systemImage: "calendar").badge(appState.calendarEvents.count).tag("Calendar")
                 Label("Mail", systemImage: "envelope").badge(appState.unreadCount).tag("Mail")
                 Label("Notes", systemImage: "note.text").badge(appState.notes.count).tag("Notes")
