@@ -20,6 +20,7 @@ Kai OS macOS/     The app target
   KaiMagic/         Notch window, notch view, Right Command hotkey
   KaiDoubleTap/     Double Tap reply drafting
   KaiProactive/     Placeholder
+KaiKnowledge/     Local search index (SQLite FTS5) and the indexers that fill it
 Tests/KaiChecksTests/    122 checks, run with `swift test`
 ```
 
@@ -31,6 +32,7 @@ Tests/KaiChecksTests/    122 checks, run with `swift test`
 | `KaiLocalAI` | `KaiOllamaClient` streams chat and lists models over HTTP. |
 | `KaiLocalData` | Read-only access to Apple Calendar (EventKit), Mail and Notes (AppleScript), and Spotlight search (`mdfind`). |
 | `KaiCapture` | Permission status and requests, screen capture, speech transcription, and writing text into other apps. |
+| `KaiKnowledge` | `KaiKnowledgeStore` keeps documents and their chunks in one SQLite file (`~/Library/Application Support/Kai OS/knowledge.sqlite`, readable only by you) with an FTS5 index using Porter stemming. `KaiKnowledgeIndexer` fills it from a Markdown folder, Notes, Calendar and Mail subjects, skipping unchanged items. The assistant reaches it through the `search_knowledge` tool. |
 | `KaiNotchCore` | Notch layout for each Mac and the hold-to-talk gesture state machine. |
 | `KaiActions` | Parses model proposals into actions. Only a user-approved card runs. Calendar event, mail draft and notification only. No shell, no send. Also morning cards and reply drafting. |
 

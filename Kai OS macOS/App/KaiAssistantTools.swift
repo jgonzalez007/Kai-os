@@ -39,6 +39,11 @@ extension AppState {
             parameters: [.init(name: "query", type: "string", description: "Optional words to filter by title or text", required: false)]
         ),
         KaiOllamaTool(
+            name: "search_knowledge",
+            description: "Search everything Kai has indexed on this Mac: the user's Markdown notes folder, Apple Notes, calendar events and email subjects. Use it to recall what the user has written or planned.",
+            parameters: [.init(name: "query", type: "string", description: "A few words to search for", required: true)]
+        ),
+        KaiOllamaTool(
             name: "propose_calendar_event",
             description: "Propose a new calendar event. The user sees a card and decides; nothing is added unless they approve.",
             parameters: [
@@ -74,6 +79,7 @@ extension AppState {
         case "list_calendar_events": return "Checking your calendar…"
         case "list_recent_mail": return "Checking your mail…"
         case "search_notes": return "Reading your notes…"
+        case "search_knowledge": return "Searching your knowledge base…"
         case "propose_calendar_event", "propose_email_draft", "propose_notification": return "Preparing a proposal…"
         default: return "Working…"
         }
@@ -90,6 +96,8 @@ extension AppState {
                 output = calendarTool(daysAhead: call.arguments["days_ahead"]?.intValue ?? 7)
             case "list_recent_mail":
                 output = try await mailTool(query: call.arguments["query"]?.stringValue)
+            case "search_knowledge":
+                output = knowledgeTool(query: call.arguments["query"]?.stringValue)
             case "search_notes":
                 output = try await notesTool(query: call.arguments["query"]?.stringValue)
             case "propose_calendar_event":

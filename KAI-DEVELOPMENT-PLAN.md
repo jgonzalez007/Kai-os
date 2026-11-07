@@ -135,6 +135,8 @@ Kai OS macOS/
 | 2.12 | File connector | Built | Directory watching |
 
 ### 3.3 Knowledge Base (Vault)
+> **2026-11-07:** the rows below describe the original plan. What exists now: keyword search with stemming (SQLite FTS5) over a Markdown folder, Notes, Calendar and Mail subjects, a `search_knowledge` assistant tool, and a Settings card. Embeddings, the knowledge graph, cross-source links and encrypted sync are not built.
+
 | # | Feature | Status | Notes |
 |---|---------|--------|-------|
 | 3.1 | Vector embeddings (CoreML) | Built | Semantic search |

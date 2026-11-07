@@ -20,6 +20,7 @@ import KaiActions
 import KaiCapture
 import KaiLocalAI
 import KaiLocalData
+import KaiKnowledge
 
 @MainActor
 private final class KaiScriptedPermissions: KaiPermissionProviding {
@@ -169,6 +170,30 @@ enum KaiChatSelfTest {
         report("the model calls a tool", appState.toolRunCount > toolRunsBefore, "\(appState.toolRunCount - toolRunsBefore) call(s)")
         report("the reply uses the tool's result", toolReply.contains(probe.path), toolReply)
         snapshot(window, to: directory.appendingPathComponent("2b-tool.png"))
+
+        // Knowledge base, in a temporary store so the real one is never touched.
+        let knowledgeDirectory = directory.appendingPathComponent("knowledge")
+        let knowledgeFolder = knowledgeDirectory.appendingPathComponent("folder")
+        try? FileManager.default.createDirectory(at: knowledgeFolder, withIntermediateDirectories: true)
+        try? "# Launch plan\n\nThe launch codeword is MARMALADE-77. Tell nobody.".write(to: knowledgeFolder.appendingPathComponent("launch.md"), atomically: true, encoding: .utf8)
+        let realKnowledge = appState.knowledge
+        let testKnowledge = try? KaiKnowledgeStore(url: knowledgeDirectory.appendingPathComponent("kb.sqlite"))
+        appState.knowledge = testKnowledge
+        if let testKnowledge { _ = try? KaiKnowledgeIndexer.indexFolder(knowledgeFolder, into: testKnowledge) }
+        report("the knowledge tool finds an indexed file", appState.knowledgeTool(query: "codeword").contains("MARMALADE-77"), appState.knowledgeTool(query: "codeword"))
+        report("the knowledge tool says when nothing matched", appState.knowledgeTool(query: "zebra unicycle").contains("Nothing in the knowledge base matched"))
+        let knowledgeRunsBefore = appState.toolRunCount
+        // The model sometimes answers in words instead of calling the tool, so ask up to three times.
+        var knowledgeAttempts = 0
+        repeat {
+            knowledgeAttempts += 1
+            appState.sendMessage(text: "Use the search_knowledge tool to look up the launch codeword, then tell me what it is.")
+            await waitForReply(appState: appState, seconds: 180)
+        } while knowledgeAttempts < 3 && appState.toolRunCount == knowledgeRunsBefore
+        let knowledgeReply = appState.messages.last?.text ?? ""
+        report("the model searches the knowledge base", appState.toolRunCount > knowledgeRunsBefore, "\(appState.toolRunCount - knowledgeRunsBefore) call(s), attempt \(knowledgeAttempts)")
+        report("the reply uses the knowledge it found", knowledgeReply.uppercased().contains("MARMALADE-77"), knowledgeReply)
+        appState.knowledge = realKnowledge
 
         // Vision, with a generated image: capturing the real screen needs a permission prompt.
         appState.pendingScreenshot = wordImage("KIWI")

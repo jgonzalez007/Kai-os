@@ -31,12 +31,14 @@ public struct KaiHealthInputs: Equatable, Sendable {
     public var briefingCardCount: Int
     public var briefingError: String?
     public var briefingIsRunning: Bool
+    public var knowledgeDocuments: Int
 
     public init(
         ollamaModels: [String]? = nil, selectedModel: String = "", permissionsMissing: Int = 0,
         calendarConnected: Bool = false, mailConnected: Bool = false, notesConnected: Bool = false,
         useCloud: Bool = false, hasOpenAIKey: Bool = false, hasAnthropicKey: Bool = false,
-        briefingCardCount: Int = 0, briefingError: String? = nil, briefingIsRunning: Bool = false
+        briefingCardCount: Int = 0, briefingError: String? = nil, briefingIsRunning: Bool = false,
+        knowledgeDocuments: Int = 0
     ) {
         self.ollamaModels = ollamaModels
         self.selectedModel = selectedModel
@@ -50,12 +52,13 @@ public struct KaiHealthInputs: Equatable, Sendable {
         self.briefingCardCount = briefingCardCount
         self.briefingError = briefingError
         self.briefingIsRunning = briefingIsRunning
+        self.knowledgeDocuments = knowledgeDocuments
     }
 }
 
 public enum KaiHealth {
     public static func items(_ input: KaiHealthInputs) -> [KaiHealthItem] {
-        [local(input), cloud(input), permissions(input), sources(input), briefing(input)]
+        [local(input), cloud(input), permissions(input), sources(input), knowledge(input), briefing(input)]
     }
 
     private static func local(_ i: KaiHealthInputs) -> KaiHealthItem {
@@ -103,6 +106,14 @@ public enum KaiHealth {
         return connected.isEmpty
             ? KaiHealthItem(id: "sources", title: "Sources", status: .off, detail: "Nothing connected. Connect Calendar, Mail or Notes from their pages.")
             : KaiHealthItem(id: "sources", title: "Sources", status: .ok, detail: "Connected: \(connected.joined(separator: ", ")).")
+    }
+
+    private static func knowledge(_ i: KaiHealthInputs) -> KaiHealthItem {
+        i.knowledgeDocuments > 0
+            ? KaiHealthItem(id: "knowledge", title: "Knowledge base", status: .ok,
+                            detail: "\(i.knowledgeDocuments) document\(i.knowledgeDocuments == 1 ? "" : "s") indexed.")
+            : KaiHealthItem(id: "knowledge", title: "Knowledge base", status: .off,
+                            detail: "Empty. Click Index now under Knowledge base in Settings.")
     }
 
     private static func briefing(_ i: KaiHealthInputs) -> KaiHealthItem {
