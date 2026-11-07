@@ -216,10 +216,15 @@ enum KaiChatSelfTest {
         report("no tool can approve an action, run a command or send", !toolNames.contains { $0.contains("approve") || $0.contains("shell") || $0.contains("command") || $0.contains("send") }, toolNames.joined(separator: ", "))
 
         let cardsBefore = appState.messages.filter { $0.actionCard != nil }.count
-        appState.sendMessage(text: "Please add a calendar event titled Kai probe tomorrow at 9am for 30 minutes.")
-        await waitForReply(appState: appState, seconds: 180)
+        // A real model sometimes answers in words instead of calling the tool, so ask up to three times.
+        var attempts = 0
+        repeat {
+            attempts += 1
+            appState.sendMessage(text: "Please add a calendar event titled Kai probe tomorrow at 9am for 30 minutes.")
+            await waitForReply(appState: appState, seconds: 180)
+        } while attempts < 3 && appState.messages.filter({ $0.actionCard != nil }).count == cardsBefore
         let proposed = latestCard()
-        report("asking for an event produces a card", appState.messages.filter { $0.actionCard != nil }.count == cardsBefore + 1, proposed?.actionCard?.action.details.map { "\($0.label)=\($0.value)" }.joined(separator: "; ") ?? "none")
+        report("asking for an event produces a card", appState.messages.filter { $0.actionCard != nil }.count == cardsBefore + 1, (proposed?.actionCard?.action.details.map { "\($0.label)=\($0.value)" }.joined(separator: "; ") ?? "none") + " (attempt \(attempts))")
         report("the card sits above the reply", appState.messages.last?.actionCard == nil)
         report("nothing runs before approval", recorder.performed.isEmpty)
         snapshot(window, to: directory.appendingPathComponent("2d-card.png"))
@@ -414,6 +419,10 @@ enum KaiChatSelfTest {
         appState.activeSidebar = "Settings"
         try? await Task.sleep(for: .milliseconds(500))
         snapshot(window, to: directory.appendingPathComponent("8-writing-style.png"))
+
+        appState.activeSidebar = "Health"
+        try? await Task.sleep(for: .milliseconds(1500))
+        snapshot(window, to: directory.appendingPathComponent("9-health.png"))
 
         styleController.clear()
         report("Clear removes the saved style", styleController.activeStyle == nil && styleController.store.load() == nil)
