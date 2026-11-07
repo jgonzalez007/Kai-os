@@ -244,7 +244,7 @@ final class KaiDoubleTapController: ObservableObject {
         #endif
         var text = ""
         // No tools are offered here: drafting from an untrusted email can't trigger anything.
-        for try await event in ollama.stream(model: appState.selectedModel, messages: messages, tools: []) {
+        for try await event in ollama.stream(model: KaiModelTag.name(from: appState.selectedModel), messages: messages, tools: []) {
             if Task.isCancelled { return }
             guard case .text(let delta) = event else { continue }
             text += delta
@@ -278,7 +278,7 @@ final class KaiDoubleTapController: ObservableObject {
 
     private func completeText(messages: [KaiOllamaMessage], temperature: Double) async throws -> String {
         var text = ""
-        for try await event in ollama.stream(model: appState.selectedModel, messages: messages, tools: [], temperature: temperature) {
+        for try await event in ollama.stream(model: KaiModelTag.name(from: appState.selectedModel), messages: messages, tools: [], temperature: temperature) {
             if case .text(let delta) = event { text += delta }
         }
         return text

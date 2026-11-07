@@ -173,7 +173,7 @@ final class KaiMorningCardsController: ObservableObject {
         var text = ""
         // No tools: morning cards come from untrusted subjects, so only parsed JSON comes back.
         let stream = ollama.stream(
-            model: appState.selectedModel,
+            model: KaiModelTag.name(from: appState.selectedModel),
             messages: KaiBriefingPrompt.messages(input: input, now: now),
             tools: [],
             temperature: 0.2
