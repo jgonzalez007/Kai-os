@@ -127,7 +127,7 @@ Kai OS macOS/
 | 2.4 | iMessage connector | Built | SQLite db read |
 | 2.5 | Apple Notes connector | Built | Text extraction |
 | 2.6 | Gmail connector | Built | IMAP + OAuth |
-| 2.7 | Outlook connector | Partial | Stub — needs wiring |
+| 2.7 | Outlook connector | Built | Microsoft Graph API, wired in ConnectorFactory |
 | 2.8 | Slack connector | Built | Workspace read |
 | 2.9 | Notion connector | Built | API read |
 | 2.10 | SiYuan connector | Built | Local db read |
@@ -315,12 +315,12 @@ Kai OS macOS/
 ### Phase 7: Wire Up Missing Features (Days 20-25)
 **Goal:** Connect the dots — stubs become real.
 
-**Status (2026-11-07):** Most modules are still empty stubs, and the "Built" and "Complete" labels elsewhere in this plan predate that audit. Working and tested: local chat through Ollama, the notch panel, read-only Apple Calendar, Mail and Notes, Spotlight search, assistant tools over those sources, and ChatGPT + Claude cloud endpoints via Chat Completions/Messages API. Also working: user-triggered screen capture sent to a vision model, and hold-to-talk with on-device speech recognition, whose real microphone path still needs a first test on the user's Mac. Computer-use remains unbuilt. `Kai OS macOS/KaiSources`, `KaiIngestion` and `StubFrameworks.swift` are not used by these features. Google Calendar connector wired via REST API. Outlook Calendar connector remains unbuilt. Calendar, Mail and Notes still need a first test with real permissions on the user's Mac.
+**Status (2026-11-07):** Most modules are still empty stubs, and the "Built" and "Complete" labels elsewhere in this plan predate that audit. Working and tested: local chat through Ollama, the notch panel, read-only Apple Calendar, Mail and Notes, Spotlight search, assistant tools over those sources, and ChatGPT + Claude cloud endpoints via Chat Completions/Messages API. Also working: user-triggered screen capture sent to a vision model, and hold-to-talk with on-device speech recognition, whose real microphone path still needs a first test on the user's Mac. Computer-use remains unbuilt. `Kai OS macOS/KaiSources`, `KaiIngestion` and `StubFrameworks.swift` are not used by these features. Google Calendar connector wired via REST API. Outlook Calendar connector wired via Microsoft Graph API. Calendar, Mail and Notes still need a first test with real permissions on the user's Mac.
 
 - [x] 7.1 Wire ChatGPT endpoint (OpenAI Chat Completions API) in LocalFallback — configurable model, modern API format
 - [x] 7.2 Wire Claude endpoint (Anthropic Messages API) in LocalFallback — use modern API key format, Messages API, configurable model
 - [x] 7.3 Wire Google Calendar connector (copy Apple Calendar pattern)
-- [ ] 7.4 Wire Outlook Calendar (copy Outlook Mail pattern)
+- [x] 7.4 Wire Outlook Calendar (copy Outlook Mail pattern)
 - [x] 7.5 Replaced ProactiveExecutor, which ran model text as shell commands, with `KaiActions`: proposals only run from a user-approved card. Calendar event, mail draft and notification only; no shell or send. Morning "For You" cards run while the app is open, from 7am; waking a closed or sleeping Mac overnight remains unbuilt.
 - [x] 7.6 Spotlight search through `mdfind`, as `KaiSpotlightSource` and the `search_files` assistant tool
 - [x] 7.7 Double tap writes email replies into the email itself with the local model, from the selected Mail message or a screenshot, and never sends. Writing style is learned from sent mail on request. Caret position display remains unbuilt.
