@@ -9,6 +9,7 @@
 import AppKit
 import Foundation
 import KaiKnowledge
+import KaiShared
 
 extension AppState {
     static let knowledgeSourceNames = ["files": "Files", "notes": "Notes", "calendar": "Calendar", "mail": "Mail", "slack": "Slack"]
@@ -47,23 +48,26 @@ extension AppState {
     }
 
     /// The awaitable form, used by the button and by Night Shift. Returns what was read and what failed.
-    func indexKnowledgeNow(folder: URL? = nil, includeSources: Bool = true) async -> (report: KaiIndexReport, failures: [String]) {
+    func indexKnowledgeNow(folder: URL? = nil, sources chosen: Set<KaiNightShiftSource>? = nil) async -> (report: KaiIndexReport, failures: [String]) {
         guard !isIndexingKnowledge, let store = openKnowledgeStore() else { return (KaiIndexReport(), []) }
         isIndexingKnowledge = true
         knowledgeState = .loading
         let folder = folder ?? knowledgeFolder
-        let sources = includeSources ? (calendar: calendarConnected, notes: notesConnected, mail: mailConnected) : (calendar: false, notes: false, mail: false)
+        let chosen = chosen ?? nightShift.sources
+        let sources = (files: chosen.contains(.files), calendar: calendarConnected && chosen.contains(.calendar),
+                       notes: notesConnected && chosen.contains(.notes), mail: mailConnected && chosen.contains(.mail),
+                       slack: slackClient != nil && chosen.contains(.slack))
         var failures: [String] = []
         var report = KaiIndexReport()
         func attempt(_ name: String, _ work: () async throws -> KaiIndexReport) async {
             do { report.merge(try await work()) } catch { failures.append("\(name): \(error.localizedDescription)") }
         }
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        await attempt("Files") { try KaiKnowledgeIndexer.indexFolder(folder, into: store) }
+        if sources.files { await attempt("Files") { try KaiKnowledgeIndexer.indexFolder(folder, into: store) } }
         if sources.calendar { await attempt("Calendar") { try KaiKnowledgeIndexer.indexCalendar(into: store) } }
         if sources.notes { await attempt("Notes") { try await KaiKnowledgeIndexer.indexNotes(into: store) } }
         if sources.mail { await attempt("Mail") { try await KaiKnowledgeIndexer.indexMail(into: store) } }
-        if includeSources, slackClient != nil { await attempt("Slack") { try await indexSlack(into: store) } }
+        if sources.slack { await attempt("Slack") { try await indexSlack(into: store) } }
         refreshKnowledgeCounts()
         isIndexingKnowledge = false
         knowledgeState = failures.isEmpty ? .connected : .failed(failures.joined(separator: "\n"))

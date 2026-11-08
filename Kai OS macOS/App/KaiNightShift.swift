@@ -51,20 +51,21 @@ enum KaiNightShiftRunner {
                 return KaiNightShiftRecord(ranAt: now, outcome: .failed("Couldn't open the test knowledge base."))
             }
             appState.knowledge = store
-            let result = await appState.indexKnowledgeNow(folder: directory.appendingPathComponent("folder"), includeSources: false)
+            let result = await appState.indexKnowledgeNow(folder: directory.appendingPathComponent("folder"), sources: [.files])
             return KaiNightShiftRecord(ranAt: now, outcome: result.failures.isEmpty ? .completed : .failed(result.failures.joined(separator: " ")),
                                        documentsIndexed: appState.knowledgeDocumentCount, cardsPrepared: 0)
         }
 
-        appState.refreshCalendar()
-        let result = await appState.indexKnowledgeNow()
+        let chosen = appState.nightShift.sources
+        if chosen.contains(.calendar) { appState.refreshCalendar() }
+        let result = await appState.indexKnowledgeNow(sources: chosen)
         let indexed = appState.knowledgeDocumentCount
 
         // A briefing already made today is kept, so a run at noon doesn't replace cards you've acted on.
         let briefing = appState.morningCards
         briefing.loadStoredCards()
         let today = KaiBriefingSchedule.dayKey(for: now)
-        if briefing.hasSources, briefing.lastRunDay != today {
+        if chosen.contains(.briefing), briefing.hasSources, briefing.lastRunDay != today {
             briefing.generate()
             let deadline = Date().addingTimeInterval(15 * 60)
             while briefing.isGenerating, Date() < deadline { try? await Task.sleep(for: .milliseconds(500)) }
