@@ -705,7 +705,6 @@ struct KaiOSApp: App {
                     #if DEBUG
                     KaiChatSelfTest.runIfRequested(appState: appState)
                     KaiNotchSelfTest.runIfRequested(appState: appState)
-                    KaiPageSnapshots.runIfRequested(appState: appState)
                     #endif
                 }
         }
@@ -739,15 +738,15 @@ final class KaiAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        if KaiPageSnapshots.directory != nil { KaiPageSnapshots.runAndExit(); return }
+        #endif
         if KaiNightShiftRunner.isRequested {
             Task { @MainActor in await KaiNightShiftRunner.runUnattended(appState: AppState.shared) }
             return
         }
         KaiNotchWindowController.shared.start(appState: AppState.shared)
         KaiStatusModel.shared.start(appState: AppState.shared)
-        #if DEBUG
-        KaiPageSnapshots.runIfRequested(appState: AppState.shared)
-        #endif
         let permissions = KaiPermissionsModel.shared
         permissions.onGranted = { AppState.shared.permissionGranted($0) }
         Task {

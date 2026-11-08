@@ -16,7 +16,18 @@ struct KaiSidekickView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Sidekick").font(KaiFont.title3)
+                HStack {
+                    Text("Sidekick").font(KaiFont.title3)
+                    Spacer()
+                    // The shortcut key, custom instructions and speed live in Preferences.
+                    Button {
+                        KaiSettingsView.startPage = .sidekick
+                        appState.activeSidebar = "Settings"
+                    } label: {
+                        Label("Sidekick settings", systemImage: "slider.horizontal.3")
+                    }
+                    .controlSize(.small)
+                }
 
                 Text("Describe a task and Kai will do it in your other apps by looking at the screen and using the mouse and keyboard, with a ring where it clicks. It uses a local model, so what's on your screen never leaves this Mac.")
                     .font(KaiFont.caption).foregroundStyle(.secondary)

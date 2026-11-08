@@ -2,63 +2,39 @@
 //  KaiPageSnapshots.swift
 //  Kai OS macOS
 //
-//  Debug-only: saves pictures of a few pages, then quits. Changes nothing on disk.
+//  Debug-only: draws a few Preferences pages into its own window, saves pictures, and quits before
+//  anything else starts (no notch, no hotkeys, no menu bar item). Changes nothing on disk.
 //    KAI_PAGE_SNAPSHOT_DIR=/some/folder "Kai OS.app/Contents/MacOS/Kai OS"
 //
 
 #if DEBUG
 import AppKit
-import Foundation
+import SwiftUI
 
 @MainActor
 enum KaiPageSnapshots {
-    private static var started = false
+    static var directory: String? { ProcessInfo.processInfo.environment["KAI_PAGE_SNAPSHOT_DIR"] }
 
-    private static func note(_ dir: String, _ text: String) {
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        let url = URL(fileURLWithPath: dir).appendingPathComponent("log.txt")
-        let line = Data((text + "\n").utf8)
-        if let handle = try? FileHandle(forWritingTo: url) { handle.seekToEndOfFile(); handle.write(line); try? handle.close() }
-        else { try? line.write(to: url) }
-    }
-
-    static func runIfRequested(appState: AppState) {
-        guard !started, let dir = ProcessInfo.processInfo.environment["KAI_PAGE_SNAPSHOT_DIR"] else { return }
-        started = true
-        note(dir, "starting")
+    static func runAndExit() {
+        guard let dir = directory else { return }
         Task {
-            let directory = URL(fileURLWithPath: dir)
-            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-            try? await Task.sleep(for: .seconds(2))
-            NSApp.activate(ignoringOtherApps: true)
-            note(dir, "windows \(NSApp.windows.map { "\($0.isVisible) \($0.canBecomeMain)" })")
-            // A window the user closed stays closed for a new copy of the app, so ask for one.
-            if !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeMain }) {
-                NSApp.sendAction(Selector(("newWindowForTab:")), to: nil, from: nil)
-                try? await Task.sleep(for: .seconds(2))
-            }
-            guard let window = NSApp.windows.first(where: { $0.isVisible && $0.canBecomeMain }) else { exit(1) }
-            window.setContentSize(NSSize(width: 1280, height: 860))
-            let shots: [(String, String, KaiSettingsView.Page)] = [
-                ("Welcome", "welcome", .ai),
-                ("Chat", "chat", .ai),
-                ("ForYou", "foryou", .ai),
-                ("Calendar", "calendar", .ai),
-                ("Mail", "mail", .ai),
-                ("Notes", "notes", .ai),
-                ("Sidekick", "sidekick", .ai),
-                ("Health", "health", .ai),
-                ("Permissions", "permissions", .ai),
-                ("Settings", "settings-ai", .ai),
-                ("Settings", "settings-system", .system)
+            let folder = URL(fileURLWithPath: dir)
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let pages: [(String, KaiSettingsView.Page)] = [
+                ("sidekick", .sidekick), ("knowledge", .knowledge), ("notch", .notch), ("system", .system)
             ]
-            for (sidebar, name, page) in shots {
+            for (name, page) in pages {
                 KaiSettingsView.startPage = page
-                appState.activeSidebar = "Health"
-                try? await Task.sleep(for: .milliseconds(400))
-                appState.activeSidebar = sidebar
-                try? await Task.sleep(for: .milliseconds(1200))
-                KaiChatSelfTest.snapshot(window, to: directory.appendingPathComponent("\(name).png"), background: .black)
+                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 900),
+                                      styleMask: [.titled], backing: .buffered, defer: false)
+                window.contentView = NSHostingView(rootView: KaiSettingsView().environmentObject(AppState.shared))
+                window.orderFrontRegardless()
+                try? await Task.sleep(for: .milliseconds(1500))
+                if let view = window.contentView, let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                    view.cacheDisplay(in: view.bounds, to: bitmap)
+                    try? bitmap.representation(using: .png, properties: [:])?.write(to: folder.appendingPathComponent("\(name).png"))
+                }
+                window.orderOut(nil)
             }
             exit(0)
         }
