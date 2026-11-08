@@ -32,13 +32,20 @@ final class KaiNotchModel: ObservableObject {
     @Published var panelMode = PanelMode.chat
 
     @Published var isExpanded = false { didSet { onSurfaceChange?() } }
+    /// The cursor is over the notch (idle: it swells; open: it keeps a reply on screen).
     @Published var isHovering = false { didSet { onSurfaceChange?() } }
     @Published var activity = Activity.idle { didSet { onSurfaceChange?() } }
     @Published var layout: KaiNotchLayout?
     @Published var draft = ""
-    /// Short text for the right wing, such as "Claude done". Replaces the activity text while set.
-    /// True while there is no conversation, so the open notch is just a slim input bar.
+    /// True while the open notch is the slim bar: there is no tab, request or email reply to show,
+    /// and the person has not asked for the full conversation.
     @Published var compact = true { didSet { onSurfaceChange?() } }
+    /// The person asked for the full conversation panel.
+    @Published var fullRequested = false
+    /// A finished reply shown in the bar for a moment, so a quick question never needs the full panel.
+    @Published var readBack: String?
+    /// Extra bar height below the notch. Taller while a reply is shown.
+    @Published var barExtra = KaiNotchLayout.barExtraHeight { didSet { onSurfaceChange?() } }
     @Published var peekText: String? { didSet { onSurfaceChange?() } }
     /// Another app is full screen, so the notch steps away.
     @Published var hiddenForFullScreen = false
@@ -50,9 +57,13 @@ final class KaiNotchModel: ObservableObject {
 
     var surface: KaiNotchSurface {
         if isExpanded { return compact ? .bar : .expanded }
-        if showsPeeks && (isHovering || activity != .idle || peekText != nil) { return .peek }
+        if showsPeeks && (activity != .idle || peekText != nil) { return .peek }
+        if isHovering && !hiddenForFullScreen { return .hover }
         return showsStatus && !hiddenForFullScreen ? .status : .closed
     }
+
+    /// Where the shape is on screen right now (AppKit coordinates).
+    var shapeFrame: CGRect? { layout?.frame(for: surface, barExtra: barExtra) }
 }
 
 final class KaiNotchPanel: NSPanel {
@@ -101,7 +112,6 @@ final class KaiNotchHostingView<Content: View>: NSHostingView<Content> {
 final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     static let shared = KaiNotchWindowController()
 
-    private static let shrinkDelay: Duration = .milliseconds(400)
     private static let doneFlourish: Duration = .milliseconds(1500)
     private static let failedFlourish: Duration = .seconds(5)
 
@@ -115,7 +125,11 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     private var cancellables = Set<AnyCancellable>()
     private var clickMonitor: Any?
     private var screenObserver: NSObjectProtocol?
-    private var shrinkTask: Task<Void, Never>?
+    private var pollTimer: Timer?
+    private var hoverEntry = NSRect.null
+    private var dragNearNotch = false
+    private var mouseMonitors: [Any] = []
+    private var lingerTask: Task<Void, Never>?
     private var flourishTask: Task<Void, Never>?
     private var started = false
     private var autoOpened = false
@@ -186,6 +200,11 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         applyEnabledPreference()
         updateFullScreen()
         updateCompact()
+        // A mouse monitor registered while the app is still starting can wedge event routing.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            self?.installMouseMonitors()
+        }
     }
 
     func applyEnabledPreference() {
@@ -218,23 +237,62 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         autoOpened = false
         // The cursor may still rest on the notch, so hover must leave and come back before it opens again.
         hoverNeedsReentry = model.isHovering
+        lingerTask?.cancel()
+        model.readBack = nil
+        model.fullRequested = false
+        model.barExtra = KaiNotchLayout.barExtraHeight
         model.isExpanded = false
         model.panelMode = .chat
         doubleTap?.cancel()
         // Reordering hands keyboard focus back to the frontmost app without flicker.
         panel.orderOut(nil)
         panel.orderFrontRegardless()
-        syncHoverWithCursor()
+        // The poll sees where the cursor is and lets go of the mouse once the notch has closed.
+        startPolling()
     }
 
     // MARK: Hover, full screen, events
 
+    /// The open notch is the slim bar unless there is something that needs room: another tab, a
+    /// permission request, an email reply, or the person asked for the whole conversation.
     private func updateCompact() {
-        guard let appState else { return }
-        let hasConversation = appState.messages.contains { $0.kind != .notice }
         let compact = model.panelMode == .chat && KaiDeskController.shared.tab == .chat
-            && KaiDeskController.shared.approvals.isEmpty && !hasConversation && !appState.isProcessing
+            && KaiDeskController.shared.approvals.isEmpty && !model.fullRequested
         if model.compact != compact { model.compact = compact }
+    }
+
+    /// Asks for the full conversation panel, or goes back to the bar.
+    func setFullConversation(_ full: Bool) {
+        lingerTask?.cancel()
+        model.fullRequested = full
+        if full { KaiDeskController.shared.tab = .chat } else { model.readBack = nil }
+        updateCompact()
+    }
+
+    /// Shows a finished reply in the bar, then retracts after a moment unless the cursor is on it.
+    private func showReadBack(_ text: String) {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        let width = KaiNotchLayout.barWidth - 36
+        let height = KaiNotchReadBack.height(of: clean, width: width)
+        model.barExtra = KaiNotchReadBack.barExtra(textHeight: height)
+        model.readBack = clean
+        lingerTask?.cancel()
+        let lines = max(1, Int((height / KaiNotchReadBack.lineHeight).rounded()))
+        let seconds = min(9.0, 4.0 + Double(lines) * 0.5)
+        lingerTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            while let self, !Task.isCancelled, self.model.isHovering { try? await Task.sleep(for: .milliseconds(400)) }
+            guard let self, !Task.isCancelled, self.model.readBack != nil, self.model.compact else { return }
+            self.collapse()
+        }
+    }
+
+    /// Back from a reply to the input line.
+    func replyAgain() {
+        lingerTask?.cancel()
+        model.readBack = nil
+        model.barExtra = KaiNotchLayout.barExtraHeight
     }
 
     /// Hover opens the panel after a short pause, and closes it again after the mouse leaves,
@@ -500,49 +558,121 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
             rootView: KaiNotchView(model: model, appState: appState, controller: self)
         )
         hosting.sizingOptions = []
-        hosting.onHoverChange = { [weak self] hovering in self?.model.isHovering = hovering }
         panel.contentView = hosting
+        panel.ignoresMouseEvents = true
         self.panel = panel
     }
 
     private func refreshLayout() {
         model.layout = KaiNotchSpace.currentLayout()
         guard let panel, let layout = model.layout else { return }
-        shrinkTask?.cancel()
-        panel.setFrame(layout.frame(for: model.surface), display: true)
+        // One fixed canvas: the shape animates inside it, so the window is never resized mid-morph.
+        panel.setFrame(layout.canvas, display: true)
+        refreshHoverEntry()
     }
 
-    /// The window grows at once so the animation has room, and shrinks after it ends so the
-    /// empty part of the window never blocks clicks on the menu bar for long.
+    // MARK: Click-through, hover and the cursor poll
+
+    /// The notch's own cutout, in screen coordinates, plus 2 points above the screen's top edge: a
+    /// cursor pushed against the top reports exactly that edge, and a half-open rect would miss it.
+    private func refreshHoverEntry() {
+        guard let layout = model.layout else { hoverEntry = .null; return }
+        var rect = layout.notch
+        rect.size.height += 2
+        hoverEntry = rect
+    }
+
+    /// The window only receives the mouse while the cursor is over the notch shape (or a file is being
+    /// dragged toward it). Everywhere else every click passes straight through to the app underneath,
+    /// including the empty parts of the canvas and the glow.
     private func applySurface() {
-        guard let panel, let layout = model.layout else { return }
-        let target = layout.frame(for: model.surface)
-        guard target != panel.frame else { return }
-        shrinkTask?.cancel()
-        if panel.frame.contains(target) {
-            shrinkTask = Task { [weak self] in
-                try? await Task.sleep(for: Self.shrinkDelay)
-                guard !Task.isCancelled else { return }
-                self?.panel?.setFrame(target, display: true)
-                self?.syncHoverWithCursor()
-            }
+        if model.isExpanded || model.isHovering { startPolling() }
+    }
+
+    private func startPolling() {
+        pollTick()
+        guard pollTimer == nil else { return }
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.pollTick() }
+        }
+        timer.tolerance = 0.01
+        RunLoop.main.add(timer, forMode: .common)
+        pollTimer = timer
+    }
+
+    private func stopPolling() {
+        pollTimer?.invalidate()
+        pollTimer = nil
+        panel?.ignoresMouseEvents = true
+    }
+
+    private func pollTick() {
+        guard let panel, model.layout != nil else { return }
+        let p = NSEvent.mouseLocation
+        var box = model.shapeFrame ?? .null
+        box.size.height += 2
+        let over = box.contains(p)
+        if model.isExpanded {
+            let hold = box.insetBy(dx: -4, dy: -4).contains(p)
+            if model.isHovering != hold { model.isHovering = hold }
         } else {
-            panel.setFrame(target, display: true)
+            // Entry is the tight cutout, leaving is the swollen box plus a margin: no flicker at the edge.
+            let hovering = model.isHovering ? box.insetBy(dx: -4, dy: -4).contains(p) : hoverEntry.contains(p)
+            if hovering != model.isHovering { setHover(hovering) }
+        }
+        var near = box.insetBy(dx: -30, dy: -30)
+        near.size.height += 2
+        let receive = over || (dragNearNotch && near.contains(p))
+        if panel.ignoresMouseEvents == receive { panel.ignoresMouseEvents = !receive }
+        if !model.isExpanded && !model.isHovering && !dragNearNotch { stopPolling() }
+    }
+
+    private func setHover(_ hovering: Bool) {
+        guard KaiNotchPreferences.isEnabled, !model.hiddenForFullScreen || !hovering else { return }
+        model.isHovering = hovering
+        if hovering {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            startPolling()
         }
     }
 
-    private func syncHoverWithCursor() {
-        guard let layout = model.layout else { return }
-        // Two extra points on top, because the cursor can rest on the screen's very top edge.
-        let region = layout.frame(for: .closed).insetBy(dx: 0, dy: -2)
-        let inside = region.contains(NSEvent.mouseLocation)
-        if model.isHovering != inside { model.isHovering = inside }
+    /// `.mouseMoved` monitors only BEGIN a hover (one cached rect test per move). Leaving, and the
+    /// click-through, are the poll's job. Mouse monitors need no permission. Installed a moment after
+    /// launch, never during app start.
+    private func installMouseMonitors() {
+        guard mouseMonitors.isEmpty else { return }
+        if let moved = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: { [weak self] _ in
+            let location = NSEvent.mouseLocation
+            MainActor.assumeIsolated {
+                guard let self, !self.model.isExpanded, !self.model.isHovering,
+                      self.hoverEntry.contains(location) else { return }
+                self.setHover(true)
+            }
+        }) { mouseMonitors.append(moved) }
+        // A file or link dragged toward the notch makes the window listen, so it can be dropped on the Shelf.
+        if let dragged = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged, handler: { [weak self] _ in
+            let location = NSEvent.mouseLocation
+            MainActor.assumeIsolated {
+                guard let self, let canvas = self.model.layout?.canvas else { return }
+                let near = canvas.contains(location)
+                if near != self.dragNearNotch {
+                    self.dragNearNotch = near
+                    if near { self.startPolling() }
+                }
+            }
+        }) { mouseMonitors.append(dragged) }
+        if let up = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp, handler: { [weak self] _ in
+            MainActor.assumeIsolated { self?.dragNearNotch = false }
+        }) { mouseMonitors.append(up) }
     }
 
     private func processingChanged(_ isProcessing: Bool) {
         flourishTask?.cancel()
         model.peekText = nil
         if isProcessing {
+            lingerTask?.cancel()
+            model.readBack = nil
+            model.barExtra = KaiNotchLayout.barExtraHeight
             model.activity = .running
             return
         }
@@ -551,6 +681,15 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
             return
         }
         model.activity = last.kind == .error ? .failed : .done
+        // A question asked from the bar is answered in the bar.
+        if model.isExpanded && model.compact && model.panelMode == .chat {
+            if last.actionCard != nil {
+                // An action card needs the person's decision, which has room in the full panel.
+                setFullConversation(true)
+            } else {
+                showReadBack(last.kind == .error ? "⚠︎ " + last.text : last.text)
+            }
+        }
         let duration = last.kind == .error ? Self.failedFlourish : Self.doneFlourish
         flourishTask = Task { [weak self] in
             try? await Task.sleep(for: duration)

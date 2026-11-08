@@ -273,6 +273,29 @@ final class KaiChecksTests: XCTestCase {
                 && bar.maxY == macBook.frame(for: .closed).maxY && bar.midX == macBook.frame(for: .closed).midX
                 && bar.width < full.width && bar.height < full.height
         }
+        check("the hover swell is a little wider and deeper than the notch, centered, flush with the top") {
+            let hover = macBook.frame(for: .hover), closed = macBook.frame(for: .closed)
+            return hover.width == closed.width + KaiNotchLayout.hoverGrow.width
+                && hover.height == closed.height + KaiNotchLayout.hoverGrow.height
+                && hover.maxY == closed.maxY && hover.midX == closed.midX
+        }
+        check("a bar showing a reply can be taller, up to the canvas") {
+            let tall = macBook.frame(for: .bar, barExtra: 160)
+            return tall.height == 38 + 160 && tall.maxY == macBook.frame(for: .closed).maxY && tall.height < macBook.canvas.height
+        }
+        check("the canvas holds every shape, is flush with the top, and is centered on the notch") {
+            let canvas = macBook.canvas
+            let shapes = [KaiNotchSurface.closed, .hover, .status, .peek, .bar, .expanded].map { macBook.frame(for: $0) }
+            return shapes.allSatisfy { canvas.contains($0) }
+                && canvas.maxY == macBook.frame(for: .closed).maxY
+                && abs(canvas.midX - macBook.frame(for: .closed).midX) <= 1
+        }
+        check("the canvas never leaves a small screen") {
+            let narrow = KaiNotchLayout(screenFrame: CGRect(x: 0, y: 0, width: 300, height: 400),
+                                        safeAreaTop: 0, leftAreaWidth: nil, rightAreaWidth: nil, menuBarHeight: 24)
+            let c = narrow.canvas
+            return c.minX >= 0 && c.maxX <= 300 && c.minY >= 0
+        }
         check("the bar fits a very narrow screen") {
             let narrow = KaiNotchLayout(screenFrame: CGRect(x: 0, y: 0, width: 300, height: 600),
                                         safeAreaTop: 0, leftAreaWidth: nil, rightAreaWidth: nil, menuBarHeight: 24)

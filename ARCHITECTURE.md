@@ -71,3 +71,8 @@ User (notch, hotkey, voice)
 ## Testing
 
 `swift test` runs `Tests/KaiChecksTests`. See [BUILD.md](BUILD.md).
+
+
+## The notch window
+
+Modelled on how the Sentient OS notch works. One fixed canvas (the biggest shape plus slack) is pinned flush with the top of the screen and never resized: the notch shape animates inside it, so it cannot come loose from the bezel. The window ignores the mouse except while the cursor is over the shape (a 30 Hz poll that runs only while the notch is hovered or open), so clicks everywhere else, including the empty canvas, pass through to the app underneath. A zero-permission `mouseMoved` monitor begins a hover when the cursor enters the cutout: a haptic tick, and the notch swells a little like a button. A click opens the slim input bar. A question asked in the bar is answered in the bar: a status line while Kai works, then the reply for a few seconds, then it retracts. The full conversation panel opens only on request, or for another tab, a Claude Code permission request or an email reply. `KaiNotchLayout` (`KaiNotchCore`) holds the geometry and is tested.

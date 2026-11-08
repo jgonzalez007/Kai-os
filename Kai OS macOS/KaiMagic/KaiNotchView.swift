@@ -21,7 +21,7 @@ struct KaiNotchView: View {
     @AppStorage(KaiMotion.key) private var motion = true
 
     private var size: CGSize {
-        model.layout?.frame(for: model.surface).size ?? .zero
+        model.shapeFrame?.size ?? .zero
     }
 
     private var notchHeight: CGFloat {
@@ -36,6 +36,7 @@ struct KaiNotchView: View {
         ZStack(alignment: .top) {
             KaiNotchShape(topRadius: isExpanded ? 14 : 8, bottomRadius: isExpanded ? 22 : 10)
                 .fill(isExpanded ? AnyShapeStyle(KaiNotchStyle.panelFill) : AnyShapeStyle(Color.black))
+                .shadow(color: .black.opacity(model.surface == .hover ? 0.55 : 0), radius: 6, x: 0, y: 3)
             if isExpanded {
                 // A soft colored edge, like a light behind the panel. Black at the top so it
                 // still merges with the hardware notch.
@@ -83,6 +84,7 @@ struct KaiNotchView: View {
         .ignoresSafeArea()
         .environment(\.colorScheme, .dark)
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: model.surface)
+        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: model.barExtra)
     }
 
     /// Slim strips beside the notch: the Kai mark on the left, a colored dot on the right.
@@ -372,6 +374,9 @@ private struct KaiNotchPanelContent: View {
                 KaiDeskTabBar(desk: desk)
                 Spacer(minLength: 0)
                 HStack(spacing: 10) {
+                    Button { controller.setFullConversation(false); desk.tab = .chat } label: { Image(systemName: "rectangle.compress.vertical") }
+                        .buttonStyle(.plain)
+                        .help("Back to the slim bar")
                     Button(action: appState.startNewChat) { Image(systemName: "plus.bubble") }
                         .buttonStyle(.plain)
                         .help("New Chat")
@@ -506,8 +511,9 @@ struct KaiNotchChip: View {
 }
 
 
-/// The open notch with no conversation: the Kai mark and a few shortcuts beside the notch, and one
-/// input line below it. Sending a message grows it into the full panel.
+/// The open notch as a slim bar. Beside the notch: the Kai mark and a few shortcuts. Below it, one of
+/// three things: the input line, what Kai is doing while it works, or the reply once it is done.
+/// A question asked here is answered here; the full conversation is one click away.
 private struct KaiNotchBarContent: View {
     @ObservedObject var model: KaiNotchModel
     @ObservedObject var appState: AppState
@@ -526,34 +532,82 @@ private struct KaiNotchBarContent: View {
                 shortcut("tray", "Shelf") { desk.tab = .shelf }
                 shortcut("doc.on.clipboard", "Clipboard") { desk.tab = .clipboard }
                 shortcut("terminal", "Claude Code") { desk.tab = .claude }
+                shortcut("rectangle.expand.vertical", "Open the full conversation") { controller.setFullConversation(true) }
                 shortcut("macwindow", "Open Kai OS") { controller.openMainWindow() }
             }
             .padding(.horizontal, 18)
             .frame(height: notchHeight)
-            HStack(spacing: 10) {
-                TextField(model.voicePhase == .listening ? "Listening…" : "Ask Kai…", text: $model.draft)
-                    .textFieldStyle(.plain)
-                    .focused($focused)
-                    .onSubmit(send)
-                Button(action: controller.toggleVoice) {
-                    Image(systemName: model.voicePhase == .listening ? "mic.fill" : "mic")
-                        .foregroundStyle(model.voicePhase == .listening ? Color.red : Color.secondary)
+            Group {
+                if let reply = model.readBack {
+                    readBack(reply)
+                } else if appState.isProcessing {
+                    working
+                } else {
+                    input
                 }
-                .buttonStyle(.plain)
-                .disabled(model.voicePhase == .transcribing)
-                .help("Talk")
-                Button(action: send) {
-                    Image(systemName: "arrow.up.circle.fill").font(.title3).foregroundStyle(canSend ? Color.blue : Color.secondary.opacity(0.5))
-                }
-                .buttonStyle(.plain)
-                .disabled(!canSend)
-                .help("Send")
             }
-            .padding(.horizontal, 18)
             .frame(maxHeight: .infinity)
         }
         .onAppear { focused = true }
         .onExitCommand { controller.collapse() }
+    }
+
+    private var input: some View {
+        HStack(spacing: 10) {
+            TextField(model.voicePhase == .listening ? "Listening…" : "Ask Kai…", text: $model.draft)
+                .textFieldStyle(.plain)
+                .focused($focused)
+                .onSubmit(send)
+            Button(action: controller.toggleVoice) {
+                Image(systemName: model.voicePhase == .listening ? "mic.fill" : "mic")
+                    .foregroundStyle(model.voicePhase == .listening ? Color.red : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(model.voicePhase == .transcribing)
+            .help("Talk")
+            Button(action: send) {
+                Image(systemName: "arrow.up.circle.fill").font(.title3).foregroundStyle(canSend ? Color.blue : Color.secondary.opacity(0.5))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSend)
+            .help("Send")
+        }
+        .padding(.horizontal, 18)
+    }
+
+    private var working: some View {
+        HStack(spacing: 10) {
+            KaiShimmerText(text: appState.messages.last?.status ?? "Working…")
+            Spacer()
+            Button(action: appState.cancelReply) {
+                Image(systemName: "stop.circle.fill").font(.title3).foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+            .help("Stop")
+        }
+        .padding(.horizontal, 18)
+    }
+
+    private func readBack(_ reply: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(reply)
+                .font(.system(size: 13, design: .serif)).italic()
+                .foregroundStyle(.white.opacity(0.92))
+                .lineLimit(KaiNotchReadBack.maxLines)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+            HStack(spacing: 8) {
+                Button("Reply") { controller.replyAgain(); focused = true }
+                Button("Open conversation") { controller.setFullConversation(true) }
+                Spacer()
+                Button { controller.collapse() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                    .buttonStyle(.plain)
+                    .help("Close")
+            }
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 18)
+        .padding(.bottom, 12)
     }
 
     private func shortcut(_ symbol: String, _ help: String, _ action: @escaping () -> Void) -> some View {

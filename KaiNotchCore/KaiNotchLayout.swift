@@ -10,6 +10,8 @@ import CoreGraphics
 public enum KaiNotchSurface: Equatable, Sendable {
     /// Exactly covers the notch, so it is invisible on a display with a hardware notch.
     case closed
+    /// The closed notch swelling a little when the cursor is over it, like a button.
+    case hover
     /// Slim strips beside the notch that always show Kai's status.
     case status
     /// Black wings beside the notch that show activity.
@@ -23,6 +25,10 @@ public enum KaiNotchSurface: Equatable, Sendable {
 public struct KaiNotchLayout: Equatable, Sendable {
     public static let wingWidth: CGFloat = 72
     public static let statusWingWidth: CGFloat = 26
+    /// How much the notch swells while hovered.
+    public static let hoverGrow = CGSize(width: 22, height: 3)
+    /// Room around the biggest shape so spring overshoot and the glow are never clipped.
+    public static let canvasSlack = CGSize(width: 140, height: 90)
     public static let expandedSize = CGSize(width: 560, height: 480)
     /// The slim bar: this wide, and this much taller than the notch itself.
     public static let barWidth: CGFloat = 464
@@ -60,8 +66,23 @@ public struct KaiNotchLayout: Equatable, Sendable {
         }
     }
 
-    public func frame(for surface: KaiNotchSurface) -> CGRect {
+    /// The one window Kai draws in: big enough for the biggest shape plus slack, centered on the notch
+    /// and flush with the top of the screen. It never changes size while the notch morphs, so the
+    /// notch cannot come loose from the bezel mid-animation.
+    public var canvas: CGRect {
+        let width = min(Self.expandedSize.width + Self.canvasSlack.width, screenFrame.width)
+        let height = min(Self.expandedSize.height + Self.canvasSlack.height, screenFrame.height)
+        let centeredX = (notch.midX - width / 2).rounded(.down)
+        let x = max(screenFrame.minX, min(centeredX, screenFrame.maxX - width))
+        return CGRect(x: x, y: screenFrame.maxY - height, width: width, height: height)
+    }
+
+    /// `barExtra` replaces the bar's default extra height, for a bar that grows to show a reply.
+    public func frame(for surface: KaiNotchSurface, barExtra: CGFloat? = nil) -> CGRect {
         switch surface {
+        case .hover:
+            let w = notch.width + Self.hoverGrow.width, h = notch.height + Self.hoverGrow.height
+            return CGRect(x: notch.midX - w / 2, y: screenFrame.maxY - h, width: w, height: h)
         case .closed:
             return notch
         case .status:
@@ -70,7 +91,7 @@ public struct KaiNotchLayout: Equatable, Sendable {
             return notch.insetBy(dx: -Self.wingWidth, dy: 0)
         case .bar:
             let width = min(Self.barWidth, screenFrame.width)
-            let height = notch.height + Self.barExtraHeight
+            let height = notch.height + (barExtra ?? Self.barExtraHeight)
             let centeredX = (notch.midX - width / 2).rounded(.down)
             let x = max(screenFrame.minX, min(centeredX, screenFrame.maxX - width))
             return CGRect(x: x, y: screenFrame.maxY - height, width: width, height: height)
