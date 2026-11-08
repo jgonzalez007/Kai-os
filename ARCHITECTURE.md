@@ -23,6 +23,7 @@ Kai OS macOS/     The app target
 KaiKnowledge/     Local search index (SQLite FTS5) and the indexers that fill it
 KaiAgent/         Computer-use agent: actions, rules, loop, log (no AppKit, fully tested with fakes)
 KaiSlack/         Read-only Slack client, message formatting and the Slack indexer
+KaiWeb/           Web search and page reading for the assistant, with the address rules
 KaiDesk/          Clipboard history, Shelf, Claude Code hook events, tracker and local socket
 KaiHook/          The kai-hook command that Claude Code hooks run
 Tests/KaiChecksTests/    122 checks, run with `swift test`

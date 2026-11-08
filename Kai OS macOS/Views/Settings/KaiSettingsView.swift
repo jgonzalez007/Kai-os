@@ -21,6 +21,7 @@ struct KaiSettingsView: View {
     @AppStorage(KaiNotchPreferences.hideFullScreenKey) private var hideFullScreen = true
     @AppStorage(KaiNotchPreferences.menuBarKey) private var menuBar = true
     @AppStorage(KaiNotchPreferences.clickKey) private var clickOpens = true
+    @AppStorage(KaiWebPreferences.key) private var webLookups = true
     @AppStorage(KaiSharedKey.defaultsKey) private var sharedKey = KaiSharedKey.default.rawValue
     @AppStorage(KaiInstructions.defaultsKey) private var instructions = ""
     @AppStorage(KaiAgentEffort.defaultsKey) private var effort = KaiAgentEffort.default.rawValue
@@ -216,6 +217,16 @@ struct KaiSettingsView: View {
                     .controlSize(.small)
                 }
                 
+                }
+
+                if page == .ai {
+                // ── Web ──
+                settingsCard {
+                    SectionHeader(title: "Web lookups")
+                    Toggle("Let Kai look things up on the web", isOn: $webLookups)
+                    Text("Kai can search the web and read a page when you ask about something current. Only the search words go to DuckDuckGo, and a page is fetched only if it came from a search result or you wrote the link. Kai never opens addresses on this Mac or your local network, sends no cookies, and treats what it reads as information, not instructions. Turn this off to keep every question on this Mac.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                }
                 }
 
                 if page == .ai {

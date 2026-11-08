@@ -13,6 +13,7 @@ import KaiNotchCore
 @testable import KaiAgent
 @testable import KaiSlack
 @testable import KaiDesk
+@testable import KaiWeb
 
 // MARK: - Fakes for the computer-use agent. Nothing here touches the real screen, mouse or keyboard.
 
@@ -2455,6 +2456,109 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testWebLookups() async throws {
+        check("public web addresses are accepted") {
+            KaiWebURL.validate("https://example.com/a?b=1") != nil && KaiWebURL.validate("http://news.example.org") != nil
+        }
+        check("anything but http and https is refused") {
+            ["file:///etc/passwd", "ftp://example.com", "javascript:alert(1)", "data:text/html,hi", "example.com", ""].allSatisfy { KaiWebURL.validate($0) == nil }
+        }
+        check("this Mac and the local network are refused, however they are written") {
+            ["http://localhost/", "http://127.0.0.1/", "http://10.0.0.5/", "http://192.168.1.1/", "http://172.16.0.1/", "http://169.254.169.254/latest/meta-data",
+             "http://[::1]/", "http://printer.local/", "http://intranet.corp/", "http://2130706433/", "http://0x7f000001/", "http://0.0.0.0/",
+             "http://100.64.0.1/", "http://[fd00::1]/", "http://[fe80::1]/"].allSatisfy { KaiWebURL.validate($0) == nil }
+        }
+        check("a login in the address is refused") {
+            KaiWebURL.validate("https://user:pass@example.com/") == nil && KaiWebURL.validate("https://user@example.com/") == nil
+        }
+        check("public numbers are not mistaken for private ones") {
+            KaiWebURL.validate("http://8.8.8.8/") != nil && KaiWebURL.validate("http://172.32.0.1/") != nil && KaiWebURL.validate("http://11.0.0.1/") != nil
+        }
+
+        let ddg = """
+        <div class="result"><h2 class="result__title"><a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Fpage%3Fa%3D1%26b%3D2&amp;rut=abc">Example &amp; <b>Page</b></a></h2>
+        <a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com">The first <b>result</b> snippet.</a></div>
+        <div class="result result--ad"><a class="result__a" href="//duckduckgo.com/y.js?ad=1">An ad</a></div>
+        <div class="result"><a class="result__a" href="https://other.org/x">Other</a><a class="result__snippet">Second snippet</a></div>
+        <div class="result"><a class="result__a" href="http://localhost/admin">Local trap</a></div>
+        """
+        check("search results are read, the redirect is unwrapped, ads and local addresses are dropped") {
+            let r = KaiWebSearchPage.parse(ddg)
+            return r.count == 2 && r[0].url.absoluteString == "https://example.com/page?a=1&b=2" && r[0].title == "Example & Page"
+                && r[0].snippet == "The first result snippet." && r[1].url.absoluteString == "https://other.org/x" && r[1].snippet == "Second snippet"
+        }
+        check("the number of results is limited") {
+            let many = (0..<20).map { "<a class=\"result__a\" href=\"https://e\($0).com/\">T\($0)</a>" }.joined()
+            return KaiWebSearchPage.parse(many, limit: 5).count == 5
+        }
+        check("a page becomes plain text without scripts, styles or tags") {
+            let html = "<html><head><title>Hi &amp; bye</title><style>p{color:red}</style></head><body><script>alert('x')</script><h1>Title</h1><p>One &amp; two</p><p>Three<br>four &#8217; &#x2019;</p><nav>Menu</nav></body></html>"
+            let text = KaiWebText.extract(fromHTML: html)
+            return text == "Title\nOne & two\nThree\nfour ’ ’" && KaiWebText.title(ofHTML: html) == "Hi & bye"
+        }
+        check("bold and link tags do not leave stray spaces before punctuation") {
+            KaiWebText.plain("the <b>actors</b>, and <a href=\"x\">links</a>.") == "the actors, and links."
+        }
+        check("a long page is cut") {
+            KaiWebText.extract(fromHTML: "<p>" + String(repeating: "word ", count: 10_000) + "</p>", limit: 100).count <= 101
+        }
+
+        await checkAsync("a search asks DuckDuckGo with the words and without cookies, and allows its results") {
+            let web = FakeWeb(["https://html.duckduckgo.com/html/": (200, "text/html", ddg)])
+            let session = KaiWebSession(transport: web)
+            let results = try await session.search("swift concurrency")
+            let body = String(decoding: web.requests.first?.httpBody ?? Data(), as: UTF8.self)
+            return results.count == 2 && body == "q=swift%20concurrency" && web.requests.first?.httpMethod == "POST"
+                && session.isAllowed(URL(string: "https://example.com/page?a=1&b=2")!)
+        }
+        await checkAsync("a page that was never in a result or a message is not opened") {
+            let web = FakeWeb(["https://evil.example/steal?data=secret": (200, "text/html", "x")])
+            let session = KaiWebSession(transport: web)
+            do { _ = try await session.read("https://evil.example/steal?data=secret"); return false }
+            catch { return (error as? KaiWebError) == .notAllowed && web.requests.isEmpty }
+        }
+        await checkAsync("a link the person wrote can be opened, and its text is returned") {
+            let web = FakeWeb(["https://example.com/doc": (200, "text/html; charset=utf-8", "<title>Doc</title><p>Hello there</p>")])
+            let session = KaiWebSession(transport: web)
+            session.noteUserText("Please read https://example.com/doc for me")
+            let page = try await session.read("https://example.com/doc")
+            return page.title == "Doc" && page.text == "Hello there" && web.requests.first?.value(forHTTPHeaderField: "User-Agent")?.contains("KaiOS") == true
+        }
+        await checkAsync("a private address is refused before any request, even if the person wrote it") {
+            let web = FakeWeb([:])
+            let session = KaiWebSession(transport: web)
+            session.noteUserText("see http://192.168.1.1/admin")
+            do { _ = try await session.read("http://192.168.1.1/admin"); return false }
+            catch { return (error as? KaiWebError) == .privateAddress && web.requests.isEmpty }
+        }
+        await checkAsync("files that are not web pages are not read") {
+            let web = FakeWeb(["https://example.com/f.pdf": (200, "application/pdf", "%PDF")])
+            let session = KaiWebSession(transport: web)
+            session.allow(URL(string: "https://example.com/f.pdf")!)
+            do { _ = try await session.read("https://example.com/f.pdf"); return false }
+            catch { if case .notReadable = (error as? KaiWebError) { return true } else { return false } }
+        }
+        await checkAsync("a site error is reported, and a network failure says it could not reach the web") {
+            let web = FakeWeb(["https://example.com/gone": (404, "text/html", "no")])
+            let session = KaiWebSession(transport: web)
+            session.allow(URL(string: "https://example.com/gone")!)
+            session.allow(URL(string: "https://nowhere.example/")!)
+            var notFound = false, unreachable = false
+            do { _ = try await session.read("https://example.com/gone") } catch { notFound = (error as? KaiWebError) == .http(404) }
+            do { _ = try await session.read("https://nowhere.example/") } catch { if case .network = (error as? KaiWebError) { unreachable = true } }
+            return notFound && unreachable
+        }
+    }
+
+    /// Optional: set KAI_WEB_FIXTURE to a saved DuckDuckGo results page to check the parser on the real thing.
+    func testWebParserOnARealPageIfProvided() async throws {
+        guard let path = ProcessInfo.processInfo.environment["KAI_WEB_FIXTURE"], let html = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        let results = KaiWebSearchPage.parse(html)
+        print("KAI_WEB_PARSED \(results.count)")
+        for r in results { print("KAI_WEB_RESULT \(r.title) | \(r.url) | \(r.snippet.prefix(80))") }
+        check("the saved results page gives at least one result with a real address") { !results.isEmpty && results.allSatisfy { $0.url.scheme == "https" || $0.url.scheme == "http" } }
+    }
+
     // MARK: Setup guide and updates
 
     func testSetupAndUpdates() async throws {
@@ -2893,4 +2997,21 @@ final class LockedBox<T>: @unchecked Sendable {
     init(_ value: T) { stored = value }
     var value: T { lock.lock(); defer { lock.unlock() }; return stored }
     func mutate(_ change: (inout T) -> Void) { lock.lock(); change(&stored); lock.unlock() }
+}
+
+
+/// A web that is not the web: answers from a table, and records what was asked.
+final class FakeWeb: KaiWebTransport, @unchecked Sendable {
+    private let lock = NSLock()
+    var requests: [URLRequest] = []
+    var pages: [String: (status: Int, type: String, body: String)]
+    init(_ pages: [String: (Int, String, String)]) { self.pages = pages.mapValues { (status: $0.0, type: $0.1, body: $0.2) } }
+
+    func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        lock.lock(); requests.append(request); lock.unlock()
+        let url = request.url!.absoluteString
+        guard let page = pages[url] else { throw URLError(.cannotFindHost) }
+        let response = HTTPURLResponse(url: request.url!, statusCode: page.status, httpVersion: nil, headerFields: ["Content-Type": page.type])!
+        return (Data(page.body.utf8), response)
+    }
 }

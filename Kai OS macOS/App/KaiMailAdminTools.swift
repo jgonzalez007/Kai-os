@@ -67,11 +67,12 @@ extension AppState {
 
     /// The tools offered for the current access level.
     static func tools(for access: KaiMailAccess) -> [KaiOllamaTool] {
-        assistantTools + (access.allowsWholeMailbox ? mailReadTools : []) + (access.allowsChanges ? mailChangeTools : [])
+        assistantTools + (KaiWebPreferences.enabled ? webTools : []) + (access.allowsWholeMailbox ? mailReadTools : []) + (access.allowsChanges ? mailChangeTools : [])
     }
 
     /// Nil when the call isn't a mailbox tool.
     func mailAdminTool(_ call: KaiOllamaToolCall) async throws -> String? {
+        if let web = await webTool(call) { return web }
         guard Self.mailAdminToolNames.contains(call.name) else { return nil }
         let access = KaiMailAccess.current
         let isChange = call.name.hasPrefix("propose_")

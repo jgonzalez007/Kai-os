@@ -102,6 +102,8 @@ extension AppState {
         case "search_mail": return "Searching your mail…"
         case "read_mail_message": return "Reading an email…"
         case "propose_mail_move", "propose_mail_mark_read": return "Checking which messages match…"
+        case "web_search": return "Searching the web…"
+        case "read_webpage": return "Reading a web page…"
         case "search_slack": return "Searching Slack…"
         case "slack_recent": return "Reading recent Slack messages…"
         case "read_slack_screen": return "Reading your Slack window…"
