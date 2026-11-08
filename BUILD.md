@@ -72,7 +72,12 @@ To make a release:
 3. Create a GitHub release tagged `v<version>` and attach both files. `scripts/install.sh` and the in-app update check both read the latest release.
 4. Optional: put the new checksum in `Casks/kai-os.rb` and publish it in a tap repository named `homebrew-kai-os`.
 
-`scripts/install-app.sh` is the developer version: it builds a debug copy, installs it in `~/Applications` and relaunches it. `NOTARIZATION.md` describes the notarized flow for if you get a Developer ID.
+`scripts/install-app.sh` is the developer version: it builds a debug copy, installs it in `~/Applications` and relaunches it. It signs with `scripts/sign-app.sh`, which uses `$KAI_SIGN_IDENTITY`, then an "Apple Development" certificate, then the local "Kai OS Local Dev" certificate, and only then ad-hoc. macOS ties permission grants to the signature, so an ad-hoc build loses Screen Recording, Accessibility and other grants on every rebuild. To keep them, do one of these once:
+
+- **Apple ID (free):** Xcode, Settings, Accounts, add your Apple ID, Manage Certificates, +, Apple Development.
+- **Trust the local certificate:** `scripts/trust-local-signing.sh` (macOS asks for your password; the trust is for your user only, and the script prints the command to undo it).
+
+Then rebuild. The script prints the designated requirement it signed with: it should name a certificate (`certificate leaf = H"..."`), not a `cdhash`. `NOTARIZATION.md` describes the notarized flow for if you get a Developer ID.
 
 ## Troubleshooting
 

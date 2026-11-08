@@ -29,13 +29,7 @@ xcrun actool Assets.xcassets --compile "$ICON_TMP" --platform macosx --minimum-d
     --app-icon AppIcon --output-partial-info-plist "$ICON_TMP/partial.plist" >/dev/null
 cp "$ICON_TMP/AppIcon.icns" "$ICON_TMP/Assets.car" "$CONTENTS/Resources/"
 rm -rf "$ICON_TMP"
-read -r SIGNING_SHA SIGNING_KEYCHAIN <<< "$(scripts/setup-signing.sh)"
-if ! codesign --force --sign "$SIGNING_SHA" --keychain "$SIGNING_KEYCHAIN" --identifier ai.kai "$APP" 2>/dev/null; then
-    # macOS refuses an untrusted self-signed identity. An ad-hoc signature still runs, but
-    # macOS forgets permission grants (Calendar, Mail, microphone) after every rebuild.
-    echo "warning: the local signing identity is not trusted, so this build is ad-hoc signed." >&2
-    codesign --force --sign - --identifier ai.kai "$APP"
-fi
+scripts/sign-app.sh "$APP"
 
 open "$APP"
 sleep 2
