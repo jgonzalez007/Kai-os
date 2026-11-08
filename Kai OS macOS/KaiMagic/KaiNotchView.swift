@@ -8,6 +8,7 @@
 
 import KaiNotchCore
 import SwiftUI
+import KaiShared
 
 struct KaiNotchView: View {
     @ObservedObject var model: KaiNotchModel
@@ -261,36 +262,43 @@ private struct KaiNotchPanelContent: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            KaiSpinningLogo(spinning: appState.isProcessing)
-            Text("Kai").fontWeight(.semibold)
-            Text(appState.selectedModel).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            Spacer()
-            Button(action: appState.startNewChat) { Image(systemName: "plus.bubble") }
-                .buttonStyle(.plain)
-                .help("New Chat")
-            Button(action: controller.openMainWindow) { Image(systemName: "macwindow") }
-                .buttonStyle(.plain)
-                .help("Open Kai OS")
-        }
-        .overlay(alignment: .bottomLeading) {
-            adaptiveHint
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                KaiSpinningLogo(spinning: appState.isProcessing)
+                Text("Kai").fontWeight(.semibold)
+                Text(KaiModelTag.name(from: appState.selectedModel))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                Button(action: appState.startNewChat) { Image(systemName: "plus.bubble") }
+                    .buttonStyle(.plain)
+                    .help("New Chat")
+                Button(action: controller.openMainWindow) { Image(systemName: "macwindow") }
+                    .buttonStyle(.plain)
+                    .help("Open Kai OS")
+            }
+            // On its own line, so it can never sit on top of the model name.
+            if let hint = appState.suggestions.first {
+                adaptiveHint(hint)
+            }
         }
     }
 
-    private var adaptiveHint: some View {
+    private func adaptiveHint(_ text: String) -> some View {
         HStack(spacing: 4) {
             Image(systemName: "sparkles")
                 .font(.caption2)
                 .foregroundStyle(.purple)
-            Text(appState.suggestions.first ?? "What do you need?")
+            Text(text)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 2)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6))
-        .opacity(appState.suggestions.isEmpty ? 0 : 1)
     }
 
     private var placeholder: String {

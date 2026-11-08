@@ -143,7 +143,7 @@ enum KaiNotchSelfTest {
 
         controller.toggle()
         await settle()
-        report("the toggle expands the panel", model.isExpanded && panel.frame == layout.frame(for: .expanded), "\(panel.frame)")
+        report("the toggle expands the panel", model.isExpanded && panel.frame == layout.frame(for: .expanded), "\(panel.frame), expected \(layout.frame(for: .expanded)), expanded: \(model.isExpanded)")
         report("the expanded panel takes keyboard focus", panel.isKeyWindow)
         report("the text field has focus", panel.firstResponder is NSTextView)
 

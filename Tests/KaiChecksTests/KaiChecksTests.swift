@@ -285,6 +285,13 @@ final class KaiChecksTests: XCTestCase {
             return closed.midX == -960 && closed.maxY == 1280
         }
 
+        check("the expanded frame is on whole points even when the notch is centered on a half point") {
+            let odd = KaiNotchLayout(screenFrame: CGRect(x: 0, y: 0, width: 1727, height: 1117), safeAreaTop: 32,
+                                     leftAreaWidth: 771, rightAreaWidth: 771, menuBarHeight: 32)
+            let expanded = odd.frame(for: .expanded)
+            return odd.notch.midX == 863.5 && expanded.minX == 583 && expanded.minX == expanded.minX.rounded()
+                && abs(expanded.midX - odd.notch.midX) <= 0.5 && expanded.maxY == 1117
+        }
         check("the expanded frame never leaves a narrow screen") {
             let narrow = KaiNotchLayout(
                 screenFrame: CGRect(x: 0, y: 0, width: 400, height: 300),
