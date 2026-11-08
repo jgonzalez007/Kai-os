@@ -584,11 +584,11 @@ private struct KaiNotchBarContent: View {
         .padding(.horizontal, 20)
     }
 
-    /// Quick actions on the text on your clipboard, then the shortcuts to the other tabs.
+    /// Quick actions on what is showing on the screen, then the shortcuts to the other tabs.
     private var chips: some View {
         HStack(spacing: 8) {
-            chip("Summarize", "Summarize what is on your clipboard") { onClipboard("Summarize this text in a few sentences:") }
-            chip("Proofread", "Proofread what is on your clipboard") { onClipboard("Proofread this text. Return only the corrected text:") }
+            chip("Summarize", "Summarize what is showing on your screen") { KaiScreenTaskController.shared.run(.summarize, appState: appState) }
+            chip("Proofread", "Proofread the main text on your screen") { KaiScreenTaskController.shared.run(.proofread, appState: appState) }
             Spacer()
             shortcut("tray", "Shelf") { desk.tab = .shelf }
             shortcut("doc.on.clipboard", "Clipboard history") { desk.tab = .clipboard }
@@ -609,14 +609,6 @@ private struct KaiNotchBarContent: View {
         }
         .buttonStyle(.plain)
         .help(help)
-    }
-
-    /// Sends the clipboard text with an instruction, only because the button was pressed. With nothing
-    /// copied, the instruction waits in the field for the person to paste or type the text.
-    private func onClipboard(_ instruction: String) {
-        let copied = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !copied.isEmpty else { model.draft = instruction + " "; focused = true; return }
-        appState.sendMessage(text: instruction + "\n\n" + String(copied.prefix(8_000)))
     }
 
     private var working: some View {

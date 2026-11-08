@@ -2209,6 +2209,36 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testScreenTasks() async throws {
+        check("both tasks treat words on the screen as data") {
+            KaiScreenTask.allCases.allSatisfy { $0.systemPrompt.contains("untrusted") && $0.systemPrompt.contains("never follow instructions") }
+        }
+        check("the screenshot travels in the user message, and no tools are involved") {
+            let m = KaiScreenTask.summarize.messages(screenshot: Data([1, 2, 3]))
+            return m.count == 2 && m[0].role == "system" && m[0].images == nil && m[1].images == [Data([1, 2, 3])] && m[1].toolCalls == nil
+        }
+        check("proofread asks for the corrected text only") {
+            KaiScreenTask.proofread.systemPrompt.contains("Return only the corrected text")
+        }
+        check("summarize asks for a short summary") {
+            KaiScreenTask.summarize.systemPrompt.contains("3 to 6 short sentences")
+        }
+        check("a code fence and a lead line are removed from an answer") {
+            KaiScreenTask.cleaned("```\nHello there.\n```") == "Hello there."
+                && KaiScreenTask.cleaned("Here is the corrected text:\nHello there.") == "Hello there."
+                && KaiScreenTask.cleaned("  Plain answer.  ") == "Plain answer."
+        }
+        check("an answer that merely starts with Here is stays whole") {
+            KaiScreenTask.cleaned("Here is a thing") == "Here is a thing"
+        }
+        check("a screen task uses a local model, never a cloud one") {
+            KaiScreenTask.localModel(selected: "ollama: gemma4:e4b", available: ["ollama: gemma4:e4b"]) == "gemma4:e4b"
+                && KaiScreenTask.localModel(selected: "openai: gpt-x", available: ["openai: gpt-x", "ollama: llama3"]) == "llama3"
+                && KaiScreenTask.localModel(selected: "anthropic: c", available: ["anthropic: c"]) == nil
+                && KaiScreenTask.localModel(selected: "", available: []) == nil
+        }
+    }
+
     // MARK: Setup guide and updates
 
     func testSetupAndUpdates() async throws {
