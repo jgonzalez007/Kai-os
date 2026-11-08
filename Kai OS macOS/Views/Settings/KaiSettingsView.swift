@@ -180,6 +180,8 @@ struct KaiSettingsView: View {
 
                 Divider().overlay(Color.white.opacity(0.08))
 
+                if page == .system { logoCard }
+
                 if page == .system {
                 // ── Appearance ──
                 settingsCard {
@@ -622,6 +624,51 @@ struct KaiSettingsView: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .kaiGlassSurface(radius: 20)
+    }
+
+    // ── Logo and icon to try ──
+    @AppStorage(KaiLogoStyle.defaultsKey) private var logoStyle = KaiLogoStyle.glass.rawValue
+    @AppStorage(KaiAppIcon.defaultsKey) private var iconStyle = KaiAppIcon.Style.glass.rawValue
+
+    private var logoCard: some View {
+        settingsCard {
+            SectionHeader(title: "Logo and icon")
+            Text("Try the artwork from the asset sheet. The logo changes in the sidebar and the notch. The Dock icon changes while Kai OS is running (the icon in Finder stays as it is).")
+                .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+            Text("Logo").font(KaiFont.captionStrong)
+            HStack(spacing: 12) {
+                ForEach(KaiLogoStyle.allCases, id: \.rawValue) { style in
+                    optionTile(selected: logoStyle == style.rawValue, title: style.title) {
+                        if let name = style.imageName, let image = NSImage(named: name) {
+                            Image(nsImage: image).resizable().scaledToFit()
+                        } else {
+                            KaiLogoArt(size: 80, glow: 0.45)
+                        }
+                    } action: { logoStyle = style.rawValue }
+                }
+            }
+            Text("Dock icon").font(KaiFont.captionStrong).padding(.top, 6)
+            HStack(spacing: 12) {
+                ForEach(KaiAppIcon.Style.allCases, id: \.rawValue) { style in
+                    optionTile(selected: iconStyle == style.rawValue, title: style.title) {
+                        if let image = style.image { Image(nsImage: image).resizable().scaledToFit() } else { KaiLogoArt(size: 80, glow: 0.45) }
+                    } action: { iconStyle = style.rawValue; KaiAppIcon.apply() }
+                }
+            }
+        }
+    }
+
+    private func optionTile<Preview: View>(selected: Bool, title: String, @ViewBuilder preview: () -> Preview, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                preview().frame(width: 84, height: 84)
+                Text(title).font(.caption).multilineTextAlignment(.center).lineLimit(2)
+            }
+            .frame(width: 128, height: 140)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(selected ? 0.12 : 0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(selected ? KaiColor.cyan : Color.white.opacity(0.1), lineWidth: selected ? 1.5 : 1))
+        }
+        .buttonStyle(.plain)
     }
 
     // ── Notch look and stats ──

@@ -67,13 +67,50 @@ private struct KaiLogoShape: Shape {
     }
 }
 
+/// Which artwork the app uses for its mark. The first is drawn in code from the brand SVG; the other two
+/// are pictures cut from the asset sheet, to try. A picture that is missing falls back to the first.
+enum KaiLogoStyle: String, CaseIterable {
+    case glass, symbol, neon
+
+    static let defaultsKey = "kai.logo.style"
+
+    var title: String {
+        switch self {
+        case .glass: return "Liquid glass K"
+        case .symbol: return "K with the notch ring"
+        case .neon: return "Neon outline"
+        }
+    }
+
+    var imageName: String? {
+        switch self {
+        case .glass: return nil
+        case .symbol: return "KaiLogoSymbol"
+        case .neon: return "KaiLogoNeon"
+        }
+    }
+
+    static var current: KaiLogoStyle {
+        UserDefaults.standard.string(forKey: defaultsKey).flatMap(KaiLogoStyle.init(rawValue:)) ?? .glass
+    }
+}
+
 struct KaiLogoMark: View {
     var size: CGFloat = 40
     /// A slow breathing glow, for "working".
     var pulsing = false
+    @AppStorage(KaiLogoStyle.defaultsKey) private var styleName = KaiLogoStyle.glass.rawValue
 
     var body: some View {
-        if pulsing {
+        let style = KaiLogoStyle(rawValue: styleName) ?? .glass
+        if let name = style.imageName, let image = NSImage(named: name) {
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .shadow(color: KaiColor.violet.opacity(pulsing ? 0.7 : 0.35), radius: size * 0.12)
+        } else if pulsing {
             TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { context in
                 let t = context.date.timeIntervalSinceReferenceDate
                 KaiLogoArt(size: size, glow: 0.45 + 0.25 * sin(t * 3))

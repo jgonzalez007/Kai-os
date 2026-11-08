@@ -746,6 +746,7 @@ final class KaiAppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         KaiNotchWindowController.shared.start(appState: AppState.shared)
+        KaiAppIcon.apply()
         KaiStatusModel.shared.start(appState: AppState.shared)
         let permissions = KaiPermissionsModel.shared
         permissions.onGranted = { AppState.shared.permissionGranted($0) }
