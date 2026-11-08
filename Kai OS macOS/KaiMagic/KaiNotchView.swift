@@ -35,20 +35,12 @@ struct KaiNotchView: View {
     var body: some View {
         ZStack(alignment: .top) {
             KaiNotchShape(topRadius: isExpanded ? 14 : 8, bottomRadius: isExpanded ? 22 : 10)
-                .fill(isExpanded ? AnyShapeStyle(KaiNotchStyle.panelFill) : AnyShapeStyle(Color.black))
+                .fill(Color.black)
                 .shadow(color: .black.opacity(model.surface == .hover ? 0.55 : 0), radius: 6, x: 0, y: 3)
             if isExpanded {
-                // A soft colored edge, like a light behind the panel. Black at the top so it
-                // still merges with the hardware notch.
-                KaiNotchShape(topRadius: 14, bottomRadius: 22)
-                    .stroke(KaiNotchStyle.glow, lineWidth: 5)
-                    .blur(radius: 4)
-                    .opacity(desk.approvals.isEmpty ? 0.55 : 0.95)
-                    .allowsHitTesting(false)
-                KaiNotchShape(topRadius: 14, bottomRadius: 22)
-                    .stroke(KaiNotchStyle.glow, lineWidth: 1)
-                    .opacity(0.8)
-                    .allowsHitTesting(false)
+                // Black fill, like the hardware notch, so the two read as one shape.
+                KaiNotchGlow(size: size, topRadius: 14, bottomRadius: 22,
+                             intensity: desk.approvals.isEmpty ? 0.9 : 1)
             }
             if isExpanded {
                 if model.panelMode == .reply, let doubleTap = controller.doubleTap {
@@ -361,7 +353,7 @@ private struct KaiNotchPanelContent: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
-                    KaiSpinningLogo(spinning: appState.isProcessing)
+                    KaiSpectrumLogo(spinning: appState.isProcessing)
                     Text("Kai").fontWeight(.semibold)
                     Text(KaiModelTag.name(from: appState.selectedModel))
                         .font(.caption)
@@ -471,9 +463,8 @@ enum KaiNotchStyle {
     /// Black at the top (so the panel melts into the hardware notch), then a deep navy.
     static let panelFill = LinearGradient(
         stops: [
-            .init(color: Color(red: 0.02, green: 0.03, blue: 0.05), location: 0),
-            .init(color: Color(red: 0.06, green: 0.09, blue: 0.15), location: 0.25),
-            .init(color: Color(red: 0.08, green: 0.12, blue: 0.20), location: 1)
+            .init(color: .black, location: 0),
+            .init(color: .black, location: 1)
         ],
         startPoint: .top, endPoint: .bottom
     )
@@ -526,16 +517,23 @@ private struct KaiNotchBarContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Beside the notch: the mark on the left, open-in-window and send on the right.
             HStack(spacing: 12) {
-                KaiSpinningLogo(spinning: appState.isProcessing)
+                KaiSpectrumLogo(spinning: appState.isProcessing)
                 Spacer()
-                shortcut("tray", "Shelf") { desk.tab = .shelf }
-                shortcut("doc.on.clipboard", "Clipboard") { desk.tab = .clipboard }
-                shortcut("terminal", "Claude Code") { desk.tab = .claude }
-                shortcut("rectangle.expand.vertical", "Open the full conversation") { controller.setFullConversation(true) }
-                shortcut("macwindow", "Open Kai OS") { controller.openMainWindow() }
+                shortcut("arrow.up.forward.app", "Open Kai OS") { controller.openMainWindow() }
+                Button(action: send) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(canSend ? Color.black : Color.white.opacity(0.35))
+                        .frame(width: 18, height: 18)
+                        .background(Circle().fill(canSend ? Color.white : Color.white.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSend)
+                .help("Send")
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 20)
             .frame(height: notchHeight)
             Group {
                 if let reply = model.readBack {
@@ -543,7 +541,10 @@ private struct KaiNotchBarContent: View {
                 } else if appState.isProcessing {
                     working
                 } else {
-                    input
+                    VStack(spacing: 8) {
+                        input
+                        chips
+                    }
                 }
             }
             .frame(maxHeight: .infinity)
@@ -554,25 +555,68 @@ private struct KaiNotchBarContent: View {
 
     private var input: some View {
         HStack(spacing: 10) {
-            TextField(model.voicePhase == .listening ? "Listening…" : "Ask Kai…", text: $model.draft)
-                .textFieldStyle(.plain)
-                .focused($focused)
-                .onSubmit(send)
-            Button(action: controller.toggleVoice) {
-                Image(systemName: model.voicePhase == .listening ? "mic.fill" : "mic")
-                    .foregroundStyle(model.voicePhase == .listening ? Color.red : Color.secondary)
+            ZStack(alignment: .leading) {
+                if model.draft.isEmpty && model.voicePhase != .listening {
+                    Text("What can I do for you?")
+                        .font(.system(size: 13, design: .serif)).italic()
+                        .foregroundStyle(.white.opacity(0.4))
+                        .allowsHitTesting(false)
+                }
+                TextField(model.voicePhase == .listening ? "Listening…" : "", text: $model.draft)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white)
+                    .tint(.white)
+                    .focused($focused)
+                    .onSubmit(send)
             }
-            .buttonStyle(.plain)
-            .disabled(model.voicePhase == .transcribing)
-            .help("Talk")
-            Button(action: send) {
-                Image(systemName: "arrow.up.circle.fill").font(.title3).foregroundStyle(canSend ? Color.blue : Color.secondary.opacity(0.5))
+            if model.draft.isEmpty {
+                Button(action: controller.toggleVoice) {
+                    Image(systemName: model.voicePhase == .listening ? "mic.fill" : "mic")
+                        .font(.system(size: 13))
+                        .foregroundStyle(model.voicePhase == .listening ? Color.red : Color.white.opacity(0.55))
+                }
+                .buttonStyle(.plain)
+                .disabled(model.voicePhase == .transcribing)
+                .help("Talk")
             }
-            .buttonStyle(.plain)
-            .disabled(!canSend)
-            .help("Send")
         }
-        .padding(.horizontal, 18)
+        .padding(.horizontal, 20)
+    }
+
+    /// Quick actions on the text on your clipboard, then the shortcuts to the other tabs.
+    private var chips: some View {
+        HStack(spacing: 8) {
+            chip("Summarize", "Summarize what is on your clipboard") { onClipboard("Summarize this text in a few sentences:") }
+            chip("Proofread", "Proofread what is on your clipboard") { onClipboard("Proofread this text. Return only the corrected text:") }
+            Spacer()
+            shortcut("tray", "Shelf") { desk.tab = .shelf }
+            shortcut("doc.on.clipboard", "Clipboard history") { desk.tab = .clipboard }
+            shortcut("terminal", "Claude Code") { desk.tab = .claude }
+            shortcut("rectangle.expand.vertical", "Open the full conversation") { controller.setFullConversation(true) }
+        }
+        .padding(.horizontal, 20)
+        .padding(.bottom, 10)
+    }
+
+    private func chip(_ title: String, _ help: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.system(size: 11, weight: .medium))
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(Capsule().fill(Color.white.opacity(0.09)))
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5))
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        .buttonStyle(.plain)
+        .help(help)
+    }
+
+    /// Sends the clipboard text with an instruction, only because the button was pressed. With nothing
+    /// copied, the instruction waits in the field for the person to paste or type the text.
+    private func onClipboard(_ instruction: String) {
+        let copied = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !copied.isEmpty else { model.draft = instruction + " "; focused = true; return }
+        appState.sendMessage(text: instruction + "\n\n" + String(copied.prefix(8_000)))
     }
 
     private var working: some View {
