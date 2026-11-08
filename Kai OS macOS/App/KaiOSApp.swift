@@ -147,7 +147,7 @@ final class AppState: ObservableObject {
     @Published var selectedModel: String = UserDefaults.standard.string(forKey: AppState.chatModelDefaultsKey) ?? "" {
         didSet { UserDefaults.standard.set(selectedModel, forKey: AppState.chatModelDefaultsKey) }
     }
-    @Published var activeSidebar: String = KaiPermissionsModel.shouldShowOnLaunch ? "Permissions" : "Chat"
+    @Published var activeSidebar: String = KaiPermissionsModel.shouldShowOnLaunch ? "Welcome" : "Chat"
     @Published var isProcessing = false
     @Published var themeMode: String = UserDefaults.standard.string(forKey: AppState.themeDefaultsKey) ?? "auto" {
         didSet { UserDefaults.standard.set(themeMode, forKey: AppState.themeDefaultsKey) }
@@ -705,6 +705,7 @@ struct KaiOSApp: App {
                 .onAppear {
                     appState.startMonitoring()
                     appState.restoreSlack()
+                    KaiUpdateController.shared.checkIfDue()
                     #if DEBUG
                     KaiChatSelfTest.runIfRequested(appState: appState)
                     KaiNotchSelfTest.runIfRequested(appState: appState)
@@ -776,6 +777,8 @@ struct KaiMainView: View {
             case "Health": KaiHealthView(briefing: appState.morningCards)
                 .environmentObject(appState)
             case "Settings": KaiSettingsView()
+                .environmentObject(appState)
+            case "Welcome": KaiWelcomeView()
                 .environmentObject(appState)
             case "Permissions": KaiPermissionsView(permissions: .shared)
                 .environmentObject(appState)

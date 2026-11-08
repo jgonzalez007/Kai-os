@@ -24,6 +24,11 @@ cp "$BIN_DIR/Kai OS" "$CONTENTS/MacOS/Kai OS"
 # The command Claude Code hooks run. It talks to the app over a local socket.
 cp "$BIN_DIR/kai-hook" "$CONTENTS/MacOS/kai-hook"
 cp "Kai OS macOS/Info.plist" "$CONTENTS/Info.plist"
+ICON_TMP="$(mktemp -d)"
+xcrun actool Assets.xcassets --compile "$ICON_TMP" --platform macosx --minimum-deployment-target 14.0 \
+    --app-icon AppIcon --output-partial-info-plist "$ICON_TMP/partial.plist" >/dev/null
+cp "$ICON_TMP/AppIcon.icns" "$ICON_TMP/Assets.car" "$CONTENTS/Resources/"
+rm -rf "$ICON_TMP"
 read -r SIGNING_SHA SIGNING_KEYCHAIN <<< "$(scripts/setup-signing.sh)"
 if ! codesign --force --sign "$SIGNING_SHA" --keychain "$SIGNING_KEYCHAIN" --identifier ai.kai "$APP" 2>/dev/null; then
     # macOS refuses an untrusted self-signed identity. An ad-hoc signature still runs, but

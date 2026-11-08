@@ -24,7 +24,7 @@ let package = Package(
         ),
         .target(
             name: "KaiActions",
-            dependencies: ["KaiLocalAI", "KaiLocalData"],
+            dependencies: ["KaiShared", "KaiLocalAI", "KaiLocalData"],
             path: "KaiActions"
         ),
         .target(
@@ -37,7 +37,7 @@ let package = Package(
         ),
         .target(
             name: "KaiKnowledge",
-            dependencies: ["KaiLocalData"],
+            dependencies: ["KaiShared", "KaiLocalData"],
             path: "KaiKnowledge"
         ),
         .target(

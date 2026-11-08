@@ -35,7 +35,19 @@
 
 ## Planned
 
-Not built yet: embeddings and a knowledge graph on top of the knowledge base (search is keyword-based, with stemming), waking a sleeping Mac for Night Shift, Gmail, Notion, WhatsApp and iMessage connectors, Outlook and Google Calendar in the app, on-device engine (LiteRT, Gemma), plugin system, Homebrew cask. See [KAI-DEVELOPMENT-PLAN.md](KAI-DEVELOPMENT-PLAN.md).
+Not built yet: embeddings and a knowledge graph on top of the knowledge base (search is keyword-based, with stemming), waking a sleeping Mac for Night Shift, Gmail, Notion, WhatsApp and iMessage connectors, Outlook and Google Calendar in the app, on-device engine (LiteRT, Gemma), plugin system, a published Homebrew tap (the cask file is ready), Apple notarization (needs a paid developer account), installing updates from inside the app. See [KAI-DEVELOPMENT-PLAN.md](KAI-DEVELOPMENT-PLAN.md).
+
+## Install
+
+Needs macOS 14 or later and a Mac with Apple Silicon.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jgonzalez007/Kai-os/main/scripts/install.sh | bash
+```
+
+The script downloads the latest release, checks its SHA-256 checksum, puts Kai OS in `/Applications` and opens it. Read it first if you like: it is short. To remove the app, add `-s -- --uninstall` after `bash`. The first launch opens a short setup guide that gets a local model running (or lets you use your own ChatGPT or Claude key) and asks for the permissions you choose.
+
+Kai OS is free software and is not notarized by Apple (that needs a paid developer account). The script clears the macOS download flag on the app for you. If you download `Kai-OS.zip` from the releases page by hand, right-click the app and choose Open the first time. Kai OS checks GitHub once a day for a newer release and tells you; it never installs updates by itself. You can turn that off in Preferences → Updates.
 
 ## Build from source
 
@@ -54,6 +66,7 @@ Requires macOS 14+, Apple Silicon and Xcode (the Command Line Tools alone cannot
 - If you turn on ChatGPT or Claude, your messages go to that provider with your key. Kai has no servers and no telemetry.
 - API keys live in the Keychain, readable only while the Mac is unlocked.
 - Calendar, Mail and Notes access uses macOS permissions that you grant and can revoke.
+- The only automatic network call is a once-a-day check of GitHub's public release list, which sends nothing about you and can be turned off in Preferences → Updates.
 
 ## Docs
 

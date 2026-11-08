@@ -11,6 +11,7 @@ import SwiftUI
 struct KaiSidebarView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject private var permissions = KaiPermissionsModel.shared
+    @ObservedObject private var updates = KaiUpdateController.shared
     
     let selection: Binding<String?>
     
@@ -142,6 +143,15 @@ struct KaiSidebarView: View {
             
             // ── Bottom ──
             Section {
+                if let update = updates.available {
+                    Button { updates.openReleasePage() } label: {
+                        Label("Update to \(update.version.description)", systemImage: "arrow.down.circle.fill")
+                    }
+                    .buttonStyle(.plain).foregroundStyle(Color.accentColor)
+                    .help("Opens the release page. Kai OS does not install updates by itself.")
+                }
+                Label("Setup guide", systemImage: "wand.and.stars")
+                    .tag("Welcome")
                 Label("Sidekick", systemImage: "cursorarrow.motionlines")
                     .tag("Sidekick")
 
