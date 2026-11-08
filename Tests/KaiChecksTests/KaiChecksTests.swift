@@ -2559,6 +2559,28 @@ final class KaiChecksTests: XCTestCase {
         check("the saved results page gives at least one result with a real address") { !results.isEmpty && results.allSatisfy { $0.url.scheme == "https" || $0.url.scheme == "http" } }
     }
 
+    func testOpenLinkAction() async throws {
+        check("a public link becomes a card showing the exact address") {
+            let action = try KaiActionParser.openLink(url: "https://www.airbnb.com/s/Austin--TX/homes?checkin=2026-11-22&checkout=2026-11-24", reason: "Austin stays, Nov 22 to 24")
+            return action.kindName == "open_link" && action.details.contains { $0.label == "Link" && $0.value.contains("checkin=2026-11-22") }
+                && action.details.contains { $0.label == "Why" }
+        }
+        check("a link to this Mac, a private network, a file or a login is refused") {
+            ["http://localhost:8080", "http://192.168.0.1", "file:///etc/hosts", "https://u:p@example.com", "javascript:alert(1)", "", "airbnb.com"].allSatisfy {
+                (try? KaiActionParser.openLink(url: $0, reason: nil)) == nil
+            }
+        }
+        check("a link action is saved and read back unchanged") {
+            let action = try KaiActionParser.openLink(url: "https://example.com/a", reason: "x")
+            let data = try JSONEncoder().encode(action)
+            return try JSONDecoder().decode(KaiProposedAction.self, from: data) == action
+        }
+        await checkAsync("the executor refuses a link that is not public even if one was somehow approved") {
+            do { _ = try await KaiSystemActionExecutor().perform(.openLink(url: URL(string: "http://127.0.0.1/")!, reason: "")); return false }
+            catch { return true }
+        }
+    }
+
     // MARK: Setup guide and updates
 
     func testSetupAndUpdates() async throws {

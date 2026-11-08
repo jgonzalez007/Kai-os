@@ -81,6 +81,14 @@ extension AppState {
             ]
         ),
         KaiOllamaTool(
+            name: "propose_open_link",
+            description: "Propose opening a web address in the user's browser, for things Kai cannot read itself, such as live listings, prices or availability on a site (for example a site's own search page with the dates filled in). The user sees a card and decides. Give a full link starting with https://.",
+            parameters: [
+                .init(name: "url", type: "string", description: "The full web address", required: true),
+                .init(name: "reason", type: "string", description: "One short line on what the link shows", required: false),
+            ]
+        ),
+        KaiOllamaTool(
             name: "propose_notification",
             description: "Propose a Mac notification at a future time. The user sees a card and decides; nothing is scheduled unless they approve.",
             parameters: [
@@ -107,7 +115,7 @@ extension AppState {
         case "search_slack": return "Searching Slack…"
         case "slack_recent": return "Reading recent Slack messages…"
         case "read_slack_screen": return "Reading your Slack window…"
-        case "propose_calendar_event", "propose_email_draft", "propose_notification": return "Preparing a proposal…"
+        case "propose_calendar_event", "propose_email_draft", "propose_notification", "propose_open_link": return "Preparing a proposal…"
         default: return "Working…"
         }
     }
@@ -146,6 +154,8 @@ extension AppState {
                     subject: call.arguments["subject"]?.stringValue,
                     body: call.arguments["body"]?.stringValue
                 ))
+            case "propose_open_link":
+                output = try propose(KaiActionParser.openLink(url: call.arguments["url"]?.stringValue, reason: call.arguments["reason"]?.stringValue))
             case "propose_notification":
                 output = try propose(KaiActionParser.notification(
                     title: call.arguments["title"]?.stringValue,

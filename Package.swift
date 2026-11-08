@@ -24,7 +24,7 @@ let package = Package(
         ),
         .target(
             name: "KaiActions",
-            dependencies: ["KaiShared", "KaiLocalAI", "KaiLocalData"],
+            dependencies: ["KaiShared", "KaiLocalAI", "KaiLocalData", "KaiWeb"],
             path: "KaiActions"
         ),
         .target(
