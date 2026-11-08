@@ -80,6 +80,19 @@ public enum KaiScreenTask: String, Equatable, Sendable, CaseIterable {
         return text
     }
 
+    /// Turns list markers into bullets, so a summary reads as a list even though the card shows only
+    /// inline Markdown (bold, italic, code).
+    public static func forDisplay(_ text: String) -> String {
+        text.components(separatedBy: "\n").map { line -> String in
+            let trimmed = line.drop(while: { $0 == " " })
+            let indent = String(line.prefix(line.count - trimmed.count))
+            for marker in ["- ", "* ", "+ "] where trimmed.hasPrefix(marker) {
+                return indent + "• " + trimmed.dropFirst(marker.count)
+            }
+            return line
+        }.joined(separator: "\n")
+    }
+
     /// Picks the local vision model for a screen task: the chosen one if it is local, else the first
     /// local model. Screenshots of the whole screen never go to a cloud service from here.
     public static func localModel(selected: String, available: [String]) -> String? {

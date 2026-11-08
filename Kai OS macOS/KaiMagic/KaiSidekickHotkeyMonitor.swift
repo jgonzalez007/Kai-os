@@ -139,11 +139,12 @@ final class KaiSidekickHotkeyMonitor {
     }
 
     private func handle(_ event: NSEvent) {
-        guard event.type == .flagsChanged, Int(event.keyCode) == kVK_RightCommand else {
+        let key = KaiSharedKey.stored()
+        guard event.type == .flagsChanged, Int(event.keyCode) == key.keyCode else {
             onAction?(rightCommandGesture.interrupt())
             return
         }
-        if event.modifierFlags.rawValue & Self.rightCommandMask != 0 {
+        if event.modifierFlags.rawValue & key.deviceMask != 0 {
             let token = rightCommandGesture.press(at: event.timestamp)
             scheduleHoldTimer { monitor in monitor.rightCommandGesture.holdTimerFired(token: token) }
         } else {

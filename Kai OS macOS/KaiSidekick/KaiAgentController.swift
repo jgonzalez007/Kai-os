@@ -84,7 +84,9 @@ final class KaiAgentController: ObservableObject {
             approver: KaiControllerApprover(controller: self),
             observer: KaiCombinedObserver(observers: [KaiControllerObserver(controller: self), KaiAgentAuditLog()]),
             policy: KaiAgentPolicy(mode: mode, ownBundleIdentifier: Bundle.main.bundleIdentifier),
-            stop: stopSwitch
+            limits: KaiAgentEffort.stored().limits,
+            stop: stopSwitch,
+            userInstructions: KaiInstructions.stored()
         )
         Task {
             // Step aside so the app you were using is in front: the agent never acts while Kai is.

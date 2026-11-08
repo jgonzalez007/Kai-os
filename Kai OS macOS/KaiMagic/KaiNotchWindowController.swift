@@ -628,7 +628,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     }
 
     private func setHover(_ hovering: Bool) {
-        guard KaiNotchPreferences.isEnabled, !model.hiddenForFullScreen || !hovering else { return }
+        guard KaiNotchPreferences.isEnabled, KaiNotchPreferences.clickOpens || !hovering, !model.hiddenForFullScreen || !hovering else { return }
         model.isHovering = hovering
         if hovering {
             NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)

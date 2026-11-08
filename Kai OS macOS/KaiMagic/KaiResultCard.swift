@@ -112,7 +112,7 @@ final class KaiScreenTaskController: ObservableObject {
     private func showPanel() {
         if panel == nil {
             let panel = KaiResultPanel(
-                contentRect: NSRect(x: 0, y: 0, width: 560, height: 380),
+                contentRect: NSRect(x: 0, y: 0, width: 660, height: 500),
                 styleMask: [.borderless, .nonactivatingPanel],
                 backing: .buffered, defer: false
             )
@@ -131,8 +131,9 @@ final class KaiScreenTaskController: ObservableObject {
         guard let panel else { return }
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
         if let frame = screen?.frame {
-            let topInset: CGFloat = 130
-            panel.setFrame(NSRect(x: frame.midX - 280, y: frame.maxY - topInset - 380, width: 560, height: 380), display: true)
+            // Centered on the screen, a little above the middle, like the Summary card in Sentient.
+            let width = min(660, frame.width - 80), height = min(500, frame.height - 160)
+            panel.setFrame(NSRect(x: frame.midX - width / 2, y: frame.midY - height / 2 + 40, width: width, height: height), display: true)
         }
         panel.makeKeyAndOrderFront(nil)
         panel.orderFrontRegardless()
@@ -152,12 +153,12 @@ struct KaiResultCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Text(controller.task.title).font(.system(size: 17, weight: .semibold))
+                Text(controller.task.title).font(.system(size: 19, weight: .semibold))
                 if controller.phase == .done {
                     Button(action: controller.toggleSpeaking) {
-                        Label(controller.isSpeaking ? "Stop" : "Read aloud", systemImage: controller.isSpeaking ? "stop.fill" : "speaker.wave.2")
-                            .font(.caption)
-                            .padding(.horizontal, 9).padding(.vertical, 4)
+                        Label(controller.isSpeaking ? "Stop" : "Read text", systemImage: controller.isSpeaking ? "stop.fill" : "doc.text")
+                            .font(.system(size: 11, weight: .medium))
+                            .padding(.horizontal, 10).padding(.vertical, 5)
                             .background(Capsule().fill(Color.white.opacity(0.1)))
                     }
                     .buttonStyle(.plain)
@@ -175,7 +176,7 @@ struct KaiResultCard: View {
                 .buttonStyle(.plain)
                 .help("Close")
             }
-            .padding(.horizontal, 22).padding(.vertical, 16)
+            .padding(.horizontal, 24).padding(.vertical, 18)
             Divider().overlay(Color.white.opacity(0.1))
             content
             Divider().overlay(Color.white.opacity(0.08))
@@ -188,6 +189,13 @@ struct KaiResultCard: View {
         .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 22))
         .environment(\.colorScheme, .dark)
+    }
+
+    /// Bold, italic and code from the model's answer; list markers become bullets.
+    private var rendered: AttributedString {
+        let text = KaiScreenTask.forDisplay(controller.text)
+        let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 
     @ViewBuilder
@@ -207,14 +215,14 @@ struct KaiResultCard: View {
                             Text(controller.task.workingText).foregroundStyle(.secondary)
                         }
                     } else {
-                        Text(controller.text)
-                            .font(.system(size: 15))
-                            .lineSpacing(3)
+                        Text(rendered)
+                            .font(.system(size: 18))
+                            .lineSpacing(5)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .padding(22)
+                .padding(24)
             }
         }
     }

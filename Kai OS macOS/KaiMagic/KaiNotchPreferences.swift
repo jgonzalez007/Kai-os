@@ -12,6 +12,7 @@ enum KaiNotchPreferences {
     static let hideFullScreenKey = "kai.notch.hideFullScreen"
     static let menuBarKey = "kai.menubar.enabled"
     static let peeksKey = "kai.notch.peeks"
+    static let clickKey = "kai.notch.click"
 
     private static func flag(_ key: String, default value: Bool = true) -> Bool {
         UserDefaults.standard.object(forKey: key) as? Bool ?? value
@@ -27,5 +28,7 @@ enum KaiNotchPreferences {
     static var showsPeeks: Bool { flag(peeksKey, default: false) }
     /// The notch steps away while another app is full screen.
     static var hidesInFullScreen: Bool { flag(hideFullScreenKey) }
+    /// Clicking (or hovering over) the notch opens Kai. Off leaves the notch to other apps; the shared key still works.
+    static var clickOpens: Bool { flag(clickKey) }
     static var menuBarEnabled: Bool { flag(menuBarKey) }
 }

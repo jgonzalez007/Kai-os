@@ -61,7 +61,7 @@ struct KaiNotchView: View {
         }
         .frame(width: size.width, height: size.height)
         .contentShape(Rectangle())
-        .onTapGesture { if !isExpanded { controller.expand() } }
+        .onTapGesture { if !isExpanded && KaiNotchPreferences.clickOpens { controller.expand() } }
         // Dropping files, links or text on the notch puts them on the Shelf.
         .onDrop(of: [.fileURL, .url, .plainText], isTargeted: $dropTargeted) { providers in
             desk.acceptDrop(providers)

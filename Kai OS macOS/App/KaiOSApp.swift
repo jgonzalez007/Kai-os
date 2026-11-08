@@ -583,7 +583,7 @@ final class AppState: ObservableObject {
             App context: \(appCategory). \
             Adaptive mode: \(appAwarenessMode). \
             Available actions: \(suggestions.isEmpty ? "general" : suggestions.joined(separator: ", ")).
-            """
+            """ + (KaiInstructions.promptSection(KaiInstructions.stored()).map { "\n\n" + $0 } ?? "")
         )
         let turns = messages
             .filter { ($0.kind == .chat && !$0.text.isEmpty) || $0.kind == .action }

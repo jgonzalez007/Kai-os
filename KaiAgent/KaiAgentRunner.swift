@@ -105,6 +105,53 @@ public enum KaiAgentOutcome: Equatable, Sendable {
     }
 }
 
+/// How much thought the computer-use agent puts in. More steps and a longer pause let it recover from
+/// slow screens and mistakes, and cost more time.
+public enum KaiAgentEffort: Int, CaseIterable, Sendable {
+    case fast = 0, balanced = 1, careful = 2
+
+    public static let defaultsKey = "kai.agent.effort"
+    public static let `default` = KaiAgentEffort.balanced
+
+    public var title: String {
+        switch self {
+        case .fast: return "Faster"
+        case .balanced: return "Balanced"
+        case .careful: return "More careful"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .fast: return "Up to 12 steps, short pauses. Good for simple tasks."
+        case .balanced: return "Up to 30 steps. The default."
+        case .careful: return "Up to 50 steps and longer pauses for slow screens. Takes more time."
+        }
+    }
+
+    public var limits: KaiAgentLimits {
+        var limits = KaiAgentLimits()
+        switch self {
+        case .fast:
+            limits.maxSteps = 12
+            limits.maxDuration = 4 * 60
+            limits.settleDelay = .milliseconds(450)
+        case .balanced:
+            break
+        case .careful:
+            limits.maxSteps = 50
+            limits.maxDuration = 15 * 60
+            limits.maxConsecutiveProblems = 4
+            limits.settleDelay = .milliseconds(1000)
+        }
+        return limits
+    }
+
+    public static func stored(_ defaults: UserDefaults = .standard) -> KaiAgentEffort {
+        defaults.object(forKey: defaultsKey) == nil ? .default : (KaiAgentEffort(rawValue: defaults.integer(forKey: defaultsKey)) ?? .default)
+    }
+}
+
 public struct KaiAgentLimits: Sendable {
     public var maxSteps = 30
     public var maxDuration: TimeInterval = 10 * 60
@@ -138,11 +185,14 @@ public struct KaiAgentRunner: Sendable {
     public let stop: KaiAgentStopSwitch
     public let now: @Sendable () -> Date
     public let sleep: @Sendable (Duration) async -> Void
+    /// The person's standing preferences, added below the safety rules.
+    public let userInstructions: String
 
     public init(
         screen: KaiAgentScreen, input: KaiAgentInput, brain: KaiAgentBrain, approver: KaiAgentApprover,
         observer: KaiAgentObserver, policy: KaiAgentPolicy, limits: KaiAgentLimits = KaiAgentLimits(),
         stop: KaiAgentStopSwitch = KaiAgentStopSwitch(),
+        userInstructions: String = "",
         now: @escaping @Sendable () -> Date = { Date() },
         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     ) {
@@ -154,6 +204,7 @@ public struct KaiAgentRunner: Sendable {
         self.policy = policy
         self.limits = limits
         self.stop = stop
+        self.userInstructions = userInstructions
         self.now = now
         self.sleep = sleep
     }
@@ -177,7 +228,7 @@ public struct KaiAgentRunner: Sendable {
         observer.event(.started(task: task, mode: policy.mode))
         let deadline = now().addingTimeInterval(limits.maxDuration)
         var history: [KaiOllamaMessage] = [
-            KaiOllamaMessage(role: "system", content: Self.systemPrompt),
+            KaiOllamaMessage(role: "system", content: Self.systemPrompt + (KaiInstructions.promptSection(userInstructions).map { "\n\n" + $0 } ?? "")),
             KaiOllamaMessage(role: "user", content: "Task: \(task)"),
         ]
         var problems = 0
