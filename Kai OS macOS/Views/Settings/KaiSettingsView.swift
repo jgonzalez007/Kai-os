@@ -17,24 +17,156 @@ struct KaiSettingsView: View {
     @ObservedObject private var updates = KaiUpdateController.shared
     @AppStorage(KaiMotion.key) private var motion = true
     
+    enum Page: String, CaseIterable {
+        case ai, knowledge, overnight, notch, system
+        var title: String {
+            switch self {
+            case .ai: return "AI Models & Accounts"
+            case .knowledge: return "Knowledge Sources"
+            case .overnight: return "Overnight & Suggestions"
+            case .notch: return "Notch & Desk"
+            case .system: return "System"
+            }
+        }
+        var subtitle: String {
+            switch self {
+            case .ai: return "Pick the model Kai thinks with, on this Mac or in the cloud."
+            case .knowledge: return "What Kai learns from to answer your questions and prepare your day."
+            case .overnight: return "Let Kai get things ready while you sleep. It only prepares cards: nothing is sent without your approval."
+            case .notch: return "The notch, your Shelf, clipboard history and Claude Code."
+            case .system: return "Look, updates and privacy."
+            }
+        }
+        var symbol: String {
+            switch self {
+            case .ai: return "cpu"
+            case .knowledge: return "tray.full"
+            case .overnight: return "moon.stars"
+            case .notch: return "rectangle.topthird.inset.filled"
+            case .system: return "gearshape"
+            }
+        }
+    }
+
+    /// False in the separate Preferences window, which has no Home to go back to.
+    var showsHome = true
+    /// Debug snapshots start on a chosen page.
+    static var startPage = Page.ai
+    @State private var page = KaiSettingsView.startPage
+
     var body: some View {
+        HStack(spacing: 0) {
+            navigation
+                .frame(width: 270)
+            pageScroll
+        }
+        .background(Color(red: 0.035, green: 0.035, blue: 0.04))
+        .environment(\.colorScheme, .dark)
+        .preferredColorScheme(.dark)
+    }
+
+    // ── Navigation column ──
+    private var navigation: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if showsHome {
+                Button { appState.activeSidebar = "Chat" } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.left")
+                        Text("Home")
+                    }
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 18).padding(.vertical, 10)
+                    .background(Capsule().fill(Color.white))
+                    .foregroundStyle(Color.black)
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 22)
+            }
+            Text("Settings").font(.system(size: 26, weight: .semibold)).padding(.bottom, 14)
+            navGroup("App") { navItem(.ai) }
+            navGroup("Personalization") {
+                navItem(.knowledge)
+                navLink("Sidekick", symbol: "sparkle", target: "Sidekick")
+                navItem(.overnight)
+                navItem(.notch)
+            }
+            navGroup("Support") {
+                navItem(.system)
+                navLink("Permissions", symbol: "checkmark.shield", target: "Permissions")
+                navLink("Health", symbol: "heart.text.square", target: "Health")
+            }
+            Spacer()
+            Divider().overlay(Color.white.opacity(0.08))
+            HStack {
+                Text("v\(updates.currentVersion.description)").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Link(destination: URL(string: "https://github.com/jgonzalez007/Kai-os")!) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "heart.fill").foregroundStyle(Color.yellow)
+                        Text("Open source")
+                        Image(systemName: "arrow.up.right").font(.caption2)
+                    }
+                    .font(.caption)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 10)
+        }
+        .padding(.horizontal, 22).padding(.vertical, 24)
+    }
+
+    private func navGroup<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption).fontWeight(.medium).foregroundStyle(.secondary)
+                .padding(.top, 16).padding(.bottom, 6).padding(.leading, 4)
+            content()
+        }
+    }
+
+    private func navItem(_ target: Page) -> some View {
+        Button { page = target } label: {
+            HStack(spacing: 12) {
+                Image(systemName: target.symbol).frame(width: 20).foregroundStyle(.secondary)
+                Text(target.title)
+                Spacer()
+            }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(RoundedRectangle(cornerRadius: 14).fill(page == target ? Color.white.opacity(0.1) : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// An item that opens one of the app's other pages.
+    private func navLink(_ title: String, symbol: String, target: String) -> some View {
+        Button { appState.activeSidebar = target } label: {
+            HStack(spacing: 12) {
+                Image(systemName: symbol).frame(width: 20).foregroundStyle(.secondary)
+                Text(title)
+                Spacer()
+            }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var pageHeader: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(page.title).font(.system(size: 30, weight: .semibold))
+            Text(page.subtitle).font(.callout).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var pageScroll: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // ── Header ──
-                VStack(spacing: 6) {
-                    Image(systemName: "gearshape")
-                        .font(KaiFont.title3)
-                        .foregroundStyle(KaiColor.primary)
-                        .kaiGlow()
-                    
-                    Text("Settings").font(KaiFont.title2)
-                    Text("Configure Kai OS for your workflow").font(KaiFont.caption)
-                        .foregroundStyle(KaiColor.textTertiary)
-                }
-                .padding(.top, 8)
-                
-                Divider().kaiDivider()
-                
+                pageHeader
+
+                Divider().overlay(Color.white.opacity(0.08))
+
+                if page == .system {
                 // ── Appearance ──
                 settingsCard {
                     SectionHeader(title: "Appearance")
@@ -50,7 +182,13 @@ struct KaiSettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     
-                    // ── AI ──
+                }
+
+                }
+
+                if page == .ai {
+                // ── AI ──
+                settingsCard {
                     SectionHeader(title: "AI Model")
                     
                     Picker("Model", selection: $appState.selectedModel) {
@@ -66,6 +204,9 @@ struct KaiSettingsView: View {
                     .controlSize(.small)
                 }
                 
+                }
+
+                if page == .ai {
                 // ── Cloud ──
                 settingsCard {
                     SectionHeader(title: "Cloud AI")
@@ -105,6 +246,9 @@ struct KaiSettingsView: View {
                         .foregroundStyle(KaiColor.textTertiary)
                 }
                 
+                }
+
+                if page == .notch {
                 // ── Notch ──
                 settingsCard {
                     SectionHeader(title: "Notch")
@@ -161,6 +305,11 @@ struct KaiSettingsView: View {
                     .padding(.top, 4)
                 }
                 
+                }
+
+                if page == .knowledge { sourceGrid }
+
+                if page == .knowledge {
                 // ── Slack ──
                 settingsCard {
                     SectionHeader(title: "Slack")
@@ -195,6 +344,9 @@ struct KaiSettingsView: View {
                         .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                 }
 
+                }
+
+                if page == .knowledge {
                 // ── Knowledge base ──
                 settingsCard {
                     SectionHeader(title: "Knowledge base")
@@ -225,6 +377,9 @@ struct KaiSettingsView: View {
                 }
                 .onAppear { appState.refreshKnowledgeCounts() }
 
+                }
+
+                if page == .overnight {
                 // ── Night Shift ──
                 settingsCard {
                     SectionHeader(title: "Night Shift")
@@ -279,6 +434,9 @@ struct KaiSettingsView: View {
                         .foregroundStyle(KaiColor.textTertiary)
                 }
 
+                }
+
+                if page == .notch {
                 // ── Desk ──
                 settingsCard {
                     SectionHeader(title: "Desk")
@@ -322,6 +480,9 @@ struct KaiSettingsView: View {
                         .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                 }
 
+                }
+
+                if page == .system {
                 // ── Updates ──
                 settingsCard {
                     SectionHeader(title: "Updates")
@@ -342,6 +503,9 @@ struct KaiSettingsView: View {
                     }
                 }
 
+                }
+
+                if page == .knowledge {
                 // ── Mailbox access ──
                 settingsCard {
                     SectionHeader(title: "Mailbox access")
@@ -365,30 +529,9 @@ struct KaiSettingsView: View {
                     }
                 }
 
-                // ── Connections ──
-                settingsCard {
-                    SectionHeader(title: "Connections")
-                    
-                    connectionRow(
-                        title: "Calendar",
-                        connected: appState.calendarConnected,
-                        action: appState.connectCalendar
-                    )
-                    
-                    connectionRow(
-                        title: "Mail",
-                        connected: appState.mailConnected,
-                        action: appState.disconnectMail
-                    )
-                    
-                    connectionRow(
-                        title: "Notes",
-                        connected: appState.notesConnected,
-                        action: appState.disconnectNotes
-                    )
                 }
 
-                
+                if page == .system {
                 // ── About ──
                 settingsCard {
                     VStack(spacing: 12) {
@@ -412,6 +555,9 @@ struct KaiSettingsView: View {
                     }
                 }
                 
+                }
+
+                if page == .system {
                 // ── Privacy ──
                 settingsCard {
                     VStack(spacing: 8) {
@@ -425,11 +571,17 @@ struct KaiSettingsView: View {
                     }
                 }
                 
-                Spacer(minLength: 20)
+                }
+
+                Text("Private by default. Local first.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
             }
-            .padding(KaiSpacing.regular)
+            .frame(maxWidth: 780)
+            .padding(.horizontal, 40).padding(.vertical, 36)
+            .frame(maxWidth: .infinity)
         }
-        .navigationTitle("Settings")
     }
     
     // ── Card Wrapper ──
@@ -439,18 +591,63 @@ struct KaiSettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             content()
         }
-        .padding(KaiSpacing.cardPadding)
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: KaiSpacing.cornerRadiusLarge)
-                .fill(KaiColor.surfaceBg)
-                .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 2)
-                .overlay(
-                    RoundedRectangle(cornerRadius: KaiSpacing.cornerRadiusLarge)
-                        .stroke(KaiColor.border.opacity(0.3), lineWidth: 0.5)
-                )
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.white.opacity(0.04))
+                .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.1), lineWidth: 1))
         )
     }
-    
+
+    // ── Knowledge source cards ──
+    private var sourceGrid: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            sourceSection("Email & calendars") {
+                KaiSourceCard(symbol: "envelope.fill", tint: .red, title: "Gmail", state: .locked)
+                KaiSourceCard(symbol: "calendar", tint: .blue, title: "Google Calendar", state: .locked)
+                KaiSourceCard(symbol: "envelope.fill", tint: .cyan, title: "Outlook Mail", state: .locked)
+                KaiSourceCard(symbol: "calendar", tint: .cyan, title: "Outlook Calendar", state: .locked)
+                KaiSourceCard(symbol: "envelope.fill", tint: .blue, title: "Apple Mail",
+                              subtitle: appState.mailConnected ? "Connected · tap to disconnect" : "Tap to connect",
+                              state: appState.mailConnected ? .connected : .available) {
+                    if appState.mailConnected { appState.disconnectMail() } else { appState.connectMail() }
+                }
+                KaiSourceCard(symbol: "calendar", tint: .red, title: "Apple Calendar",
+                              subtitle: appState.calendarConnected ? "Connected · on this Mac" : "Tap to connect",
+                              state: appState.calendarConnected ? .connected : .available) {
+                    appState.connectCalendar()
+                }
+            }
+            sourceSection("Messages") {
+                KaiSourceCard(symbol: "message.fill", tint: .green, title: "iMessage", state: .locked)
+                KaiSourceCard(symbol: "number", tint: .purple, title: "Slack",
+                              subtitle: appState.slackClient != nil ? "Connected · read only" : "Add your token below",
+                              state: appState.slackClient != nil ? .connected : .available)
+            }
+            sourceSection("Apps & notes") {
+                KaiSourceCard(symbol: "externaldrive.fill", tint: .blue, title: "Google Drive", state: .locked)
+                KaiSourceCard(symbol: "n.square.fill", tint: .gray, title: "Notion", state: .locked)
+                KaiSourceCard(symbol: "note.text", tint: .yellow, title: "Apple Notes",
+                              subtitle: appState.notesConnected ? "Connected · tap to disconnect" : "Tap to connect",
+                              state: appState.notesConnected ? .connected : .available) {
+                    if appState.notesConnected { appState.disconnectNotes() } else { appState.connectNotes() }
+                }
+            }
+            Text("Apple Mail, Calendar and Notes are read on this Mac. Anything you connect is only used to answer you and prepare your cards. Locked sources are planned, not built yet.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func sourceSection<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.title3).fontWeight(.semibold)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
+                content()
+            }
+        }
+    }
+
     // ── Connection Row ──
     /// Whether a source can be read right now, and why not if it can't.
     private func nightShiftSourceNote(_ source: KaiNightShiftSource) -> String? {
@@ -537,5 +734,54 @@ private struct SectionHeader: View {
             .foregroundStyle(KaiColor.textTertiary)
             .textCase(.uppercase)
             .padding(.bottom, 4)
+    }
+}
+
+
+/// One data source: a rounded card with a colored icon, a name, and a state on the right.
+private struct KaiSourceCard: View {
+    enum State { case available, connected, locked }
+
+    let symbol: String
+    let tint: Color
+    let title: String
+    var subtitle: String?
+    let state: State
+    var action: (() -> Void)?
+
+    var body: some View {
+        Button { action?() } label: {
+            HStack(spacing: 14) {
+                Image(systemName: symbol)
+                    .font(.system(size: 17))
+                    .foregroundStyle(.white)
+                    .frame(width: 36, height: 36)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(tint.gradient))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).fontWeight(.medium)
+                    Text(subtitle ?? (state == .locked ? "Coming soon" : ""))
+                        .font(.caption).foregroundStyle(.secondary)
+                        .opacity(subtitle == nil && state != .locked ? 0 : 1)
+                }
+                Spacer()
+                switch state {
+                case .available: Image(systemName: "plus").foregroundStyle(.secondary)
+                case .connected: Image(systemName: "checkmark").foregroundStyle(Color.green)
+                case .locked: Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(state == .connected ? Color.green.opacity(0.08) : Color.white.opacity(0.04))
+                    .overlay(RoundedRectangle(cornerRadius: 22)
+                        .stroke(state == .connected ? Color.green.opacity(0.55) : Color.white.opacity(0.12), lineWidth: 1))
+            )
+            .opacity(state == .locked ? 0.6 : 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(state == .locked || action == nil)
     }
 }

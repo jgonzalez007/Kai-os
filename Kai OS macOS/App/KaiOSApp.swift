@@ -709,6 +709,7 @@ struct KaiOSApp: App {
                     #if DEBUG
                     KaiChatSelfTest.runIfRequested(appState: appState)
                     KaiNotchSelfTest.runIfRequested(appState: appState)
+                    KaiPageSnapshots.runIfRequested(appState: appState)
                     #endif
                 }
         }
@@ -716,7 +717,7 @@ struct KaiOSApp: App {
         .windowStyle(.hiddenTitleBar)
 
         Settings {
-            KaiSettingsView()
+            KaiSettingsView(showsHome: false)
                 .environmentObject(appState)
                 .preferredColorScheme(appState.preferredColorScheme)
         }
@@ -758,6 +759,16 @@ struct KaiMainView: View {
     }
 
     var body: some View {
+        // Preferences use the whole window, with their own navigation and a Home button.
+        if appState.activeSidebar == "Settings" {
+            KaiSettingsView()
+                .environmentObject(appState)
+        } else {
+            mainSplit
+        }
+    }
+
+    private var mainSplit: some View {
         NavigationSplitView {
             KaiSidebarView(selection: selection)
                 .environmentObject(appState)
