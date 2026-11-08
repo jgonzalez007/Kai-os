@@ -13,27 +13,34 @@ struct KaiDeskTabBar: View {
     @ObservedObject var desk: KaiDeskController
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
             ForEach(KaiDeskController.Tab.allCases) { tab in
                 Button { desk.tab = tab } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: tab.symbol)
-                        if desk.tab == tab { Text(tab.title).lineLimit(1) }
-                        if tab == .claude && !desk.approvals.isEmpty {
-                            Text("\(desk.approvals.count)").font(.caption2).bold()
-                                .padding(.horizontal, 5).background(.orange, in: Capsule()).foregroundStyle(.black)
+                    Image(systemName: tab.symbol)
+                        .font(.system(size: 13))
+                        .frame(width: 34, height: 26)
+                        .background(
+                            desk.tab == tab ? Color.blue.opacity(0.28) : .clear,
+                            in: RoundedRectangle(cornerRadius: 9)
+                        )
+                        .overlay(alignment: .topTrailing) {
+                            if tab == .claude && !desk.approvals.isEmpty {
+                                Text("\(desk.approvals.count)")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .padding(.horizontal, 4)
+                                    .background(.orange, in: Capsule())
+                                    .foregroundStyle(.black)
+                                    .offset(x: 4, y: -3)
+                            }
                         }
-                    }
-                    .font(.caption)
-                    .padding(.horizontal, 9).padding(.vertical, 5)
-                    .background(desk.tab == tab ? Color.white.opacity(0.16) : .clear, in: Capsule())
-                    .foregroundStyle(desk.tab == tab ? .white : .white.opacity(0.55))
+                        .foregroundStyle(desk.tab == tab ? Color.white : Color.white.opacity(0.5))
                 }
                 .buttonStyle(.plain)
                 .help(tab.title)
             }
-            Spacer()
         }
+        .padding(3)
+        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -199,19 +206,11 @@ struct KaiClaudePanel: View {
                 if desk.clones.isEmpty {
                     Text("None running.").font(.callout).foregroundStyle(.secondary)
                 } else {
-                    ForEach(desk.clones) { clone in
-                        HStack(spacing: 8) {
-                            Image(systemName: clone.waitingForYou ? "hand.wave.fill" : "person.fill")
-                                .foregroundStyle(clone.waitingForYou ? Color.orange : Color.green)
-                            Text(clone.label)
-                            Text(clone.project).font(.caption).foregroundStyle(.secondary)
-                            Spacer()
-                            Text(clone.waitingForYou ? "needs your OK" : "working").font(.caption)
-                                .foregroundStyle(clone.waitingForYou ? Color.orange : Color.secondary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(alignment: .top, spacing: 14) {
+                            ForEach(desk.clones) { clone in KaiCloneCard(clone: clone) }
                         }
-                        .font(.callout)
-                        .padding(.horizontal, 8).padding(.vertical, 6)
-                        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+                        .padding(.vertical, 4)
                     }
                 }
                 Text("Recently finished").font(.caption).foregroundStyle(.secondary).padding(.top, 4)
@@ -267,6 +266,30 @@ struct KaiApprovalCard: View {
                 Spacer()
                 Button("Deny") { desk.decide(approval, .deny) }
                 Button("Allow") { desk.decide(approval, .allow) }.buttonStyle(.borderedProminent)
+            }
+        }
+    }
+}
+
+/// One helper agent: a small Kai mark, its name, and a colored status.
+private struct KaiCloneCard: View {
+    let clone: KaiHookClone
+
+    var body: some View {
+        let color: Color = clone.waitingForYou ? .orange : .blue
+        VStack(spacing: 5) {
+            ZStack {
+                if clone.waitingForYou {
+                    Circle().fill(Color.orange.opacity(0.28)).blur(radius: 8).frame(width: 52, height: 52)
+                }
+                KaiSpinningLogo(spinning: !clone.waitingForYou)
+                    .font(.system(size: 26))
+            }
+            .frame(width: 52, height: 44)
+            Text(clone.label).font(.callout).lineLimit(1).frame(maxWidth: 76)
+            HStack(spacing: 4) {
+                Circle().fill(color).frame(width: 6, height: 6)
+                Text(clone.waitingForYou ? "needs you" : "working").font(.caption).foregroundStyle(color)
             }
         }
     }
