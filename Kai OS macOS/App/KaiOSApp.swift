@@ -206,13 +206,8 @@ final class AppState: ObservableObject {
     var actionExecutor: any KaiActionPerforming = KaiSystemActionExecutor()
     var actionLog = KaiActionLog.standard
 
-    var preferredColorScheme: ColorScheme? {
-        switch themeMode {
-        case "light": return .light
-        case "dark": return .dark
-        default: return nil
-        }
-    }
+    /// The look is dark only: black window, faint cards, pill rows.
+    var preferredColorScheme: ColorScheme? { .dark }
 
     private init() { messages = [Self.welcomeMessage()] }
 
@@ -736,6 +731,9 @@ final class KaiAppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         KaiNotchWindowController.shared.start(appState: AppState.shared)
+        #if DEBUG
+        KaiPageSnapshots.runIfRequested(appState: AppState.shared)
+        #endif
         let permissions = KaiPermissionsModel.shared
         permissions.onGranted = { AppState.shared.permissionGranted($0) }
         Task {
@@ -769,6 +767,11 @@ struct KaiMainView: View {
     }
 
     private var mainSplit: some View {
+        splitView
+            .background(KaiColor.windowBg)
+    }
+
+    private var splitView: some View {
         NavigationSplitView {
             KaiSidebarView(selection: selection)
                 .environmentObject(appState)

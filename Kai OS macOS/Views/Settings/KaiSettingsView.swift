@@ -175,12 +175,8 @@ struct KaiSettingsView: View {
                     Text("A shimmering Working pill, a sliding tab highlight and replies that fade in as they are written. Turn this off for the plain look from before.")
                         .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                     
-                    Picker("Theme", selection: $appState.themeMode) {
-                        Text("Auto").tag("auto")
-                        Text("Light").tag("light")
-                        Text("Dark").tag("dark")
-                    }
-                    .pickerStyle(.segmented)
+                    Text("Kai OS uses its dark look everywhere.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                     
                 }
 

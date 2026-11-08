@@ -2,7 +2,7 @@
 //  KaiSidebarView.swift
 //  Kai OS macOS
 //
-//  Sidebar navigation — modern, clean, with app-aware context
+//  Sidebar navigation: dark, with rounded pill rows, grouped like Preferences.
 //  Copyright © 2026 Kai OS Labs. All rights reserved.
 //
 
@@ -12,160 +12,156 @@ struct KaiSidebarView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject private var permissions = KaiPermissionsModel.shared
     @ObservedObject private var updates = KaiUpdateController.shared
-    
+
     let selection: Binding<String?>
-    
+
     var body: some View {
-        List(selection: selection) {
-            // ── App Header ──
-            Section {
-                HStack(spacing: 10) {
-                    Image(systemName: "cpu.chip")
-                        .font(.title2)
-                        .foregroundStyle(KaiColor.primary)
-                        .kaiGlow()
-                    
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Kai OS").font(KaiFont.title3)
-                        Text("Personal AI").font(KaiFont.caption2Strong)
-                            .foregroundStyle(KaiColor.textTertiary)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    header
+                    group("Kai") {
+                        row("Chat", "bubble.left.and.bubble.right", tag: "Chat")
+                        row("For You", "sun.max", tag: "ForYou", badge: appState.morningCards.activeCards.count)
+                        row("Calendar", "calendar", tag: "Calendar", badge: appState.calendarEvents.count)
+                        row("Mail", "envelope", tag: "Mail", badge: appState.unreadCount)
+                        row("Notes", "note.text", tag: "Notes", badge: appState.notes.count)
                     }
-                }
-                .kaiSidebarItem(active: false)
-                .padding(.bottom, 4)
-            }
-            
-            // ── Main Navigation ──
-            Section {
-                Label("Chat", systemImage: "bubble.left.and.bubble.right")
-                    .tag("Chat")
-                
-                Label("For You", systemImage: "sun.max")
-                    .badge(appState.morningCards.activeCards.count)
-                    .tag("ForYou")
-                
-                Label("Calendar", systemImage: "calendar")
-                    .badge(appState.calendarEvents.count)
-                    .tag("Calendar")
-                
-                Label("Mail", systemImage: "envelope")
-                    .badge(appState.unreadCount)
-                    .tag("Mail")
-                
-                Label("Notes", systemImage: "note.text")
-                    .badge(appState.notes.count)
-                    .tag("Notes")
-            }
-            
-            // ── Context Section ──
-            Section {
-                Text("Context").kaiSectionHeader()
-                
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("App").font(KaiFont.captionStrong)
-                                .foregroundStyle(KaiColor.textTertiary)
-                            Text(appState.frontmostApp).font(KaiFont.bodyStrong)
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: AppCategory(rawValue: appState.appCategory)?.icon ?? "app")
-                            .foregroundStyle(KaiColor.primary)
+                    group("Context") { context }
+                    if !appState.notes.isEmpty {
+                        group("Recent notes") { recentNotes }
                     }
-                    .padding(8)
-                    .background(KaiColor.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Mode").font(KaiFont.captionStrong)
-                                .foregroundStyle(KaiColor.textTertiary)
-                            Text(appState.appAwarenessMode).font(KaiFont.bodyStrong)
-                        }
-                        
-                        Spacer()
-                        
-                        Image(systemName: "sparkles")
-                            .foregroundStyle(KaiColor.secondary)
-                    }
-                    .padding(8)
-                    .background(KaiColor.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    
-                    if !appState.suggestions.isEmpty {
-                        Divider().kaiDivider()
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Quick Actions").font(KaiFont.captionStrong)
-                                .foregroundStyle(KaiColor.textTertiary)
-                            
-                            ForEach(appState.suggestions, id: \.self) { suggestion in
-                                HStack(spacing: 6) {
-                                    Image(systemName: "chevron.right")
-                                        .font(KaiFont.caption2Strong)
-                                        .foregroundStyle(KaiColor.primary)
-                                    Text(suggestion).font(KaiFont.caption2Strong)
-                                        .foregroundStyle(KaiColor.textSecondary)
+                    group("More") {
+                        if let update = updates.available {
+                            Button { updates.openReleasePage() } label: {
+                                pill(selected: false) {
+                                    Image(systemName: "arrow.down.circle.fill").frame(width: 20)
+                                    Text("Update to \(update.version.description)")
+                                    Spacer()
                                 }
+                                .foregroundStyle(Color.accentColor)
                             }
+                            .buttonStyle(.plain)
+                            .help("Opens the release page. Kai OS does not install updates by itself.")
                         }
+                        row("Setup guide", "wand.and.stars", tag: "Welcome")
+                        row("Sidekick", "cursorarrow.motionlines", tag: "Sidekick")
+                        row("Health", "heart.text.square", tag: "Health")
+                        row("Permissions", "lock.shield", tag: "Permissions", badge: permissions.missingCount)
                     }
                 }
+                .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 8)
             }
-            
-            // ── Recent Notes ──
-            if !appState.notes.isEmpty {
-                Section {
-                    Text("Recent Notes").kaiSectionHeader()
-                    
-                    ForEach(Array(appState.notes.prefix(3))) { note in
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack {
-                                Text(note.title).font(KaiFont.captionStrong)
-                                    .foregroundStyle(KaiColor.textPrimary)
-                                Spacer()
-                                if note.pinned {
-                                    Image(systemName: "pin.fill")
-                                        .foregroundStyle(KaiColor.warning)
-                                        .font(KaiFont.caption3)
-                                }
-                            }
-                            Text(note.content)
-                                .font(KaiFont.caption3)
-                                .foregroundStyle(KaiColor.textTertiary)
-                                .lineLimit(2)
-                        }
-                        .padding(6)
-                        .background(Color.clear)
-                    }
-                }
+            Divider().overlay(Color.white.opacity(0.08))
+            VStack(spacing: 2) {
+                row("Preferences", "gearshape", tag: "Settings")
             }
-            
-            // ── Bottom ──
-            Section {
-                if let update = updates.available {
-                    Button { updates.openReleasePage() } label: {
-                        Label("Update to \(update.version.description)", systemImage: "arrow.down.circle.fill")
-                    }
-                    .buttonStyle(.plain).foregroundStyle(Color.accentColor)
-                    .help("Opens the release page. Kai OS does not install updates by itself.")
+            .padding(.horizontal, 14).padding(.vertical, 10)
+        }
+        .background(Color(red: 0.05, green: 0.05, blue: 0.06))
+    }
+
+    // MARK: Pieces
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.title2)
+                .foregroundStyle(KaiColor.primary)
+                .kaiGlow()
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Kai OS").font(.system(size: 18, weight: .semibold))
+                Text("Personal AI").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 10).padding(.top, 6).padding(.bottom, 8)
+    }
+
+    private func group<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).font(.caption).fontWeight(.medium).foregroundStyle(.secondary)
+                .padding(.top, 16).padding(.bottom, 6).padding(.leading, 6)
+            content()
+        }
+    }
+
+    /// The shape every row shares.
+    private func pill<Content: View>(selected: Bool, @ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: 12) { content() }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .background(RoundedRectangle(cornerRadius: 14).fill(selected ? Color.white.opacity(0.1) : .clear))
+            .contentShape(Rectangle())
+    }
+
+    private func row(_ title: String, _ symbol: String, tag: String, badge: Int = 0) -> some View {
+        Button { selection.wrappedValue = tag } label: {
+            pill(selected: selection.wrappedValue == tag) {
+                Image(systemName: symbol).frame(width: 20).foregroundStyle(.secondary)
+                Text(title)
+                Spacer()
+                if badge > 0 {
+                    Text("\(badge)").font(.caption).fontWeight(.medium)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(Capsule().fill(Color.white.opacity(0.12)))
                 }
-                Label("Setup guide", systemImage: "wand.and.stars")
-                    .tag("Welcome")
-                Label("Sidekick", systemImage: "cursorarrow.motionlines")
-                    .tag("Sidekick")
-
-                Label("Health", systemImage: "heart.text.square")
-                    .tag("Health")
-
-                Label("Permissions", systemImage: "lock.shield")
-                    .badge(permissions.missingCount)
-                    .tag("Permissions")
-                
-                Label("Preferences", systemImage: "gearshape")
-                    .tag("Settings")
             }
         }
-        .listStyle(.sidebar)
+        .buttonStyle(.plain)
+    }
+
+    private var context: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            infoCard(label: "App", value: appState.frontmostApp,
+                     symbol: AppCategory(rawValue: appState.appCategory)?.icon ?? "app", tint: KaiColor.primary)
+            infoCard(label: "Mode", value: appState.appAwarenessMode, symbol: "sparkles", tint: KaiColor.secondary)
+            if !appState.suggestions.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Quick actions").font(.caption).foregroundStyle(.secondary)
+                    ForEach(appState.suggestions, id: \.self) { suggestion in
+                        HStack(spacing: 6) {
+                            Image(systemName: "chevron.right").font(.caption2).foregroundStyle(KaiColor.primary)
+                            Text(suggestion).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                }
+                .padding(.horizontal, 6).padding(.top, 2)
+            }
+        }
+    }
+
+    private func infoCard(label: String, value: String, symbol: String, tint: Color) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).font(.caption).foregroundStyle(.secondary)
+                Text(value).fontWeight(.medium).lineLimit(1)
+            }
+            Spacer()
+            Image(systemName: symbol).foregroundStyle(tint)
+        }
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.04))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        )
+    }
+
+    private var recentNotes: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(appState.notes.prefix(3))) { note in
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack {
+                        Text(note.title).font(.caption).fontWeight(.medium).lineLimit(1)
+                        Spacer()
+                        if note.pinned { Image(systemName: "pin.fill").font(.caption2).foregroundStyle(KaiColor.warning) }
+                    }
+                    Text(note.content).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.04)))
+            }
+        }
     }
 }

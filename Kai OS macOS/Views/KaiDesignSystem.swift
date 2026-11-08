@@ -19,7 +19,7 @@ struct KaiColor {
     
     static let card = Color.white.opacity(0.7)
     static let cardDark = Color.black.opacity(0.3)
-    static let border = Color(nsColor: .separatorColor)
+    static let border = Color.white.opacity(0.14)
     static let textPrimary = Color(nsColor: .textColor)
     static let textSecondary = Color(nsColor: .secondaryLabelColor)
     static let textTertiary = Color(nsColor: .tertiaryLabelColor)
@@ -30,22 +30,10 @@ struct KaiColor {
     static let surface = Color(nsColor: .controlBackgroundColor)
     static let surfaceLight = Color(nsColor: .textBackgroundColor)
     
-    // Dynamic (light/dark aware)
-    static var cardBg: Color {
-        if NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-            return .black.opacity(0.3)
-        } else {
-            return .white.opacity(0.7)
-        }
-    }
-    
-    static var surfaceBg: Color {
-        if NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-            return Color(NSColor.controlBackgroundColor).opacity(0.6)
-        } else {
-            return Color(NSColor.controlBackgroundColor).opacity(0.3)
-        }
-    }
+    // Kai OS is always dark now: cards are a faint lift on the near-black window.
+    static var cardBg: Color { Color.white.opacity(0.05) }
+    static var surfaceBg: Color { Color.white.opacity(0.05) }
+    static let windowBg = Color(red: 0.035, green: 0.035, blue: 0.04)
 }
 
 extension Color {
