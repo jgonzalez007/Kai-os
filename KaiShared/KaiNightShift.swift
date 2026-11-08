@@ -4,16 +4,63 @@ import IOKit.ps
 // Night Shift: a scheduled, unattended run that indexes the knowledge base and prepares the
 // morning briefing. It only prepares cards. It never runs an action.
 
+/// Something Night Shift can read or prepare. The person chooses which, and the same choice decides what
+/// "Index now" and the morning briefing read.
+public enum KaiNightShiftSource: String, Codable, CaseIterable, Hashable, Sendable {
+    case files, calendar, notes, mail, slack, briefing
+
+    public var title: String {
+        switch self {
+        case .files: return "Knowledge folder"
+        case .calendar: return "Calendar"
+        case .notes: return "Notes"
+        case .mail: return "Mail"
+        case .slack: return "Slack"
+        case .briefing: return "Morning cards"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .files: return "Markdown and text files in your knowledge folder."
+        case .calendar: return "Events from 30 days back to 90 days ahead."
+        case .notes: return "Your recent Apple Notes."
+        case .mail: return "Sender and subject of recent messages, read one at a time. Apple Mail can be very slow on a big mailbox, so leave this off if yours has thousands of messages."
+        case .slack: return "Recent messages from your channels (and direct messages, if you allowed them)."
+        case .briefing: return "Prepare today's morning cards from what is selected above."
+        }
+    }
+
+    /// Mail is off until chosen: reading it is slow and can tie up Apple Mail.
+    public static let defaults: Set<KaiNightShiftSource> = [.files, .calendar, .notes, .slack, .briefing]
+}
+
 public struct KaiNightShiftSettings: Codable, Equatable, Sendable {
     public var enabled: Bool
     public var hour: Int
     public var minute: Int
+    public var sources: Set<KaiNightShiftSource>
 
-    public init(enabled: Bool = false, hour: Int = 3, minute: Int = 0) {
+    public init(enabled: Bool = false, hour: Int = 3, minute: Int = 0, sources: Set<KaiNightShiftSource> = KaiNightShiftSource.defaults) {
         self.enabled = enabled
         self.hour = min(max(hour, 0), 23)
         self.minute = min(max(minute, 0), 59)
+        self.sources = sources
     }
+
+    private enum CodingKeys: String, CodingKey { case enabled, hour, minute, sources }
+
+    /// Settings saved before the checklist existed have no `sources`, and get the defaults.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let saved = try? container.decodeIfPresent(Set<KaiNightShiftSource>.self, forKey: .sources)
+        self.init(enabled: try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false,
+                  hour: try container.decodeIfPresent(Int.self, forKey: .hour) ?? 3,
+                  minute: try container.decodeIfPresent(Int.self, forKey: .minute) ?? 0,
+                  sources: saved ?? KaiNightShiftSource.defaults)
+    }
+
+    public func includes(_ source: KaiNightShiftSource) -> Bool { sources.contains(source) }
 
     /// The next time the job fires after `now`, in the Mac's local time.
     public func nextRun(after now: Date, calendar: Calendar = .current) -> Date? {

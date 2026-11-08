@@ -242,6 +242,17 @@ struct KaiSettingsView: View {
                         }
                     }
 
+                    Divider().kaiDivider()
+
+                    Text("What to include").font(KaiFont.captionStrong).foregroundStyle(KaiColor.textTertiary)
+                    ForEach(KaiNightShiftSource.allCases, id: \.self) { source in
+                        nightShiftSourceRow(source)
+                    }
+                    Text("This list also decides what “Index now” and the 7 am morning cards read. Nothing outside it is touched.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+
+                    Divider().kaiDivider()
+
                     if let record = appState.nightShiftRecord {
                         Text("Last run \(record.ranAt.formatted(date: .abbreviated, time: .shortened)). \(record.summary)")
                             .font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
@@ -370,6 +381,36 @@ struct KaiSettingsView: View {
     }
     
     // ── Connection Row ──
+    /// Whether a source can be read right now, and why not if it can't.
+    private func nightShiftSourceNote(_ source: KaiNightShiftSource) -> String? {
+        switch source {
+        case .calendar: return appState.calendarConnected ? nil : "Not connected. Connect Calendar first."
+        case .notes: return appState.notesConnected ? nil : "Not connected. Connect Notes first."
+        case .mail: return appState.mailConnected ? nil : "Not connected. Connect Mail first."
+        case .slack: return appState.slackClient != nil ? nil : "Not connected. Add your Slack token first."
+        case .files, .briefing: return nil
+        }
+    }
+
+    private func nightShiftSourceRow(_ source: KaiNightShiftSource) -> some View {
+        let note = nightShiftSourceNote(source)
+        return VStack(alignment: .leading, spacing: 2) {
+            Toggle(source.title, isOn: Binding(
+                get: { appState.nightShift.includes(source) },
+                set: { isOn in
+                    var next = appState.nightShift
+                    if isOn { next.sources.insert(source) } else { next.sources.remove(source) }
+                    appState.updateNightShift(next)
+                }
+            ))
+            .disabled(note != nil && !appState.nightShift.includes(source))
+            Text(note ?? source.detail)
+                .font(KaiFont.caption2Strong)
+                .foregroundStyle(note == nil ? (source == .mail ? KaiColor.warning : KaiColor.textTertiary) : KaiColor.textTertiary)
+                .padding(.leading, 20)
+        }
+    }
+
     private func connectionRow(
         title: String,
         connected: Bool,

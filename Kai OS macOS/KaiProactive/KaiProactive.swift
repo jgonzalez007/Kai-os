@@ -7,6 +7,7 @@
 
 import AppKit
 import KaiShared
+import KaiSlack
 import KaiActions
 import KaiLocalAI
 import KaiLocalData
@@ -22,19 +23,36 @@ protocol KaiBriefingInputProviding {
 struct KaiSystemBriefingInputProvider: KaiBriefingInputProviding {
     let appState: AppState
 
-    var hasSources: Bool { appState.calendarConnected || appState.mailConnected }
+    /// What the person chose under Night Shift. Mail is off until chosen, so a big mailbox isn't read by surprise.
+    private var chosen: Set<KaiNightShiftSource> { appState.nightShift.sources }
+
+    private var useCalendar: Bool { appState.calendarConnected && chosen.contains(.calendar) }
+    private var useMail: Bool { appState.mailConnected && chosen.contains(.mail) }
+    private var useSlack: Bool { appState.slackClient != nil && chosen.contains(.slack) }
+
+    var hasSources: Bool { useCalendar || useMail || useSlack }
 
     func currentInput() async throws -> KaiBriefingInput {
         var events: [KaiBriefingEvent] = []
-        if appState.calendarConnected {
+        if useCalendar {
             let start = Date()
             let end = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: start)) ?? start
             events = KaiCalendarSource.events(from: start, to: end).map { item in
                 KaiBriefingEvent(title: item.title, start: item.start, minutes: Int(item.end.timeIntervalSince(item.start) / 60), location: item.location)
             }
         }
-        let mail = appState.mailConnected ? try await KaiMailBriefing.unreadMessages() : []
-        return KaiBriefingInput(events: events, mail: mail)
+        let mail = useMail ? try await KaiMailBriefing.unreadMessages() : []
+        // Slack is a bonus: if it fails, the cards are still made from the rest.
+        var slack: [String] = []
+        if useSlack, let client = appState.slackClient {
+            let calendar = Calendar.current
+            let since = calendar.startOfDay(for: calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+            if let documents = try? await KaiSlackIndexer.recentDocuments(client: client, includeDirectMessages: appState.slackIncludeDirectMessages, since: since, maxChannels: 15) {
+                slack = documents.sorted { ($0.modified ?? .distantPast) > ($1.modified ?? .distantPast) }.prefix(12)
+                    .map { "\($0.title)\n" + String($0.text.prefix(500)) }
+            }
+        }
+        return KaiBriefingInput(events: events, mail: mail, slack: slack)
     }
 }
 
