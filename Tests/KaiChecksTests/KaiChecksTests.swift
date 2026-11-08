@@ -1465,6 +1465,50 @@ final class KaiChecksTests: XCTestCase {
             let system = KaiBriefingPrompt.messages(input: KaiBriefingInput(events: [], mail: []), now: Date()).first?.content ?? ""
             return system.contains("Slack messages") && system.contains("untrusted")
         }
+        // The Mail time window
+        var greg = Calendar(identifier: .gregorian); greg.timeZone = TimeZone(identifier: "America/Chicago")!
+        let thursdayAfternoon = greg.date(from: DateComponents(year: 2026, month: 11, day: 12, hour: 15, minute: 40))!
+        func midnight(_ day: Int) -> Date { greg.date(from: DateComponents(year: 2026, month: 11, day: day))! }
+        check("each Mail window starts at midnight, the right number of days back") {
+            KaiMailWindow.today.since(now: thursdayAfternoon, calendar: greg) == midnight(12)
+                && KaiMailWindow.yesterday.since(now: thursdayAfternoon, calendar: greg) == midnight(11)
+                && KaiMailWindow.last3Days.since(now: thursdayAfternoon, calendar: greg) == midnight(10)
+                && KaiMailWindow.lastWeek.since(now: thursdayAfternoon, calendar: greg) == midnight(6)
+        }
+        check("at 3 am Night Shift still reaches back to yesterday's mail") {
+            let threeAM = greg.date(from: DateComponents(year: 2026, month: 11, day: 12, hour: 3))!
+            return KaiMailWindow.yesterday.since(now: threeAM, calendar: greg) == midnight(11)
+                && KaiMailWindow.today.since(now: threeAM, calendar: greg) == midnight(12)
+        }
+        check("the windows are today, yesterday, three days and a week, in that order, with titles and details") {
+            KaiMailWindow.allCases == [.today, .yesterday, .last3Days, .lastWeek]
+                && KaiMailWindow.allCases.allSatisfy { !$0.title.isEmpty && $0.detail.contains("200") }
+                && KaiMailWindow.default == .yesterday && KaiMailWindow.maxMessages == 200
+                && KaiMailWindow.lastWeek.title == "Last 7 days" && KaiMailWindow.yesterday.title == "Yesterday and today"
+        }
+        check("the Mail window is saved and read back, and defaults to yesterday") {
+            let saved = KaiNightShiftSettings(enabled: true, sources: [.mail], mailWindow: .last3Days)
+            try store.save(saved)
+            return store.loadSettings().mailWindow == .last3Days && KaiNightShiftSettings().mailWindow == .yesterday
+        }
+        check("settings saved without a Mail window, or with an unknown one, get yesterday") {
+            let old = try JSONDecoder().decode(KaiNightShiftSettings.self, from: Data(#"{"enabled":true,"hour":4,"minute":0,"sources":["mail"]}"#.utf8))
+            let odd = try JSONDecoder().decode(KaiNightShiftSettings.self, from: Data(#"{"enabled":true,"hour":4,"minute":0,"sources":["mail"],"mailWindow":"lastDecade"}"#.utf8))
+            return old.mailWindow == .yesterday && odd.mailWindow == .yesterday && old.includes(.mail) && odd.hour == 4
+        }
+        check("both windowed mail scripts compile, take their values as arguments, and never use Mail's slow filter") {
+            let scripts = [KaiMailSource.windowScript, KaiMailBriefing.windowScript]
+            return scripts.allSatisfy { compiles($0) && $0.contains("item 1 of argv") && $0.contains("item 2 of argv") && !$0.contains(" whose ") }
+        }
+        check("the windowed scripts stop at the first message older than the window, and at the limit") {
+            [KaiMailSource.windowScript, KaiMailBriefing.windowScript].allSatisfy {
+                $0.contains("if (date received of m) < cutoff then exit repeat") && $0.contains("if found >= maxCount then exit repeat")
+            }
+        }
+        check("the windowed scripts cannot send, delete or change anything") {
+            let all = (KaiMailSource.windowScript + KaiMailBriefing.windowScript).lowercased()
+            return !all.contains("send ") && !all.contains("delete ") && !all.contains("move ") && !all.contains("set read status") && !all.contains("do shell script")
+        }
         check("each outcome has a plain summary") {
             KaiNightShiftRecord(ranAt: Date(), outcome: .completed, documentsIndexed: 1, cardsPrepared: 1).summary == "Indexed 1 document, prepared 1 card."
                 && KaiNightShiftRecord(ranAt: Date(), outcome: .completed, documentsIndexed: 3, cardsPrepared: 0).summary == "Indexed 3 documents, prepared 0 cards."

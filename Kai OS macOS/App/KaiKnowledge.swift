@@ -54,6 +54,7 @@ extension AppState {
         knowledgeState = .loading
         let folder = folder ?? knowledgeFolder
         let chosen = chosen ?? nightShift.sources
+        let window = nightShift.mailWindow
         let sources = (files: chosen.contains(.files), calendar: calendarConnected && chosen.contains(.calendar),
                        notes: notesConnected && chosen.contains(.notes), mail: mailConnected && chosen.contains(.mail),
                        slack: slackClient != nil && chosen.contains(.slack))
@@ -66,7 +67,7 @@ extension AppState {
         if sources.files { await attempt("Files") { try KaiKnowledgeIndexer.indexFolder(folder, into: store) } }
         if sources.calendar { await attempt("Calendar") { try KaiKnowledgeIndexer.indexCalendar(into: store) } }
         if sources.notes { await attempt("Notes") { try await KaiKnowledgeIndexer.indexNotes(into: store) } }
-        if sources.mail { await attempt("Mail") { try await KaiKnowledgeIndexer.indexMail(into: store) } }
+        if sources.mail { await attempt("Mail") { try await KaiKnowledgeIndexer.indexMail(into: store, since: window.since()) } }
         if sources.slack { await attempt("Slack") { try await indexSlack(into: store) } }
         refreshKnowledgeCounts()
         isIndexingKnowledge = false

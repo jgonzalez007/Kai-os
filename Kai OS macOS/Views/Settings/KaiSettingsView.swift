@@ -408,6 +408,19 @@ struct KaiSettingsView: View {
                 .font(KaiFont.caption2Strong)
                 .foregroundStyle(note == nil ? (source == .mail ? KaiColor.warning : KaiColor.textTertiary) : KaiColor.textTertiary)
                 .padding(.leading, 20)
+            if source == .mail, appState.nightShift.includes(.mail) {
+                Picker("Mail from", selection: Binding(
+                    get: { appState.nightShift.mailWindow },
+                    set: { var next = appState.nightShift; next.mailWindow = $0; appState.updateNightShift(next) }
+                )) {
+                    ForEach(KaiMailWindow.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.leading, 20)
+                Text(appState.nightShift.mailWindow.detail)
+                    .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary).padding(.leading, 20)
+            }
         }
     }
 

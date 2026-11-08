@@ -25,7 +25,7 @@ public enum KaiNightShiftSource: String, Codable, CaseIterable, Hashable, Sendab
         case .files: return "Markdown and text files in your knowledge folder."
         case .calendar: return "Events from 30 days back to 90 days ahead."
         case .notes: return "Your recent Apple Notes."
-        case .mail: return "Sender and subject of recent messages, read one at a time. Apple Mail can be very slow on a big mailbox, so leave this off if yours has thousands of messages."
+        case .mail: return "Sender and subject of recent messages, read one at a time within the time window you pick. Apple Mail can be very slow on a big mailbox, so keep the window short."
         case .slack: return "Recent messages from your channels (and direct messages, if you allowed them)."
         case .briefing: return "Prepare today's morning cards from what is selected above."
         }
@@ -40,15 +40,19 @@ public struct KaiNightShiftSettings: Codable, Equatable, Sendable {
     public var hour: Int
     public var minute: Int
     public var sources: Set<KaiNightShiftSource>
+    /// How far back Mail is read, when Mail is included.
+    public var mailWindow: KaiMailWindow
 
-    public init(enabled: Bool = false, hour: Int = 3, minute: Int = 0, sources: Set<KaiNightShiftSource> = KaiNightShiftSource.defaults) {
+    public init(enabled: Bool = false, hour: Int = 3, minute: Int = 0, sources: Set<KaiNightShiftSource> = KaiNightShiftSource.defaults,
+                mailWindow: KaiMailWindow = .default) {
         self.enabled = enabled
         self.hour = min(max(hour, 0), 23)
         self.minute = min(max(minute, 0), 59)
         self.sources = sources
+        self.mailWindow = mailWindow
     }
 
-    private enum CodingKeys: String, CodingKey { case enabled, hour, minute, sources }
+    private enum CodingKeys: String, CodingKey { case enabled, hour, minute, sources, mailWindow }
 
     /// Settings saved before the checklist existed have no `sources`, and get the defaults.
     public init(from decoder: Decoder) throws {
@@ -57,7 +61,8 @@ public struct KaiNightShiftSettings: Codable, Equatable, Sendable {
         self.init(enabled: try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false,
                   hour: try container.decodeIfPresent(Int.self, forKey: .hour) ?? 3,
                   minute: try container.decodeIfPresent(Int.self, forKey: .minute) ?? 0,
-                  sources: saved ?? KaiNightShiftSource.defaults)
+                  sources: saved ?? KaiNightShiftSource.defaults,
+                  mailWindow: (try? container.decodeIfPresent(KaiMailWindow.self, forKey: .mailWindow)).flatMap { $0 } ?? .default)
     }
 
     public func includes(_ source: KaiNightShiftSource) -> Bool { sources.contains(source) }

@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import KaiLocalData
+import KaiShared
 
 public struct KaiIndexReport: Equatable, Sendable {
     public var added = 0
@@ -132,6 +133,12 @@ public enum KaiKnowledgeIndexer {
         let end = Calendar.current.date(byAdding: .day, value: 90, to: now) ?? now
         let events = KaiCalendarSource.events(from: start, to: end)
         return try index(events.map(document(for:)), source: calendarSource, into: store, removeMissing: true)
+    }
+
+    /// Mail received since `since`. Reading stops at the first older message, so a short window is quick.
+    public static func indexMail(into store: KaiKnowledgeStore, since: Date, limit: Int = KaiMailWindow.maxMessages) async throws -> KaiIndexReport {
+        let messages = try await KaiMailSource.messages(since: since, limit: limit)
+        return try index(messages.map(document(for:)), source: mailSource, into: store, removeMissing: false)
     }
 
     public static func indexMail(into store: KaiKnowledgeStore, limit: Int = 200) async throws -> KaiIndexReport {
