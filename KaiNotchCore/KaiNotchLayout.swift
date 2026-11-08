@@ -61,7 +61,9 @@ public struct KaiNotchLayout: Equatable, Sendable {
         case .expanded:
             let width = min(Self.expandedSize.width, screenFrame.width)
             let height = min(Self.expandedSize.height, screenFrame.height)
-            let centeredX = notch.midX - width / 2
+            // Whole points, because macOS places a window on whole points. Half a point off would make the
+            // layout disagree with where the panel really is.
+            let centeredX = (notch.midX - width / 2).rounded(.down)
             let x = max(screenFrame.minX, min(centeredX, screenFrame.maxX - width))
             return CGRect(x: x, y: screenFrame.maxY - height, width: width, height: height)
         }
