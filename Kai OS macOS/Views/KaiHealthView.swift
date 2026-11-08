@@ -16,6 +16,8 @@ struct KaiHealthView: View {
     @ObservedObject private var briefing: KaiMorningCardsController
     @State private var ollamaModels: [String]?
     @State private var checking = false
+    @State private var startingOllama = false
+    @State private var startMessage: String?
 
     init(briefing: KaiMorningCardsController) {
         self.briefing = briefing
@@ -59,6 +61,7 @@ struct KaiHealthView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(item.title).font(KaiFont.bodyStrong)
                         Text(item.detail).font(KaiFont.caption).foregroundStyle(.secondary)
+                        if item.id == "ollama" && ollamaModels == nil { ollamaActions }
                     }
                 }
                 .padding(.vertical, 4)
@@ -66,6 +69,44 @@ struct KaiHealthView: View {
             .listStyle(.inset)
         }
         .task { await check() }
+    }
+
+    /// Ollama cannot be reached: offer to start it, or to install it when it is not on this Mac.
+    @ViewBuilder
+    private var ollamaActions: some View {
+        HStack(spacing: 8) {
+            if KaiOllamaSetup.isInstalled() {
+                Button(startingOllama ? "Starting…" : "Start Ollama") { Task { await startOllama() } }
+                    .disabled(startingOllama)
+            } else {
+                Button("Download Ollama") { NSWorkspace.shared.open(KaiOllamaSetup.downloadPage) }
+            }
+            if let startMessage {
+                Text(startMessage).font(KaiFont.caption).foregroundStyle(.secondary)
+            }
+        }
+        .controlSize(.small)
+        .padding(.top, 2)
+    }
+
+    /// Opens the Ollama app, then waits up to 30 seconds for its server to answer.
+    private func startOllama() async {
+        startingOllama = true
+        startMessage = nil
+        defer { startingOllama = false }
+        for path in KaiOllamaSetup.appPaths() where FileManager.default.fileExists(atPath: path) {
+            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+            break
+        }
+        for _ in 0..<15 {
+            try? await Task.sleep(for: .seconds(2))
+            if let models = try? await KaiOllamaClient().listModels() {
+                ollamaModels = models.map(\.name)
+                try? await appState.refreshChatModels()
+                return
+            }
+        }
+        startMessage = "Ollama did not answer in 30 seconds. Open it yourself, then press Check again."
     }
 
     private func check() async {
