@@ -209,6 +209,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         autoOpened = false
         model.isExpanded = true
         panel.makeKeyAndOrderFront(nil)
+        panel.orderFrontRegardless()
     }
 
     func collapse() {
@@ -483,7 +484,8 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
         panel.isFloatingPanel = true
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
+        // Above the menu bar and above other apps that draw at the notch, such as Sentient.
+        panel.level = .screenSaver
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         panel.isOpaque = false
         panel.backgroundColor = .clear
