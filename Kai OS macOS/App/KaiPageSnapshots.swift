@@ -66,6 +66,15 @@ enum KaiPageSnapshots {
                 }
                 window.orderOut(nil)
             }
+            // The menu bar window, at its real width.
+            let hud = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
+            hud.contentView = NSHostingView(rootView: KaiMenuBarContent(appState: AppState.shared))
+            hud.orderFrontRegardless()
+            try? await Task.sleep(for: .milliseconds(1500))
+            if let view = hud.contentView, let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                view.cacheDisplay(in: view.bounds, to: bitmap)
+                try? bitmap.representation(using: .png, properties: [:])?.write(to: folder.appendingPathComponent("hud.png"))
+            }
             exit(0)
         }
     }

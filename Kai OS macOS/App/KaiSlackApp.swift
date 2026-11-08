@@ -19,8 +19,10 @@ extension AppState {
     static let slackKeychainName = "slack"
     static let slackDirectMessagesKey = "kai.slack.includeDirectMessages"
 
+    /// The client for the saved token. It never touches the Keychain itself (a permission dialog there
+    /// would freeze the window): `restoreSlack` reads the token once, in the background.
     var slackClient: KaiSlackClient? {
-        KaiKeychain.apiKey(for: Self.slackKeychainName).map { KaiSlackClient(token: $0) }
+        (KaiKeychain.cachedApiKey(for: Self.slackKeychainName) ?? nil).map { KaiSlackClient(token: $0) }
     }
 
     /// Checks the token with Slack, and keeps it in the Keychain only if Slack accepts it.
@@ -49,8 +51,12 @@ extension AppState {
 
     /// Restores the connection on launch from the saved token.
     func restoreSlack() {
-        guard slackIdentity == nil, let client = slackClient else { return }
+        guard slackIdentity == nil else { return }
         Task {
+            // The first read may stop at a Keychain permission dialog. It waits on a background thread.
+            _ = await Task.detached { KaiKeychain.apiKey(for: AppState.slackKeychainName) }.value
+            objectWillChange.send()
+            guard let client = slackClient else { return }
             if let identity = try? await client.identity() { slackIdentity = identity; slackState = .connected }
             else { slackState = .failed("Slack didn't accept the saved token. Paste a fresh one in Settings.") }
         }

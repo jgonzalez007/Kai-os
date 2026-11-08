@@ -564,25 +564,23 @@ struct KaiSettingsView: View {
                 if page == .system {
                 // ── About ──
                 settingsCard {
-                    VStack(spacing: 12) {
-                        Image(systemName: "cpu.chip")
-                            .font(KaiFont.title2)
-                            .foregroundStyle(KaiColor.primary)
-                            .kaiGlow()
-                        
-                        Text("Kai OS").font(KaiFont.title2)
-                            .fontWeight(.bold)
-                        Text("1.0.0").font(KaiFont.caption)
+                    VStack(spacing: 10) {
+                        KaiLogoMark(size: 72)
+                        // The logotype and description from the asset package.
+                        Text("Kai-os")
+                            .font(.system(size: 34, weight: .heavy))
+                            .tracking(-1)
+                            .foregroundStyle(KaiColor.textBase)
+                        Text("PERSONAL AI FOR YOUR MAC")
+                            .font(.system(size: 11, weight: .bold))
+                            .tracking(3)
+                            .foregroundStyle(KaiColor.cyan)
+                        Text("Version \(updates.currentVersion.description)").font(KaiFont.caption)
                             .foregroundStyle(KaiColor.textTertiary)
-                        
-                        Divider().kaiDivider()
-                        
-                        Text("Personal AI for macOS").font(KaiFont.caption)
-                            .foregroundStyle(KaiColor.textSecondary)
-                        
                         Text("© 2026 Kai OS Labs").font(KaiFont.caption2Strong)
                             .foregroundStyle(KaiColor.textTertiary)
                     }
+                    .frame(maxWidth: .infinity)
                 }
                 
                 }
@@ -616,6 +614,7 @@ struct KaiSettingsView: View {
     
     // ── Card Wrapper ──
     private func settingsCard<Content: View>(
+        accent: Color = KaiColor.cyan,
         @ViewBuilder _ content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -623,7 +622,7 @@ struct KaiSettingsView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .kaiGlassSurface(radius: 20)
+        .kaiLiquidGlass(accent, radius: 20, glow: 0.18)
     }
 
     // ── Logo and icon to try ──
@@ -639,7 +638,9 @@ struct KaiSettingsView: View {
             HStack(spacing: 12) {
                 ForEach(KaiLogoStyle.allCases, id: \.rawValue) { style in
                     optionTile(selected: logoStyle == style.rawValue, title: style.title) {
-                        if let name = style.imageName, let image = NSImage(named: name) {
+                        if style == .arch {
+                            KaiArchLogoArt(size: 80, glow: 0.5)
+                        } else if let name = style.imageName, let image = NSImage(named: name) {
                             Image(nsImage: image).resizable().scaledToFit()
                         } else {
                             KaiLogoArt(size: 80, glow: 0.45)
@@ -691,7 +692,7 @@ struct KaiSettingsView: View {
                 Text("The same as turning off \"Show at notch\" above. Bring it back from the Kai icon in the menu bar or with that switch.")
                     .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
             }
-            settingsCard {
+            settingsCard(accent: KaiColor.magenta) {
                 SectionHeader(title: "Stats bar")
                 Text("What the Stats tab in the notch shows. Kai only reads these while that tab is open.")
                     .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)

@@ -12,10 +12,10 @@ import SwiftUI
 
 struct KaiColor {
     // Brand colors (brand_color_system): electric cyan, liquid blue, deep violet, neon magenta.
-    static let cyan = Color(red: 0.0, green: 0.941, blue: 1.0)            // #00F0FF
+    static let cyan = Color(red: 0.0, green: 0.878, blue: 1.0)            // #00E0FF (asset package)
     static let liquidBlue = Color(red: 0.227, green: 0.525, blue: 1.0)    // #3A86FF
     static let violet = Color(red: 0.439, green: 0.0, blue: 1.0)          // #7000FF
-    static let magenta = Color(red: 1.0, green: 0.0, blue: 0.478)         // #FF007A
+    static let magenta = Color(red: 1.0, green: 0.0, blue: 0.498)         // #FF007F (asset package)
 
     static let primary = liquidBlue
     static let primaryLight = cyan
@@ -39,7 +39,9 @@ struct KaiColor {
     // Kai OS is always dark now: cards are a faint lift on the near-black window.
     static var cardBg: Color { Color.white.opacity(0.05) }
     static var surfaceBg: Color { Color.white.opacity(0.05) }
-    static let windowBg = Color(red: 0.043, green: 0.043, blue: 0.055)   // #0B0B0E
+    static let windowBg = Color(red: 0.039, green: 0.059, blue: 0.122)   // #0A0F1F, the sheet color
+    static let panelBg = Color(red: 0.176, green: 0.227, blue: 0.310)    // #2D3A4F
+    static let textBase = Color(red: 0.878, green: 0.878, blue: 0.878)   // #E0E0E0
 }
 
 extension Color {
@@ -491,5 +493,33 @@ struct KaiAmbientBackground: View {
             .fill(RadialGradient(colors: [color.opacity(opacity), color.opacity(opacity * 0.4), .clear],
                                  center: .center, startRadius: 0, endRadius: diameter / 2))
             .frame(width: diameter, height: diameter)
+    }
+}
+
+
+// MARK: - Liquid glass card (asset package)
+
+/// The package's card: frosted material under a blue-gray panel color at 75%, a 1.5 point border that
+/// fades from the accent color, and a soft glow in that color. Cyan by default, magenta for contrast.
+struct KaiLiquidGlassCard: ViewModifier {
+    var accent: Color = KaiColor.cyan
+    var radius: CGFloat = 16
+    var glowStrength: Double = 0.35
+
+    func body(content: Content) -> some View {
+        content
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .background(KaiColor.panelBg.opacity(0.75), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(LinearGradient(colors: [accent.opacity(0.8), accent.opacity(0.2)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1.5)
+            )
+            .shadow(color: accent.opacity(glowStrength), radius: 12, x: 0, y: 6)
+    }
+}
+
+extension View {
+    func kaiLiquidGlass(_ accent: Color = KaiColor.cyan, radius: CGFloat = 16, glow: Double = 0.35) -> some View {
+        modifier(KaiLiquidGlassCard(accent: accent, radius: radius, glowStrength: glow))
     }
 }

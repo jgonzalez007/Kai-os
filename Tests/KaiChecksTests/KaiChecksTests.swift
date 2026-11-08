@@ -1141,11 +1141,20 @@ final class KaiChecksTests: XCTestCase {
             check("saving an API key leaves nothing in UserDefaults") {
                 UserDefaults.standard.string(forKey: legacyKey) == nil
             }
+            check("a key read once is remembered without asking the Keychain again") {
+                KaiKeychain.setApiKey("secret-2", for: provider)
+                KaiKeychain.forgetCachedKey(for: provider)
+                let before = KaiKeychain.cachedApiKey(for: provider)
+                let read = KaiKeychain.apiKey(for: provider)
+                let after = KaiKeychain.cachedApiKey(for: provider)
+                return before == nil && read == "secret-2" && after == .some("secret-2")
+            }
             check("an empty API key deletes it") {
                 KaiKeychain.setApiKey("", for: provider) && KaiKeychain.apiKey(for: provider) == nil
             }
             check("a legacy UserDefaults key migrates to the Keychain") {
                 UserDefaults.standard.set("legacy-1", forKey: legacyKey)
+                KaiKeychain.forgetCachedKey(for: provider)
                 let migrated = KaiKeychain.apiKey(for: provider) == "legacy-1"
                 return migrated && UserDefaults.standard.string(forKey: legacyKey) == nil
                     && KaiKeychain.apiKey(for: provider) == "legacy-1"

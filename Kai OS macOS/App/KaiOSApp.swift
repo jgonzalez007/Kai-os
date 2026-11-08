@@ -721,7 +721,7 @@ struct KaiOSApp: App {
         } label: {
             KaiMenuBarLabel(appState: appState)
         }
-        .menuBarExtraStyle(.menu)
+        .menuBarExtraStyle(.window)
 
         Settings {
             KaiSettingsView(showsHome: false)
@@ -733,6 +733,8 @@ struct KaiOSApp: App {
 
 final class KaiAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
+        // Read the saved keys now, away from the main thread: the Keychain may stop to ask permission.
+        Task.detached { for provider in ["openai", "anthropic", "slack"] { _ = KaiKeychain.apiKey(for: provider) } }
         // Night Shift runs from launchd: no Dock icon and no window.
         if KaiNightShiftRunner.isRequested { NSApp.setActivationPolicy(.accessory) }
     }

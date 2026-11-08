@@ -70,13 +70,14 @@ private struct KaiLogoShape: Shape {
 /// Which artwork the app uses for its mark. The first is drawn in code from the brand SVG; the other two
 /// are pictures cut from the asset sheet, to try. A picture that is missing falls back to the first.
 enum KaiLogoStyle: String, CaseIterable {
-    case glass, symbol, neon
+    case glass, arch, symbol, neon
 
     static let defaultsKey = "kai.logo.style"
 
     var title: String {
         switch self {
         case .glass: return "Liquid glass K"
+        case .arch: return "K under the notch arch"
         case .symbol: return "K with the notch ring"
         case .neon: return "Neon outline"
         }
@@ -84,7 +85,7 @@ enum KaiLogoStyle: String, CaseIterable {
 
     var imageName: String? {
         switch self {
-        case .glass: return nil
+        case .glass, .arch: return nil
         case .symbol: return "KaiLogoSymbol"
         case .neon: return "KaiLogoNeon"
         }
@@ -103,7 +104,9 @@ struct KaiLogoMark: View {
 
     var body: some View {
         let style = KaiLogoStyle(rawValue: styleName) ?? .glass
-        if let name = style.imageName, let image = NSImage(named: name) {
+        if style == .arch {
+            KaiArchLogoArt(size: size, glow: pulsing ? 0.8 : 0.5)
+        } else if let name = style.imageName, let image = NSImage(named: name) {
             Image(nsImage: image)
                 .resizable()
                 .interpolation(.high)
@@ -150,5 +153,44 @@ struct KaiLogoArt: View {
         .frame(width: size, height: size)
         .shadow(color: KaiColor.cyan.opacity(glow), radius: size * 0.12)
         .shadow(color: KaiColor.violet.opacity(glow * 0.8), radius: size * 0.22)
+    }
+}
+
+
+/// The logo from the asset package (kai_os_logo_symbol.svg): an arch like a notch over a K made of three
+/// round strokes, in a cyan to magenta gradient with a glow.
+struct KaiArchLogoArt: View {
+    var size: CGFloat
+    var glow: Double = 0.5
+
+    private var arch: Path {
+        var p = Path()
+        p.move(to: CGPoint(x: 100, y: 120))
+        p.addCurve(to: CGPoint(x: 412, y: 120), control1: CGPoint(x: 200, y: 60), control2: CGPoint(x: 312, y: 60))
+        p.addCurve(to: CGPoint(x: 100, y: 120), control1: CGPoint(x: 370, y: 200), control2: CGPoint(x: 142, y: 200))
+        p.closeSubpath()
+        return p
+    }
+
+    private var letter: Path {
+        var p = Path()
+        p.move(to: CGPoint(x: 180, y: 160)); p.addLine(to: CGPoint(x: 180, y: 360))
+        p.move(to: CGPoint(x: 180, y: 260)); p.addLine(to: CGPoint(x: 320, y: 160))
+        p.move(to: CGPoint(x: 230, y: 225)); p.addLine(to: CGPoint(x: 340, y: 360))
+        return p
+    }
+
+    var body: some View {
+        let scale = size / 512
+        let gradient = LinearGradient(colors: [KaiColor.cyan, KaiColor.magenta], startPoint: .topLeading, endPoint: .bottomTrailing)
+        ZStack {
+            arch.applying(CGAffineTransform(scaleX: scale, y: scale))
+                .stroke(gradient, style: StrokeStyle(lineWidth: 12 * scale, lineJoin: .round))
+            letter.applying(CGAffineTransform(scaleX: scale, y: scale))
+                .stroke(gradient, style: StrokeStyle(lineWidth: 36 * scale, lineCap: .round, lineJoin: .round))
+        }
+        .frame(width: size, height: size, alignment: .topLeading)
+        .shadow(color: KaiColor.cyan.opacity(glow), radius: size * 0.05)
+        .shadow(color: KaiColor.magenta.opacity(glow * 0.7), radius: size * 0.08)
     }
 }
