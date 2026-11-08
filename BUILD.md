@@ -63,7 +63,16 @@ Turn on Settings → Desk → Listen for Claude Code, copy the hook setup, and p
 
 ## Signing and release
 
-Not set up yet. `NOTARIZATION.md` and `scripts/` describe the intended flow, which needs a Developer ID certificate. There is no published DMG and no Homebrew tap.
+Kai OS is signed ad hoc (free). It is not notarized, which needs a paid Apple Developer account, so a hand-downloaded copy needs right-click → Open once. The install script and the cask clear the download flag for you.
+
+To make a release:
+
+1. Raise `CFBundleShortVersionString` (and `CFBundleVersion`) in `Kai OS macOS/Info.plist`.
+2. `scripts/package-release.sh` builds a release copy and writes `dist/Kai-OS.zip` and `dist/Kai-OS.zip.sha256`. It publishes nothing.
+3. Create a GitHub release tagged `v<version>` and attach both files. `scripts/install.sh` and the in-app update check both read the latest release.
+4. Optional: put the new checksum in `Casks/kai-os.rb` and publish it in a tap repository named `homebrew-kai-os`.
+
+`scripts/install-app.sh` is the developer version: it builds a debug copy, installs it in `~/Applications` and relaunches it. `NOTARIZATION.md` describes the notarized flow for if you get a Developer ID.
 
 ## Troubleshooting
 

@@ -4,3 +4,4 @@ build/
 .DS_Store
 xcuserdata/
 graphify-out/
+dist/

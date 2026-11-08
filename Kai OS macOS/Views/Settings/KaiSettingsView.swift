@@ -14,6 +14,7 @@ struct KaiSettingsView: View {
     @EnvironmentObject var appState: AppState
     @AppStorage("kai.notch.enabled") private var notchEnabled = true
     @ObservedObject private var desk = KaiDeskController.shared
+    @ObservedObject private var updates = KaiUpdateController.shared
     @AppStorage(KaiMotion.key) private var motion = true
     
     var body: some View {
@@ -319,6 +320,26 @@ struct KaiSettingsView: View {
                     Button("Copy hook setup") { desk.copySetupSnippet() }.controlSize(.small)
                     Text("Back up ~/.claude/settings.json first. If it has no \"hooks\" key, paste the copied block in as a new top-level key. If it already has one, add each event's entry next to your own and leave your existing entries alone. Then check the file with: python3 -m json.tool ~/.claude/settings.json and restart Claude Code. Full steps are in INSTALL-HOOKS.md. Kai OS never allows anything on its own: Allow is sent only when you press it, and if Kai OS is not running or you do not answer in time, Claude Code asks in the terminal as usual.")
                         .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                }
+
+                // ── Updates ──
+                settingsCard {
+                    SectionHeader(title: "Updates")
+                    Text("Kai OS \(updates.currentVersion.description)").font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                    Toggle("Check for updates automatically", isOn: $updates.automatic)
+                    Text("Once a day Kai OS asks GitHub (api.github.com) which release is newest. Nothing else is sent. It never downloads or installs anything: it only tells you.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    HStack {
+                        Button(updates.isChecking ? "Checking…" : "Check now") { Task { await updates.check(manual: true) } }
+                            .controlSize(.small).disabled(updates.isChecking)
+                        if let update = updates.available {
+                            Button("Open Kai OS \(update.version.description)") { updates.openReleasePage() }.controlSize(.small)
+                            Button("Copy install command") { updates.copyInstallCommand() }.controlSize(.small)
+                        }
+                    }
+                    if !updates.status.isEmpty {
+                        Text(updates.status).font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                    }
                 }
 
                 // ── Mailbox access ──

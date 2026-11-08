@@ -186,6 +186,9 @@ Kai OS macOS/
 ### Desk (clipboard history, Shelf, Claude Code in the notch)
 > **2026-11-07:** added, modelled on features in Glance for Mac 1.1.0 (own code). Logic and the socket are tested, including the real `kai-hook` helper process. Not yet tried by hand: dragging an item out of the Shelf into real apps, dropping on the closed notch, ⌃⌥Y / ⌃⌥N, and a live Claude Code session with the hooks installed.
 
+### Install and first run
+> **2026-11-07:** added a first-run guide (Ollama check, one-click model download with progress, permissions), a daily update check that only tells you, `scripts/package-release.sh`, a checksum-verified `scripts/install.sh`, an app icon, and a corrected Homebrew cask. Found and fixed: two modules missed a declared dependency, so a release build failed even though debug builds worked. Not done: no GitHub release is published yet, so the install script has nothing to download until one is; the guide was not seen on screen; no Apple notarization.
+
 ### 3.7 Night Shift Scheduler
 > **2026-11-07:** a checklist in Settings picks what Night Shift covers (knowledge folder, Calendar, Notes, Mail, Slack, morning cards). Mail starts off, and when on it reads only a chosen window (today, yesterday and today, last 3 days, last 7 days; 200 messages at most, stopping at the first message older than the window). The same list governs "Index now" and the morning briefing, which can now include recent Slack.
 

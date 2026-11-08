@@ -2130,6 +2130,86 @@ final class KaiChecksTests: XCTestCase {
     }
 
 
+    // MARK: Setup guide and updates
+
+    func testSetupAndUpdates() async throws {
+        check("Ollama state: not installed, not running, no model, ready") {
+            KaiOllamaSetup.evaluate(appInstalled: false, models: nil) == .notInstalled
+                && KaiOllamaSetup.evaluate(appInstalled: true, models: nil) == .notRunning
+                && KaiOllamaSetup.evaluate(appInstalled: true, models: []) == .noModel
+                && KaiOllamaSetup.evaluate(appInstalled: false, models: ["a:1"]) == .ready(models: ["a:1"])
+        }
+        check("Ollama is found in either Applications folder or as a command") {
+            KaiOllamaSetup.isInstalled(fileExists: { $0 == "/Applications/Ollama.app" }, home: "/Users/x")
+                && KaiOllamaSetup.isInstalled(fileExists: { $0 == "/Users/x/Applications/Ollama.app" }, home: "/Users/x")
+                && KaiOllamaSetup.isInstalled(fileExists: { $0 == "/opt/homebrew/bin/ollama" }, home: "/Users/x")
+                && !KaiOllamaSetup.isInstalled(fileExists: { _ in false }, home: "/Users/x")
+        }
+        check("model names are checked before a download") {
+            KaiOllamaSetup.isValidModelName("gemma4:e4b") && KaiOllamaSetup.isValidModelName("library/qwen3:4b")
+                && !KaiOllamaSetup.isValidModelName("") && !KaiOllamaSetup.isValidModelName("-rf")
+                && !KaiOllamaSetup.isValidModelName("a b") && !KaiOllamaSetup.isValidModelName("a;b") && !KaiOllamaSetup.isValidModelName("../x")
+                && KaiOllamaSetup.isValidModelName(KaiOllamaSetup.recommendedModel)
+        }
+        check("download progress lines are read") {
+            let line = Data(#"{"status":"pulling abc","digest":"sha256:abc","total":1000,"completed":250}"#.utf8)
+            let p = try KaiOllamaClient.parsePullLine(line)
+            let done = try KaiOllamaClient.parsePullLine(Data(#"{"status":"success"}"#.utf8))
+            let garbage = try KaiOllamaClient.parsePullLine(Data("garbage".utf8))
+            return p?.fraction == 0.25 && p?.isDone == false && done?.isDone == true && done?.fraction == nil && garbage == nil
+        }
+        check("a download error line becomes the server's message") {
+            do { _ = try KaiOllamaClient.parsePullLine(Data(#"{"error":"pull model manifest: file does not exist"}"#.utf8)); return false }
+            catch { return (error as? KaiOllamaError) == .server("pull model manifest: file does not exist") }
+        }
+        check("progress never goes past 100 percent") {
+            KaiPullProgress(status: "x", completed: 2_000, total: 1_000, isDone: false).fraction == 1
+        }
+
+        check("versions compare by number, not text") {
+            KaiVersion("1.10.0")! > KaiVersion("1.9.9")! && KaiVersion("v2")! > KaiVersion("1.99")!
+                && KaiVersion("1.0")! == KaiVersion("1.0.0")! && KaiVersion("1.2.3-beta")! == KaiVersion("1.2.3")!
+                && KaiVersion("x") == nil && KaiVersion("") == nil && KaiVersion("1.a") == nil
+        }
+        func release(tag: String, url: String = "https://github.com/jgonzalez007/Kai-os/releases/tag/v1.2.0", draft: Bool = false, pre: Bool = false) -> Data {
+            try! JSONSerialization.data(withJSONObject: ["tag_name": tag, "html_url": url, "body": "Notes", "draft": draft, "prerelease": pre])
+        }
+        let current = KaiVersion("1.1.0")!
+        check("a newer release is offered, an equal or older one is not") {
+            KaiUpdates.parseLatest(release(tag: "v1.2.0"), current: current)?.version == KaiVersion("1.2.0")
+                && KaiUpdates.parseLatest(release(tag: "v1.1.0"), current: current) == nil
+                && KaiUpdates.parseLatest(release(tag: "v1.0.9"), current: current) == nil
+        }
+        check("drafts and prereleases are never offered") {
+            KaiUpdates.parseLatest(release(tag: "v2.0.0", draft: true), current: current) == nil
+                && KaiUpdates.parseLatest(release(tag: "v2.0.0", pre: true), current: current) == nil
+        }
+        check("a release page on another site is refused") {
+            KaiUpdates.parseLatest(release(tag: "v2.0.0", url: "https://evil.example/kai"), current: current) == nil
+                && KaiUpdates.parseLatest(release(tag: "v2.0.0", url: "http://github.com/x"), current: current) == nil
+        }
+        check("a broken reply gives no update") {
+            KaiUpdates.parseLatest(Data("nope".utf8), current: current) == nil
+        }
+        check("the automatic check runs at most once a day") {
+            let now = Date(timeIntervalSince1970: 1_000_000)
+            return KaiUpdates.isDue(lastCheck: nil, now: now)
+                && !KaiUpdates.isDue(lastCheck: now.addingTimeInterval(-3_600), now: now)
+                && KaiUpdates.isDue(lastCheck: now.addingTimeInterval(-86_401), now: now)
+        }
+        await checkAsync("the check uses the injected fetch and reads the release") {
+            let update = try await KaiUpdates.check(current: current, fetch: { url in
+                XCTAssertEqual(url, KaiUpdates.releasesAPI)
+                return release(tag: "v1.3.0")
+            })
+            return update?.version == KaiVersion("1.3.0")
+        }
+        await checkAsync("a failed check throws instead of pretending there is no update") {
+            do { _ = try await KaiUpdates.check(current: current, fetch: { _ in throw URLError(.notConnectedToInternet) }); return false }
+            catch { return true }
+        }
+    }
+
     // MARK: Desk: clipboard history, shelf, Claude Code hooks
 
     func testClipboardHistory() async throws {
