@@ -37,13 +37,18 @@ final class KaiNotchModel: ObservableObject {
     @Published var layout: KaiNotchLayout?
     @Published var draft = ""
     /// Short text for the right wing, such as "Claude done". Replaces the activity text while set.
-    @Published var peekText: String?
+    @Published var peekText: String? { didSet { onSurfaceChange?() } }
+    /// Another app is full screen, so the notch steps away.
+    @Published var hiddenForFullScreen = false
+    /// Slim status strips stay beside the notch.
+    @Published var showsStatus = KaiNotchPreferences.showsStatus { didSet { onSurfaceChange?() } }
 
     var onSurfaceChange: (() -> Void)?
 
     var surface: KaiNotchSurface {
         if isExpanded { return .expanded }
-        return isHovering || activity != .idle ? .peek : .closed
+        if isHovering || activity != .idle || peekText != nil { return .peek }
+        return showsStatus && !hiddenForFullScreen ? .status : .closed
     }
 }
 
@@ -110,6 +115,11 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     private var shrinkTask: Task<Void, Never>?
     private var flourishTask: Task<Void, Never>?
     private var started = false
+    private var autoOpened = false
+    private var hoverNeedsReentry = false
+    private var hoverTask: Task<Void, Never>?
+    private var lastCardCount: Int?
+    private var fullScreenObservers: [NSObjectProtocol] = []
 
     func start(appState: AppState) {
         guard !started else { return }
@@ -124,6 +134,15 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
             .removeDuplicates()
             .sink { [weak self] isProcessing in self?.processingChanged(isProcessing) }
             .store(in: &cancellables)
+        model.$isHovering.removeDuplicates().dropFirst()
+            .sink { [weak self] hovering in self?.hoverChanged(hovering) }
+            .store(in: &cancellables)
+        // A new For You card gets a short peek.
+        appState.morningCards.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.checkNewCards() }
+            .store(in: &cancellables)
+        observeFullScreen()
         let desk = KaiDeskController.shared
         desk.onApproval = { [weak self] in self?.showForApproval() }
         desk.onDone = { [weak self] done in self?.showClaudeDone(done) }
@@ -150,6 +169,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
             }
         }
         applyEnabledPreference()
+        updateFullScreen()
     }
 
     func applyEnabledPreference() {
@@ -170,6 +190,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
 
     func expand() {
         guard let panel, !model.isExpanded else { return }
+        autoOpened = false
         model.isExpanded = true
         panel.makeKeyAndOrderFront(nil)
     }
@@ -177,6 +198,9 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     func collapse() {
         guard let panel, model.isExpanded else { return }
         cancelVoice()
+        autoOpened = false
+        // The cursor may still rest on the notch, so hover must leave and come back before it opens again.
+        hoverNeedsReentry = model.isHovering
         model.isExpanded = false
         model.panelMode = .chat
         doubleTap?.cancel()
@@ -186,11 +210,108 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         syncHoverWithCursor()
     }
 
+    // MARK: Hover, full screen, events
+
+    /// Hover opens the panel after a short pause, and closes it again after the mouse leaves,
+    /// but only when the hover opened it and nothing is in progress.
+    private func hoverChanged(_ hovering: Bool) {
+        // The scripted self-test drives hover by hand.
+        if ProcessInfo.processInfo.environment["KAI_NOTCH_SELFTEST_DIR"] != nil { return }
+        hoverTask?.cancel()
+        if !hovering { hoverNeedsReentry = false }
+        guard KaiNotchPreferences.hoverOpens else { return }
+        if hovering {
+            guard !model.isExpanded, !hoverNeedsReentry, !model.hiddenForFullScreen else { return }
+            hoverTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(600))
+                guard let self, !Task.isCancelled, self.model.isHovering, !self.model.isExpanded else { return }
+                self.autoOpened = true
+                self.showWithoutFocus()
+            }
+        } else if model.isExpanded, autoOpened {
+            hoverTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(900))
+                guard let self, !Task.isCancelled, !self.model.isHovering, self.autoOpened, self.canAutoClose else { return }
+                self.collapse()
+            }
+        }
+    }
+
+    /// Never closes on its own while the person is typing, talking, replying to an email,
+    /// or has a permission request to answer.
+    private var canAutoClose: Bool {
+        model.panelMode == .chat && model.draft.isEmpty && model.voicePhase == .idle
+            && KaiDeskController.shared.approvals.isEmpty
+    }
+
+    private func showWithoutFocus() {
+        guard KaiNotchPreferences.isEnabled, let panel, !model.isExpanded else { return }
+        model.isExpanded = true
+        panel.orderFrontRegardless()
+    }
+
+    private func observeFullScreen() {
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didActivateApplicationNotification] {
+            let token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                // A space change finishes animating a moment after the notification.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(500))
+                    self?.updateFullScreen()
+                }
+            }
+            fullScreenObservers.append(token)
+        }
+    }
+
+    func updateFullScreen() {
+        let full = KaiNotchPreferences.hidesInFullScreen && NSApp.currentSystemPresentationOptions.contains(.fullScreen)
+        guard full != model.hiddenForFullScreen else { return }
+        model.hiddenForFullScreen = full
+        guard let panel, KaiNotchPreferences.isEnabled else { return }
+        if full {
+            // A waiting permission request still needs an answer.
+            if KaiDeskController.shared.approvals.isEmpty {
+                collapse()
+                panel.orderOut(nil)
+            }
+        } else {
+            panel.orderFrontRegardless()
+        }
+    }
+
+    /// Applies a changed preference without a restart.
+    func preferencesChanged() {
+        model.showsStatus = KaiNotchPreferences.showsStatus
+        updateFullScreen()
+    }
+
+    private func checkNewCards() {
+        guard let appState else { return }
+        let count = appState.morningCards.activeCards.count
+        defer { lastCardCount = count }
+        guard let last = lastCardCount, count > last else { return }
+        showPeek(count - last == 1 ? "New card" : "\(count - last) new cards")
+    }
+
+    /// A short note in the right wing, then back to normal.
+    func showPeek(_ text: String, seconds: Double = 4) {
+        guard KaiNotchPreferences.isEnabled, !model.hiddenForFullScreen, !model.isExpanded else { return }
+        flourishTask?.cancel()
+        model.peekText = text
+        flourishTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(seconds))
+            guard !Task.isCancelled else { return }
+            self?.model.peekText = nil
+        }
+    }
+
     // MARK: Claude Code
 
     /// Opens the panel for a permission request without taking keyboard focus from the terminal.
     private func showForApproval() {
         guard KaiNotchPreferences.isEnabled, let panel else { return }
+        autoOpened = false
         model.panelMode = .chat
         model.isExpanded = true
         panel.orderFrontRegardless()

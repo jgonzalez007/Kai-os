@@ -10,6 +10,8 @@ import CoreGraphics
 public enum KaiNotchSurface: Equatable, Sendable {
     /// Exactly covers the notch, so it is invisible on a display with a hardware notch.
     case closed
+    /// Slim strips beside the notch that always show Kai's status.
+    case status
     /// Black wings beside the notch that show activity.
     case peek
     /// The full panel hanging below the notch.
@@ -18,6 +20,7 @@ public enum KaiNotchSurface: Equatable, Sendable {
 
 public struct KaiNotchLayout: Equatable, Sendable {
     public static let wingWidth: CGFloat = 72
+    public static let statusWingWidth: CGFloat = 26
     public static let expandedSize = CGSize(width: 560, height: 480)
     private static let pillWidth: CGFloat = 120
     private static let fallbackHeight: CGFloat = 24
@@ -56,6 +59,8 @@ public struct KaiNotchLayout: Equatable, Sendable {
         switch surface {
         case .closed:
             return notch
+        case .status:
+            return notch.insetBy(dx: -Self.statusWingWidth, dy: 0)
         case .peek:
             return notch.insetBy(dx: -Self.wingWidth, dy: 0)
         case .expanded:

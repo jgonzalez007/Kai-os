@@ -690,6 +690,7 @@ final class AppState: ObservableObject {
 struct KaiOSApp: App {
     @NSApplicationDelegateAdaptor(KaiAppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState.shared
+    @AppStorage(KaiNotchPreferences.menuBarKey) private var menuBarEnabled = true
 
     var body: some Scene {
         WindowGroup {
@@ -711,6 +712,16 @@ struct KaiOSApp: App {
         .windowToolbarStyle(.unified)
         .windowStyle(.hiddenTitleBar)
 
+        MenuBarExtra(isInserted: Binding(
+            get: { menuBarEnabled && !KaiNightShiftRunner.isRequested },
+            set: { menuBarEnabled = $0 }
+        )) {
+            KaiMenuBarContent(appState: appState)
+        } label: {
+            KaiMenuBarLabel(appState: appState)
+        }
+        .menuBarExtraStyle(.menu)
+
         Settings {
             KaiSettingsView(showsHome: false)
                 .environmentObject(appState)
@@ -731,6 +742,7 @@ final class KaiAppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         KaiNotchWindowController.shared.start(appState: AppState.shared)
+        KaiStatusModel.shared.start(appState: AppState.shared)
         #if DEBUG
         KaiPageSnapshots.runIfRequested(appState: AppState.shared)
         #endif

@@ -13,6 +13,10 @@ import KaiShared
 struct KaiSettingsView: View {
     @EnvironmentObject var appState: AppState
     @AppStorage("kai.notch.enabled") private var notchEnabled = true
+    @AppStorage(KaiNotchPreferences.hoverOpenKey) private var hoverOpen = true
+    @AppStorage(KaiNotchPreferences.statusKey) private var notchStatus = true
+    @AppStorage(KaiNotchPreferences.hideFullScreenKey) private var hideFullScreen = true
+    @AppStorage(KaiNotchPreferences.menuBarKey) private var menuBar = true
     @ObservedObject private var desk = KaiDeskController.shared
     @ObservedObject private var updates = KaiUpdateController.shared
     @AppStorage(KaiMotion.key) private var motion = true
@@ -253,6 +257,16 @@ struct KaiSettingsView: View {
                         .onChange(of: notchEnabled) {
                             _, _ in KaiNotchWindowController.shared.applyEnabledPreference()
                         }
+                    Toggle("Open when I hover over the notch", isOn: $hoverOpen)
+                    Text("Hover for a moment and the panel opens, then closes when you move away. It stays open while you are typing, talking or answering a permission request. Clicking the notch or using the hotkey opens it and keeps it open.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    Toggle("Show status beside the notch", isOn: $notchStatus)
+                        .onChange(of: notchStatus) { _, _ in KaiNotchWindowController.shared.preferencesChanged() }
+                    Text("A small Kai mark and a colored dot (green ready, blue working, orange needs you, red AI offline). They cover a little of the menu bar next to the notch.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    Toggle("Hide in full-screen apps", isOn: $hideFullScreen)
+                        .onChange(of: hideFullScreen) { _, _ in KaiNotchWindowController.shared.preferencesChanged() }
+                    Toggle("Show Kai in the menu bar", isOn: $menuBar)
                     
                     Divider().kaiDivider()
                     

@@ -258,6 +258,14 @@ final class KaiChecksTests: XCTestCase {
                 && halfPoint.frame(for: .closed).midX == 864
         }
 
+        check("the status frame adds slim strips, narrower than the peek wings, flush with the top") {
+            let status = macBook.frame(for: .status)
+            let closed = macBook.frame(for: .closed)
+            return status.width == closed.width + 2 * KaiNotchLayout.statusWingWidth
+                && status.maxY == closed.maxY && status.midX == closed.midX
+                && KaiNotchLayout.statusWingWidth < KaiNotchLayout.wingWidth
+        }
+
         check("the peek frame adds wings and stays flush with the top") {
             let peek = macBook.frame(for: .peek)
             return peek.midX == 756 && peek.width > 176 && peek.maxY == 982 && peek.height == 38
@@ -2129,6 +2137,40 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+
+    func testMenuStatus() async throws {
+        func s(_ ai: KaiMenuStatusInputs.AI = .local(model: "gemma4:e4b", reachable: true), working: Bool = false, approvals: Int = 0,
+               helpers: Int = 0, cards: Int = 0, update: String? = nil) -> KaiMenuStatus {
+            KaiMenuStatus.summarize(KaiMenuStatusInputs(ai: ai, isWorking: working, approvalsWaiting: approvals, helperAgents: helpers, newCards: cards, updateVersion: update))
+        }
+        check("a quiet Kai is ready and says which model") {
+            let x = s(); return x.level == .idle && x.title == "Ready" && x.lines == ["AI: gemma4:e4b on this Mac"] && !x.aiOffline
+        }
+        check("working shows while Kai is replying") { s(working: true).level == .working }
+        check("a waiting Claude Code request beats everything, including working") {
+            let x = s(.local(model: "m", reachable: false), working: true, approvals: 2)
+            return x.level == .needsYou && x.lines.contains("Claude Code: 2 requests waiting for you")
+        }
+        check("an unreachable Ollama is flagged, and working still wins over it") {
+            let off = s(.local(model: "m", reachable: false))
+            return off.level == .attention && off.aiOffline && off.lines[0] == "AI: Ollama is not running"
+                && s(.local(model: "m", reachable: false), working: true).level == .working
+        }
+        check("an unknown Ollama state is not called offline") {
+            let x = s(.local(model: "", reachable: nil)); return x.level == .idle && !x.aiOffline && x.lines == ["AI: checking…"]
+        }
+        check("cloud AI is never offline, and is labelled") {
+            let x = s(.cloud(model: "gpt-x")); return x.level == .idle && x.lines == ["AI: gpt-x (cloud)"]
+        }
+        check("helpers, cards and updates get their own lines, singular and plural") {
+            let x = s(helpers: 1, cards: 3, update: "1.2.0")
+            return x.lines == ["AI: gemma4:e4b on this Mac", "Claude Code: 1 helper agent running", "For You: 3 cards", "Update available: 1.2.0"]
+                && s(cards: 1).lines.contains("For You: 1 card") && s(helpers: 2).lines.contains("Claude Code: 2 helper agents running")
+        }
+        check("each state has its own icon") {
+            Set([s().symbol, s(working: true).symbol, s(approvals: 1).symbol, s(.local(model: "m", reachable: false)).symbol]).count == 4
+        }
+    }
 
     // MARK: Setup guide and updates
 

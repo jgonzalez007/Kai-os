@@ -15,6 +15,8 @@ struct KaiNotchView: View {
     @ObservedObject var appState: AppState
     let controller: KaiNotchWindowController
     @ObservedObject private var desk = KaiDeskController.shared
+    @ObservedObject private var statusModel = KaiStatusModel.shared
+    @ObservedObject private var updates = KaiUpdateController.shared
     @State private var dropTargeted = false
     @AppStorage(KaiMotion.key) private var motion = true
 
@@ -57,6 +59,8 @@ struct KaiNotchView: View {
                 }
             } else if model.surface == .peek {
                 wings.transition(.opacity)
+            } else if model.surface == .status {
+                statusStrips.transition(.opacity)
             }
         }
         .frame(width: size.width, height: size.height)
@@ -76,6 +80,30 @@ struct KaiNotchView: View {
         .ignoresSafeArea()
         .environment(\.colorScheme, .dark)
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: model.surface)
+    }
+
+    /// Slim strips beside the notch: the Kai mark on the left, a colored dot on the right.
+    private var statusStrips: some View {
+        let summary = statusModel.summary(appState: appState, desk: desk, updates: updates)
+        let color: Color = {
+            switch summary.level {
+            case .idle: return .green
+            case .working: return .blue
+            case .needsYou: return .orange
+            case .attention: return .red
+            }
+        }()
+        return HStack(spacing: 0) {
+            Image(systemName: "sparkle").font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: KaiNotchLayout.statusWingWidth)
+            Spacer(minLength: 0)
+            Circle().fill(color).frame(width: 7, height: 7)
+                .shadow(color: color.opacity(0.8), radius: summary.level == .idle ? 0 : 3)
+                .frame(width: KaiNotchLayout.statusWingWidth)
+        }
+        .frame(height: notchHeight)
+        .help("Kai OS: \(summary.title)")
     }
 
     private var wings: some View {
