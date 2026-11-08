@@ -712,9 +712,11 @@ struct KaiOSApp: App {
         .windowToolbarStyle(.unified)
         .windowStyle(.hiddenTitleBar)
 
+        // The setter must ignore a value that did not change: SwiftUI calls it while building the
+        // scene, and writing the same setting back made the whole app redraw in an endless loop.
         MenuBarExtra(isInserted: Binding(
             get: { menuBarEnabled && !KaiNightShiftRunner.isRequested },
-            set: { menuBarEnabled = $0 }
+            set: { newValue in if newValue != menuBarEnabled && !KaiNightShiftRunner.isRequested { menuBarEnabled = newValue } }
         )) {
             KaiMenuBarContent(appState: appState)
         } label: {
