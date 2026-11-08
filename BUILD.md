@@ -79,6 +79,10 @@ To make a release:
 
 Then rebuild. The script prints the designated requirement it signed with: it should name a certificate (`certificate leaf = H"..."`), not a `cdhash`. `NOTARIZATION.md` describes the notarized flow for if you get a Developer ID.
 
+## Sandbox and entitlements
+
+Kai OS is not sandboxed, on purpose. It drives Apple Mail and Notes with AppleScript, reads Calendar, uses Accessibility and Screen Recording, keeps a socket and a database in Application Support, and installs a launch agent for Night Shift. The App Sandbox blocks most of that, so adding `com.apple.security.app-sandbox` would break the app. It is only required for the Mac App Store, which Kai does not target. Permissions are asked for at runtime (see the setup guide). The bundle identifier `ai.kai` is kept: changing it would reset the Keychain items, saved settings and permissions.
+
 ## Troubleshooting
 
 - **Chat says the server is unreachable:** start Ollama (`ollama serve`).

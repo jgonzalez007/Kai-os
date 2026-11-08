@@ -28,6 +28,8 @@
     <string></string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
     <key>LSUIElement</key>
     <false/>
     <key>NSAppleScriptEnabled</key>
