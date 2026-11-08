@@ -11,6 +11,9 @@ import KaiActions
 
 struct MessageBubbleView: View {
     let message: Message
+    /// True for the reply that is still being written, so its text can fade in.
+    var isStreaming = false
+    @AppStorage(KaiMotion.key) private var motion = true
     
     private var rendered: AttributedString {
         let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
@@ -120,10 +123,16 @@ struct MessageBubbleView: View {
                 
                 // ── Text ──
                 if !message.text.isEmpty {
-                    Text(rendered)
-                        .font(KaiFont.body)
-                        .textSelection(.enabled)
-                        .foregroundStyle(KaiColor.textPrimary)
+                    Group {
+                        if motion && isStreaming {
+                            KaiRevealText(text: rendered, streaming: true)
+                        } else {
+                            Text(rendered)
+                        }
+                    }
+                    .font(KaiFont.body)
+                    .textSelection(.enabled)
+                    .foregroundStyle(KaiColor.textPrimary)
                 } else if let status = message.status {
                     Text(status)
                         .font(KaiFont.caption)

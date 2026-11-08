@@ -82,7 +82,7 @@ struct KaiChatView: View {
             ScrollView {
                 LazyVStack(spacing: KaiSpacing.medium) {
                     ForEach(appState.messages) { message in
-                        MessageBubbleView(message: message)
+                        MessageBubbleView(message: message, isStreaming: appState.isProcessing && !message.isUser && message.id == appState.messages.last?.id)
                             .transition(.opacity)
                     }
                     
