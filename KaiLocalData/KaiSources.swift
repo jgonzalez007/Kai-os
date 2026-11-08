@@ -214,6 +214,36 @@ public struct KaiMailItem: Identifiable, Equatable, Sendable {
 }
 
 public enum KaiMailSource {
+    /// Messages received since `since`, newest first, up to `limit`. It reads from the newest message back
+    /// and stops at the first one older than that, so a short window touches only a few messages.
+    public static func messages(since: Date, limit: Int = 200, now: Date = Date()) async throws -> [KaiMailItem] {
+        let age = max(Int(now.timeIntervalSince(since)), 0)
+        let arguments = [String(age), String(min(max(limit, 1), 200))]
+        return items(from: try await KaiAppleScriptRecords.run(script: windowScript, app: "Mail", arguments: arguments, timeout: 90))
+    }
+
+    /// Arguments: age in seconds of the oldest message wanted, and how many at most.
+    static let windowScript = KaiAppleScriptRecords.handlers + "on run argv\n" + """
+    set US to (ASCII character 31)
+    set RS to (ASCII character 30)
+    set cutoff to (current date) - ((item 1 of argv) as integer)
+    set maxCount to (item 2 of argv) as integer
+    set out to ""
+    set found to 0
+    tell application "Mail"
+        set total to count of messages of inbox
+        repeat with i from 1 to total
+            if found >= maxCount then exit repeat
+            set m to message i of inbox
+            if (date received of m) < cutoff then exit repeat
+            set out to out & (id of m as string) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & (read status of m as string) & US & (flagged status of m as string) & RS
+            set found to found + 1
+        end repeat
+    end tell
+    return out
+    end run
+    """
+
     /// Scripting Mail launches it if it's closed, so call this only after the user connects Mail.
     public static func recentMessages(limit: Int = 30) async throws -> [KaiMailItem] {
         items(from: try await KaiAppleScriptRecords.run(script: script(limit: limit), app: "Mail"))
@@ -449,6 +479,45 @@ public struct KaiBriefingMail: Codable, Equatable, Sendable {
 }
 
 public enum KaiMailBriefing {
+    /// Unread messages received since `since`, newest first. Reading stops at the first message older than that.
+    public static func unreadMessages(since: Date, limit: Int = 30, now: Date = Date()) async throws -> [KaiBriefingMail] {
+        let age = max(Int(now.timeIntervalSince(since)), 0)
+        let records = try await KaiAppleScriptRecords.run(script: windowScript, app: "Mail", arguments: [String(age), String(min(max(limit, 1), 100))], timeout: 90)
+        return items(from: records)
+    }
+
+    /// Arguments: age in seconds of the oldest message wanted, and how many unread at most.
+    static let windowScript = KaiAppleScriptRecords.handlers + "on run argv\n" + """
+    set US to (ASCII character 31)
+    set RS to (ASCII character 30)
+    set cutoff to (current date) - ((item 1 of argv) as integer)
+    set maxCount to (item 2 of argv) as integer
+    set out to ""
+    set found to 0
+    tell application "Mail"
+        set total to count of messages of inbox
+        repeat with i from 1 to total
+            if found >= maxCount then exit repeat
+            set m to message i of inbox
+            if (date received of m) < cutoff then exit repeat
+            if not (read status of m) then
+                set boxName to ""
+                set accountName to ""
+                try
+                    set boxName to name of (mailbox of m)
+                end try
+                try
+                    set accountName to name of (account of (mailbox of m))
+                end try
+                set out to out & (id of m as string) & US & my cleaned(boxName) & US & my cleaned(accountName) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & (flagged status of m as string) & RS
+                set found to found + 1
+            end if
+        end repeat
+    end tell
+    return out
+    end run
+    """
+
     /// How far back to look in the inbox, which keeps the script quick on large mailboxes.
     /// Each message is read one at a time, and Mail can be slow, so this stays small.
     private static let scanLimit = 60

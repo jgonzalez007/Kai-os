@@ -184,7 +184,7 @@ Kai OS macOS/
 | 6.5 | Local model support | Partial | Needs wiring |
 
 ### 3.7 Night Shift Scheduler
-> **2026-11-07:** a checklist in Settings picks what Night Shift covers (knowledge folder, Calendar, Notes, Mail, Slack, morning cards). Mail starts off. The same list governs "Index now" and the morning briefing, which can now include recent Slack.
+> **2026-11-07:** a checklist in Settings picks what Night Shift covers (knowledge folder, Calendar, Notes, Mail, Slack, morning cards). Mail starts off, and when on it reads only a chosen window (today, yesterday and today, last 3 days, last 7 days; 200 messages at most, stopping at the first message older than the window). The same list governs "Index now" and the morning briefing, which can now include recent Slack.
 
 > **2026-11-07:** built as a per-user launchd job that runs the app headless at a set time (index, briefing, record, quit), with power and thermal checks. Not built: waking a sleeping or lid-closed Mac (needs administrator rights for `pmset`), resuming a run that was cut short. Verified with a real launch against a test folder, not yet with real launchd or a real overnight run.
 

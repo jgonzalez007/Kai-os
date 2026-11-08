@@ -41,7 +41,7 @@ struct KaiSystemBriefingInputProvider: KaiBriefingInputProviding {
                 KaiBriefingEvent(title: item.title, start: item.start, minutes: Int(item.end.timeIntervalSince(item.start) / 60), location: item.location)
             }
         }
-        let mail = useMail ? try await KaiMailBriefing.unreadMessages() : []
+        let mail = useMail ? try await KaiMailBriefing.unreadMessages(since: appState.nightShift.mailWindow.since()) : []
         // Slack is a bonus: if it fails, the cards are still made from the rest.
         var slack: [String] = []
         if useSlack, let client = appState.slackClient {
