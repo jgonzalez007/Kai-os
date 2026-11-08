@@ -35,6 +35,8 @@ If `swift build` fails with a dyld or SDK-mismatch error, your Command Line Tool
 | `KaiCapture` | library | Permissions, screen, speech, text insertion |
 | `KaiNotchCore` | library | Notch geometry, hold gesture |
 | `KaiActions` | library | Approved actions, morning cards, reply drafting |
+| `KaiDesk` | library | Clipboard history, Shelf, Claude Code hook events and the local socket |
+| `kai-hook` | executable | The command Claude Code hooks run (`KaiHook/`); `install-app.sh` copies it into the app |
 | `KaiOS` | executable | The app (`Kai OS macOS/`) |
 | `KaiChecksTests` | test | All checks, in `Tests/KaiChecksTests` |
 
@@ -54,6 +56,10 @@ Kai reads Slack with a token you create for your own Slack app. It uses read-onl
 You can leave out the `im` and `mpim` scopes if you never want direct messages read.
 
 To read the Slack window that is open on your Mac without any token, give Kai OS Accessibility permission and ask about "this Slack channel". It reads only what is on screen, never your message box.
+
+## Claude Code hooks
+
+Turn on Settings → Desk → Listen for Claude Code, copy the hook setup, and paste it into `~/.claude/settings.json` by hand. Steps and safety notes are in [INSTALL-HOOKS.md](INSTALL-HOOKS.md). `swift run` works too: the helper is built beside the app and Settings shows its path.
 
 ## Signing and release
 

@@ -12,6 +12,7 @@ import KaiNotchCore
 @testable import KaiKnowledge
 @testable import KaiAgent
 @testable import KaiSlack
+@testable import KaiDesk
 
 // MARK: - Fakes for the computer-use agent. Nothing here touches the real screen, mouse or keyboard.
 
@@ -2128,4 +2129,363 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+
+    // MARK: Desk: clipboard history, shelf, Claude Code hooks
+
+    func testClipboardHistory() async throws {
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        var h = KaiClipboardHistory()
+        check("a normal copy is recorded") { h.record("hello world", from: "com.apple.Safari", now: t0) && h.entries.count == 1 }
+        check("a repeat moves to the top and adds no row") {
+            h.record("second copy", from: nil, now: t0 + 1)
+            let changed = h.record("hello world", from: nil, now: t0 + 2)
+            return changed && h.entries.count == 2 && h.entries[0].text == "hello world"
+        }
+        check("repeating the newest copy changes nothing visible") { !h.record("hello world", from: nil, now: t0 + 3) && h.entries.count == 2 }
+        check("one character and blank copies are skipped") {
+            var x = KaiClipboardHistory()
+            return !x.record("a", from: nil) && !x.record("   \n ", from: nil) && !x.record("", from: nil) && x.entries.isEmpty
+        }
+        check("a very long copy is skipped") {
+            var x = KaiClipboardHistory()
+            return !x.record(String(repeating: "x", count: KaiClipboardHistory.maxLength + 1), from: nil)
+        }
+        check("password managers are never recorded") {
+            var x = KaiClipboardHistory()
+            return !x.record("hunter22", from: "com.1password.1password") && !x.record("hunter22", from: "com.bitwarden.desktop") && x.entries.isEmpty
+        }
+        check("dictation is never recorded") {
+            var x = KaiClipboardHistory()
+            return !x.record("some dictated words", from: "com.apple.speech.SpeechRecognitionCore")
+        }
+        check("terminals are ignored, unless switched off") {
+            var x = KaiClipboardHistory()
+            let blocked = !x.record("ls -la /tmp", from: "com.apple.Terminal")
+            let allowed = x.record("ls -la /tmp", from: "com.apple.Terminal", policy: KaiClipboardPolicy(ignoreTerminals: false))
+            return blocked && allowed
+        }
+        check("copies marked concealed or transient are skipped") {
+            var x = KaiClipboardHistory()
+            return !x.record("a secret value", from: "com.example.app", pasteboardTypes: ["public.utf8-plain-text", "org.nspasteboard.ConcealedType"])
+                && !x.record("auto made", from: nil, pasteboardTypes: ["org.nspasteboard.TransientType"])
+        }
+        check("extra ignored apps are skipped") {
+            var x = KaiClipboardHistory()
+            return !x.record("anything here", from: "com.example.secret", policy: KaiClipboardPolicy(extraIgnoredBundleIDs: ["com.example.secret"]))
+        }
+        check("history keeps only the last 50") {
+            var x = KaiClipboardHistory()
+            for i in 0..<60 { x.record("copy number \(i)", from: nil, now: t0 + Double(i)) }
+            return x.entries.count == 50 && x.entries.first?.text == "copy number 59" && x.entries.last?.text == "copy number 10"
+        }
+        check("pinned entries survive trimming and clearing") {
+            var x = KaiClipboardHistory()
+            x.record("keep me please", from: nil, now: t0)
+            x.togglePin(x.entries[0].id)
+            for i in 0..<60 { x.record("filler \(i)", from: nil, now: t0 + 1 + Double(i)) }
+            let stillThere = x.entries.contains { $0.text == "keep me please" } && x.entries.filter { !$0.pinned }.count == 50
+            x.clear()
+            return stillThere && x.entries.count == 1 && x.entries[0].pinned
+        }
+        check("clear including pinned empties it") {
+            var x = KaiClipboardHistory(); x.record("pinned one", from: nil); x.togglePin(x.entries[0].id)
+            x.clear(includingPinned: true); return x.entries.isEmpty
+        }
+        check("search finds text ignoring case") {
+            var x = KaiClipboardHistory(); x.record("Invoice 4412", from: nil); x.record("lunch plan", from: nil)
+            return x.matching("invoice").count == 1 && x.matching("").count == 2 && x.matching("zzz").isEmpty
+        }
+        check("preview flattens lines and cuts long text") {
+            let e = KaiClipboardEntry(text: "line one\n\nline two", date: t0)
+            let long = KaiClipboardEntry(text: String(repeating: "a", count: 300), date: t0)
+            return e.preview == "line one line two" && long.preview.count == 141
+        }
+        check("history saves to a private file and loads back") {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("kai-clip-\(UUID().uuidString)/clip.json")
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            var x = KaiClipboardHistory(); x.record("saved text", from: nil, now: t0)
+            try KaiDeskFile.save(x, to: url)
+            let mode = (try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int) ?? 0
+            return KaiDeskFile.load(KaiClipboardHistory.self, from: url) == x && mode == 0o600
+        }
+    }
+
+    func testShelf() async throws {
+        let t0 = Date(timeIntervalSince1970: 5_000)
+        check("a dropped link is a link, other text is text") {
+            KaiShelfItem.fromString("https://example.com/a", now: t0)?.kind == .link
+                && KaiShelfItem.fromString("see https://example.com", now: t0)?.kind == .text
+                && KaiShelfItem.fromString("javascript:alert(1)", now: t0)?.kind == .text
+                && KaiShelfItem.fromString("   ", now: t0) == nil
+        }
+        check("files, links and text are added, newest first") {
+            var s = KaiShelf()
+            s.addFile(URL(fileURLWithPath: "/tmp/report.pdf"), now: t0)
+            s.addString("https://example.com", now: t0 + 1)
+            s.addString("a note to self", now: t0 + 2)
+            return s.items.map(\.kind) == [.text, .link, .file] && s.items[2].title == "report.pdf" && s.items[2].detail == "/tmp"
+        }
+        check("dropping the same file again only moves it up") {
+            var s = KaiShelf()
+            s.addFile(URL(fileURLWithPath: "/tmp/a.txt"), now: t0)
+            s.addFile(URL(fileURLWithPath: "/tmp/b.txt"), now: t0 + 1)
+            s.addFile(URL(fileURLWithPath: "/tmp/a.txt"), now: t0 + 2)
+            return s.items.count == 2 && s.items[0].title == "a.txt"
+        }
+        check("an item dragged out leaves the shelf and can be undone in 5 seconds") {
+            var s = KaiShelf()
+            s.addString("one", now: t0); s.addString("two", now: t0 + 1); s.addString("three", now: t0 + 2)
+            let id = s.items[1].id
+            let left = s.takeOut(id, now: t0 + 10)
+            let gone = s.items.count == 2 && !s.items.contains { $0.id == id }
+            let undone = s.undo(now: t0 + 14)
+            return left && gone && undone && s.items.count == 3 && s.items[1].id == id && !s.canUndo(now: t0 + 14)
+        }
+        check("undo fails after the window closes") {
+            var s = KaiShelf(); s.addString("late one", now: t0)
+            s.takeOut(s.items[0].id, now: t0 + 10)
+            let late = s.undo(now: t0 + 10 + KaiShelf.undoWindow + 0.1)
+            return !late && s.items.isEmpty
+        }
+        check("a pinned item stays when dragged out") {
+            var s = KaiShelf(); s.addString("pin me", now: t0); s.togglePin(s.items[0].id)
+            return !s.takeOut(s.items[0].id, now: t0) && s.items.count == 1 && !s.canUndo(now: t0)
+        }
+        check("only the last drag-out can be undone") {
+            var s = KaiShelf(); s.addString("first", now: t0); s.addString("second", now: t0 + 1)
+            let firstID = s.items[1].id
+            s.takeOut(s.items[0].id, now: t0 + 2)
+            s.takeOut(firstID, now: t0 + 3)
+            s.undo(now: t0 + 4)
+            return s.items.count == 1 && s.items[0].id == firstID
+        }
+        check("clear keeps pinned items and ends the undo") {
+            var s = KaiShelf(); s.addString("a thing", now: t0); s.addString("kept", now: t0 + 1)
+            s.togglePin(s.items[0].id); s.takeOut(s.items[1].id, now: t0 + 2); s.clear()
+            return s.items.count == 1 && !s.canUndo(now: t0 + 2)
+        }
+        check("the shelf saves to disk without the undo state") {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("kai-shelf-\(UUID().uuidString)/shelf.json")
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            var s = KaiShelf(); s.addString("persisted", now: t0); s.addString("removed", now: t0 + 1)
+            s.takeOut(s.items[0].id, now: t0 + 2)
+            try KaiDeskFile.save(s, to: url)
+            let loaded = KaiDeskFile.load(KaiShelf.self, from: url)
+            return loaded?.items.count == 1 && loaded?.canUndo(now: t0 + 3) == false
+        }
+    }
+
+    func testClaudeCodeHooks() async throws {
+        func payload(_ object: [String: Any]) -> Data { try! JSONSerialization.data(withJSONObject: object) }
+        let t0 = Date(timeIntervalSince1970: 9_000)
+
+        check("a permission request keeps the command and the project") {
+            let e = KaiHookEvent.parse(payload([
+                "hook_event_name": "PermissionRequest", "session_id": "s1", "cwd": "/Users/me/code/shop",
+                "tool_name": "Bash", "tool_input": ["command": "rm -rf build", "description": "clean"]
+            ]))
+            return e?.name == .permissionRequest && e?.toolSummary == "rm -rf build" && e?.project == "shop" && e?.toolName == "Bash"
+        }
+        check("a file write shows the path and never the contents") {
+            let e = KaiHookEvent.parse(payload([
+                "hook_event_name": "PermissionRequest", "cwd": "/x", "tool_name": "Write",
+                "tool_input": ["file_path": "/x/notes.txt", "content": "SECRET CONTENTS"]
+            ]))
+            return e?.toolSummary == "/x/notes.txt" && !(e?.toolSummary ?? "").contains("SECRET")
+        }
+        check("a long command is cut at the limit") {
+            let e = KaiHookEvent.parse(payload([
+                "hook_event_name": "PermissionRequest", "tool_name": "Bash",
+                "tool_input": ["command": String(repeating: "x", count: 5_000)]
+            ]))
+            return (e?.toolSummary?.count ?? 0) == KaiHookEvent.maxSummary + 1
+        }
+        check("an unknown tool lists short string fields only") {
+            let e = KaiHookEvent.parse(payload([
+                "hook_event_name": "PermissionRequest", "tool_name": "mcp__x__do",
+                "tool_input": ["b": "two", "a": "one", "n": 5]
+            ]))
+            return e?.toolSummary == "a: one\nb: two"
+        }
+        check("bad JSON and unknown events are refused") {
+            KaiHookEvent.parse(Data("nope".utf8)) == nil
+                && KaiHookEvent.parse(payload(["hook_event_name": "PreToolUse"])) == nil
+                && KaiHookEvent.parse(payload(["x": 1])) == nil
+        }
+        check("allow carries no changed input and no new rules") {
+            let obj = try JSONSerialization.jsonObject(with: KaiHookDecision.allow.outputJSON) as? [String: Any]
+            let out = obj?["hookSpecificOutput"] as? [String: Any]
+            let decision = out?["decision"] as? [String: Any]
+            return out?["hookEventName"] as? String == "PermissionRequest" && decision?.keys.sorted() == ["behavior"] && decision?["behavior"] as? String == "allow"
+        }
+        check("deny says who denied") {
+            let obj = try JSONSerialization.jsonObject(with: KaiHookDecision.deny.outputJSON) as? [String: Any]
+            let decision = (obj?["hookSpecificOutput"] as? [String: Any])?["decision"] as? [String: Any]
+            return decision?["behavior"] as? String == "deny" && (decision?["message"] as? String)?.contains("Kai OS") == true
+        }
+
+        var tracker = KaiHookTracker()
+        func ev(_ name: KaiHookEventName, session: String = "s1", agent: String? = nil, type: String? = nil) -> KaiHookEvent {
+            KaiHookEvent(name: name, sessionID: session, cwd: "/Users/me/shop", agentID: agent, agentType: type)
+        }
+        check("a finished turn reports the project and how long it took") {
+            tracker.apply(ev(.userPromptSubmit), now: t0)
+            let done = tracker.apply(ev(.stop), now: t0 + 125)
+            return done?.text == "Done · shop · 2m 5s"
+        }
+        check("a stop with no known start has no duration, a failure says so") {
+            var x = KaiHookTracker()
+            return x.apply(ev(.stop), now: t0)?.text == "Done · shop"
+                && x.apply(ev(.stopFailure), now: t0)?.text == "Stopped with an error · shop"
+        }
+        check("helper agents appear, wave when they need you, and leave") {
+            var x = KaiHookTracker()
+            x.apply(ev(.subagentStart, agent: "a1", type: "Explore"), now: t0)
+            x.apply(ev(.subagentStart, agent: "a2", type: nil), now: t0)
+            let two = x.clones.map(\.label) == ["Explore", "Helper"]
+            x.apply(KaiHookEvent(name: .permissionRequest, sessionID: "s1", cwd: "/x", agentID: "a2"), now: t0 + 1)
+            let waving = x.clones.first { $0.id == "a2" }?.waitingForYou == true
+            x.apply(ev(.subagentStop, agent: "a1"), now: t0 + 2)
+            return two && waving && x.clones.map(\.id) == ["a2"]
+        }
+        check("a main stop clears that session's helpers only") {
+            var x = KaiHookTracker()
+            x.apply(ev(.subagentStart, session: "s1", agent: "a1"), now: t0)
+            x.apply(ev(.subagentStart, session: "s2", agent: "b1"), now: t0)
+            x.apply(ev(.stop, session: "s1"), now: t0 + 1)
+            return x.clones.map(\.id) == ["b1"]
+        }
+        check("a session end clears its helpers") {
+            var x = KaiHookTracker()
+            x.apply(ev(.subagentStart, agent: "a1"), now: t0); x.apply(ev(.sessionEnd), now: t0 + 1)
+            return x.clones.isEmpty
+        }
+        check("a helper with no news for 20 minutes is dropped") {
+            var x = KaiHookTracker()
+            x.apply(ev(.subagentStart, agent: "a1"), now: t0)
+            x.expire(now: t0 + KaiHookTracker.cloneLifetime - 1); let kept = x.clones.count == 1
+            x.expire(now: t0 + KaiHookTracker.cloneLifetime + 1)
+            return kept && x.clones.isEmpty
+        }
+
+        check("the setup snippet is valid JSON, covers every event and quotes a path with spaces") {
+            let helper = "/Users/me/Applications/Kai OS.app/Contents/MacOS/kai-hook"
+            let text = KaiHookSetup.settingsSnippet(helperPath: helper)
+            let obj = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any]
+            let hooks = obj?["hooks"] as? [String: Any]
+            let permission = ((hooks?["PermissionRequest"] as? [[String: Any]])?.first?["hooks"] as? [[String: Any]])?.first
+            return Set(hooks?.keys ?? [:].keys) == Set(KaiHookSetup.events)
+                && permission?["command"] as? String == "'" + helper + "'"
+                && permission?["timeout"] as? Int == 75
+                && text.contains("Kai OS.app/Contents/MacOS/kai-hook") && !text.contains("\\/")
+        }
+        check("every event the snippet installs is one Kai understands") {
+            KaiHookSetup.events.allSatisfy { KaiHookEventName(rawValue: $0) != nil }
+        }
+        check("a path with a quote is escaped for the shell") {
+            KaiHookSetup.shellQuoted("/a/it's") == "'/a/it'\\''s'"
+        }
+
+        // A real Unix socket, in a short path (socket paths are limited to about 100 bytes).
+        let dir = "/tmp/kai-sock-\(UInt32.random(in: 0..<1_000_000))"
+        let path = dir + "/k.sock"
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let seen = LockedBox<[KaiHookEventName]>([])
+        let server = KaiHookServer(path: path, permissionTimeout: 0.6) { event, reply in
+            seen.mutate { $0.append(event.name) }
+            if event.name == .permissionRequest {
+                switch event.toolSummary {
+                case "approve me": reply(.allow)
+                case "refuse me": reply(.deny)
+                default: break // no answer: the server times out
+                }
+            }
+        }
+        try server.start()
+        defer { server.stop() }
+        let mode = (try? FileManager.default.attributesOfItem(atPath: path)[.posixPermissions] as? Int) ?? 0
+        let folderMode = (try? FileManager.default.attributesOfItem(atPath: dir)[.posixPermissions] as? Int) ?? 0
+        check("the socket and its folder are private") { mode == 0o600 && folderMode == 0o700 }
+
+        func permission(_ command: String) -> Data {
+            payload(["hook_event_name": "PermissionRequest", "session_id": "s", "cwd": "/p", "tool_name": "Bash", "tool_input": ["command": command]])
+        }
+        func decision(_ data: Data?) -> String? {
+            guard let data, !data.isEmpty,
+                  let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let d = (obj["hookSpecificOutput"] as? [String: Any])?["decision"] as? [String: Any] else { return nil }
+            return d["behavior"] as? String
+        }
+        let approveData = permission("approve me"), refuseData = permission("refuse me"), ignoreData = permission("ignore me")
+        let stopData = payload(["hook_event_name": "Stop", "session_id": "s", "cwd": "/p"])
+        let allow = await Task.detached { KaiHookClient.send(approveData, socketPath: path, waitForReply: true, timeout: 5) }.value
+        let deny = await Task.detached { KaiHookClient.send(refuseData, socketPath: path, waitForReply: true, timeout: 5) }.value
+        let silent = await Task.detached { KaiHookClient.send(ignoreData, socketPath: path, waitForReply: true, timeout: 5) }.value
+        let fire = await Task.detached { KaiHookClient.send(stopData, socketPath: path, waitForReply: false, timeout: 5) }.value
+        try await Task.sleep(for: .milliseconds(200))
+        check("an Allow press reaches the helper as an allow decision") { decision(allow) == "allow" }
+        check("a Deny press reaches the helper as a deny decision") { decision(deny) == "deny" }
+        check("no answer in time gives the helper nothing, so Claude Code asks in the terminal") { silent != nil && silent!.isEmpty }
+        check("a one-way event is delivered") { fire != nil && seen.value.contains(.stop) }
+        check("garbage on the socket is ignored") {
+            let before = seen.value.count
+            let r = KaiHookClient.send(Data("{not json".utf8), socketPath: path, waitForReply: true, timeout: 2)
+            return r != nil && r!.isEmpty && seen.value.count == before
+        }
+        check("the helper gives up quietly when Kai is not running") {
+            KaiHookClient.send(permission("x"), socketPath: dir + "/missing.sock", waitForReply: true, timeout: 1) == nil
+        }
+        check("the helper will not talk to a regular file or a symlink") {
+            let file = dir + "/plain"
+            FileManager.default.createFile(atPath: file, contents: Data())
+            let link = dir + "/link.sock"
+            try? FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: path)
+            return KaiHookClient.send(permission("x"), socketPath: file, waitForReply: true, timeout: 1) == nil
+                && KaiHookClient.send(permission("x"), socketPath: link, waitForReply: true, timeout: 1) == nil
+        }
+        // The real helper binary, run as Claude Code would run it.
+        let productsFolder = Bundle(for: KaiChecksTests.self).bundleURL.deletingLastPathComponent()
+        let helper = productsFolder.appendingPathComponent("kai-hook")
+        func runHelper(_ input: Data, socket: String) async -> (output: Data, status: Int32)? {
+            guard FileManager.default.isExecutableFile(atPath: helper.path) else { return nil }
+            return await Task.detached {
+                let process = Process()
+                process.executableURL = helper
+                process.environment = ["KAI_SOCKET_PATH": socket]
+                let stdin = Pipe(), stdout = Pipe()
+                process.standardInput = stdin
+                process.standardOutput = stdout
+                guard (try? process.run()) != nil else { return nil }
+                stdin.fileHandleForWriting.write(input)
+                try? stdin.fileHandleForWriting.close()
+                let out = stdout.fileHandleForReading.readDataToEndOfFile()
+                process.waitUntilExit()
+                return (out, process.terminationStatus)
+            }.value
+        }
+        let helperAllow = await runHelper(approveData, socket: path)
+        let helperDeny = await runHelper(refuseData, socket: path)
+        let helperSilent = await runHelper(ignoreData, socket: path)
+        let helperOffline = await runHelper(approveData, socket: dir + "/nobody.sock")
+        check("the kai-hook helper prints an allow decision after Allow") { helperAllow != nil && decision(helperAllow?.output) == "allow" && helperAllow?.status == 0 }
+        check("the kai-hook helper prints a deny decision after Deny") { decision(helperDeny?.output) == "deny" && helperDeny?.status == 0 }
+        check("the kai-hook helper prints nothing when nobody answers") { helperSilent != nil && helperSilent!.output.isEmpty && helperSilent!.status == 0 }
+        check("the kai-hook helper prints nothing and exits 0 when Kai is not running") { helperOffline != nil && helperOffline!.output.isEmpty && helperOffline!.status == 0 }
+
+        server.stop()
+        check("stopping removes the socket") { !FileManager.default.fileExists(atPath: path) }
+        check("an over-long socket path is refused") {
+            let tooLong = "/tmp/" + String(repeating: "a", count: 120) + ".sock"
+            return (try? KaiHookServer(path: tooLong) { _, _ in }.start()) == nil
+        }
+    }
+
+}
+
+final class LockedBox<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: T
+    init(_ value: T) { stored = value }
+    var value: T { lock.lock(); defer { lock.unlock() }; return stored }
+    func mutate(_ change: (inout T) -> Void) { lock.lock(); change(&stored); lock.unlock() }
 }

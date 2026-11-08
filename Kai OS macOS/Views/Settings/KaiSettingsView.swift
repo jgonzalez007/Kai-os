@@ -6,12 +6,14 @@
 //  Copyright © 2026 Kai OS Labs. All rights reserved.
 //
 
+import KaiDesk
 import SwiftUI
 import KaiShared
 
 struct KaiSettingsView: View {
     @EnvironmentObject var appState: AppState
     @AppStorage("kai.notch.enabled") private var notchEnabled = true
+    @ObservedObject private var desk = KaiDeskController.shared
     
     var body: some View {
         ScrollView {
@@ -269,6 +271,49 @@ struct KaiSettingsView: View {
                     Text("At the set time, Kai OS starts in the background, updates the knowledge base and prepares your morning cards, then quits. It only prepares cards: nothing is sent or changed without your approval. It skips the run in Low Power Mode, when the Mac is hot, or on a low battery. A sleeping Mac is not woken; if the Mac is asleep at that time, the job runs when it wakes. This adds a launch agent at ~/Library/LaunchAgents/ai.kai.nightshift.plist, and turning it off removes it.")
                         .font(KaiFont.caption2Strong)
                         .foregroundStyle(KaiColor.textTertiary)
+                }
+
+                // ── Desk ──
+                settingsCard {
+                    SectionHeader(title: "Desk")
+
+                    Toggle("Clipboard history", isOn: $desk.clipboardEnabled)
+                    Text("Remembers your last 50 text copies so you can copy one again from the notch. Kept on this Mac only. Password managers, dictation and anything an app marks as secret are never recorded, and file copies from Finder are skipped.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    if desk.clipboardEnabled {
+                        Toggle("Ignore copies from terminals", isOn: $desk.clipboardIgnoreTerminals)
+                        Toggle("Keep history after quitting", isOn: $desk.clipboardKeepAfterQuit)
+                        Text(desk.clipboardKeepAfterQuit
+                             ? "History is saved in a private file in Application Support, so it survives a restart. Turn this off to delete that file."
+                             : "History is held in memory and disappears when Kai OS quits.")
+                            .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                        Button("Clear history") { desk.clearClipboard() }.controlSize(.small)
+                    }
+
+                    Divider().kaiDivider()
+
+                    Text("Shelf").font(KaiFont.captionStrong)
+                    Text("Drop files, links or text on the notch and drag them out later. Files stay where they are: the Shelf keeps a reference, not a copy.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    Toggle("Remove an item when I drag it out (5 second Undo)", isOn: $desk.shelfRemoveOnDragOut)
+                    Text("Pinned items always stay.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+
+                    Divider().kaiDivider()
+
+                    Text("Claude Code").font(KaiFont.captionStrong)
+                    Toggle("Listen for Claude Code", isOn: $desk.hooksEnabled)
+                    Text("Status: \(desk.hooksMessage)")
+                        .font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                    Text("Shows Claude Code's permission requests in the notch so you can allow or deny them there, a Done peek when a task ends, and the helper agents that are running. Kai OS never edits your Claude settings: you paste the hooks in yourself.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    if !desk.helperExists {
+                        Text("The kai-hook helper was not found next to the app. Install with scripts/install-app.sh, which puts it in the app.")
+                            .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.warning)
+                    }
+                    Button("Copy hook setup") { desk.copySetupSnippet() }.controlSize(.small)
+                    Text("Back up ~/.claude/settings.json first. If it has no \"hooks\" key, paste the copied block in as a new top-level key. If it already has one, add each event's entry next to your own and leave your existing entries alone. Then check the file with: python3 -m json.tool ~/.claude/settings.json and restart Claude Code. Full steps are in INSTALL-HOOKS.md. Kai OS never allows anything on its own: Allow is sent only when you press it, and if Kai OS is not running or you do not answer in time, Claude Code asks in the terminal as usual.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                 }
 
                 // ── Mailbox access ──
