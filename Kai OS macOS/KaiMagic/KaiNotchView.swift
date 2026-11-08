@@ -32,7 +32,20 @@ struct KaiNotchView: View {
     var body: some View {
         ZStack(alignment: .top) {
             KaiNotchShape(topRadius: isExpanded ? 14 : 8, bottomRadius: isExpanded ? 22 : 10)
-                .fill(.black)
+                .fill(isExpanded ? AnyShapeStyle(KaiNotchStyle.panelFill) : AnyShapeStyle(Color.black))
+            if isExpanded {
+                // A soft colored edge, like a light behind the panel. Black at the top so it
+                // still merges with the hardware notch.
+                KaiNotchShape(topRadius: 14, bottomRadius: 22)
+                    .stroke(KaiNotchStyle.glow, lineWidth: 5)
+                    .blur(radius: 4)
+                    .opacity(desk.approvals.isEmpty ? 0.55 : 0.95)
+                    .allowsHitTesting(false)
+                KaiNotchShape(topRadius: 14, bottomRadius: 22)
+                    .stroke(KaiNotchStyle.glow, lineWidth: 1)
+                    .opacity(0.8)
+                    .allowsHitTesting(false)
+            }
             if isExpanded {
                 if model.panelMode == .reply, let doubleTap = controller.doubleTap {
                     KaiNotchReplyContent(model: model, doubleTap: doubleTap, controller: controller, topInset: notchHeight)
@@ -254,7 +267,6 @@ private struct KaiNotchPanelContent: View {
     var body: some View {
         VStack(spacing: 10) {
             header
-            KaiDeskTabBar(desk: desk)
             if let approval = desk.approvals.first {
                 KaiApprovalCard(desk: desk, approval: approval)
             } else {
@@ -282,6 +294,12 @@ private struct KaiNotchPanelContent: View {
                     Text("Ask anything. Replies come from your local model, and this chat also appears in the main window.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                    HStack(spacing: 8) {
+                        KaiNotchChip(symbol: "calendar", title: "My day") { send("What is on my calendar today?") }
+                        KaiNotchChip(symbol: "envelope", title: "Unread mail") { send("Summarize my unread mail from today.") }
+                        KaiNotchChip(symbol: "number", title: "Slack") { send("What happened in Slack since yesterday?") }
+                    }
+                    .padding(.top, 4)
                 }
                 ForEach(transcript) { MessageBubbleView(message: $0) }
             }
@@ -295,20 +313,29 @@ private struct KaiNotchPanelContent: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
-                KaiSpinningLogo(spinning: appState.isProcessing)
-                Text("Kai").fontWeight(.semibold)
-                Text(KaiModelTag.name(from: appState.selectedModel))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer()
-                Button(action: appState.startNewChat) { Image(systemName: "plus.bubble") }
-                    .buttonStyle(.plain)
-                    .help("New Chat")
-                Button(action: controller.openMainWindow) { Image(systemName: "macwindow") }
-                    .buttonStyle(.plain)
-                    .help("Open Kai OS")
+                HStack(spacing: 6) {
+                    KaiSpinningLogo(spinning: appState.isProcessing)
+                    Text("Kai").fontWeight(.semibold)
+                    Text(KaiModelTag.name(from: appState.selectedModel))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .frame(width: 150, alignment: .leading)
+                Spacer(minLength: 0)
+                KaiDeskTabBar(desk: desk)
+                Spacer(minLength: 0)
+                HStack(spacing: 10) {
+                    Button(action: appState.startNewChat) { Image(systemName: "plus.bubble") }
+                        .buttonStyle(.plain)
+                        .help("New Chat")
+                    Button(action: controller.openMainWindow) { Image(systemName: "macwindow") }
+                        .buttonStyle(.plain)
+                        .help("Open Kai OS")
+                }
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: 150, alignment: .trailing)
             }
             // On its own line, so it can never sit on top of the model name.
             if let hint = appState.suggestions.first {
@@ -375,10 +402,60 @@ private struct KaiNotchPanelContent: View {
         }
     }
 
+    private func send(_ text: String) {
+        guard !appState.isProcessing else { return }
+        appState.sendMessage(text: text)
+    }
+
     private func send() {
         guard canSend, !appState.isProcessing, model.voicePhase == .idle else { return }
         appState.sendMessage(text: model.draft)
         model.draft = ""
         inputFocused = true
+    }
+}
+
+
+/// Colors shared by the notch panels.
+enum KaiNotchStyle {
+    /// Black at the top (so the panel melts into the hardware notch), then a deep navy.
+    static let panelFill = LinearGradient(
+        stops: [
+            .init(color: Color(red: 0.02, green: 0.03, blue: 0.05), location: 0),
+            .init(color: Color(red: 0.06, green: 0.09, blue: 0.15), location: 0.25),
+            .init(color: Color(red: 0.08, green: 0.12, blue: 0.20), location: 1)
+        ],
+        startPoint: .top, endPoint: .bottom
+    )
+
+    static let glow = LinearGradient(
+        colors: [
+            Color(red: 1.0, green: 0.45, blue: 0.62), Color(red: 0.70, green: 0.45, blue: 1.0),
+            Color(red: 0.35, green: 0.62, blue: 1.0), Color(red: 0.35, green: 0.85, blue: 0.62),
+            Color(red: 1.0, green: 0.70, blue: 0.35)
+        ],
+        startPoint: .leading, endPoint: .trailing
+    )
+}
+
+/// A dark capsule button, used for quick actions.
+struct KaiNotchChip: View {
+    let symbol: String
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: symbol)
+                Text(title)
+            }
+            .font(.callout)
+            .padding(.horizontal, 12).padding(.vertical, 7)
+            .background(Color.white.opacity(0.08), in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5))
+            .foregroundStyle(.white.opacity(0.9))
+        }
+        .buttonStyle(.plain)
     }
 }
