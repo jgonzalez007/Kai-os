@@ -21,6 +21,8 @@ for _ in 1 2 3 4 5 6 7 8 9 10; do
 done
 
 cp "$BIN_DIR/Kai OS" "$CONTENTS/MacOS/Kai OS"
+# The command Claude Code hooks run. It talks to the app over a local socket.
+cp "$BIN_DIR/kai-hook" "$CONTENTS/MacOS/kai-hook"
 cp "Kai OS macOS/Info.plist" "$CONTENTS/Info.plist"
 read -r SIGNING_SHA SIGNING_KEYCHAIN <<< "$(scripts/setup-signing.sh)"
 if ! codesign --force --sign "$SIGNING_SHA" --keychain "$SIGNING_KEYCHAIN" --identifier ai.kai "$APP" 2>/dev/null; then

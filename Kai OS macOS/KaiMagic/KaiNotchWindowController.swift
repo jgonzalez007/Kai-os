@@ -9,6 +9,7 @@
 import AppKit
 import Combine
 import KaiCapture
+import KaiDesk
 import KaiLocalData
 import KaiNotchCore
 import SwiftUI
@@ -35,6 +36,8 @@ final class KaiNotchModel: ObservableObject {
     @Published var activity = Activity.idle { didSet { onSurfaceChange?() } }
     @Published var layout: KaiNotchLayout?
     @Published var draft = ""
+    /// Short text for the right wing, such as "Claude done". Replaces the activity text while set.
+    @Published var peekText: String?
 
     var onSurfaceChange: (() -> Void)?
 
@@ -121,6 +124,10 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
             .removeDuplicates()
             .sink { [weak self] isProcessing in self?.processingChanged(isProcessing) }
             .store(in: &cancellables)
+        let desk = KaiDeskController.shared
+        desk.onApproval = { [weak self] in self?.showForApproval() }
+        desk.onDone = { [weak self] done in self?.showClaudeDone(done) }
+        desk.start()
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
@@ -177,6 +184,29 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         panel.orderOut(nil)
         panel.orderFrontRegardless()
         syncHoverWithCursor()
+    }
+
+    // MARK: Claude Code
+
+    /// Opens the panel for a permission request without taking keyboard focus from the terminal.
+    private func showForApproval() {
+        guard KaiNotchPreferences.isEnabled, let panel else { return }
+        model.panelMode = .chat
+        model.isExpanded = true
+        panel.orderFrontRegardless()
+    }
+
+    private func showClaudeDone(_ done: KaiHookDone) {
+        guard KaiNotchPreferences.isEnabled else { return }
+        flourishTask?.cancel()
+        model.peekText = done.failed ? "Claude failed" : "Claude done"
+        model.activity = done.failed ? .failed : .done
+        flourishTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            self?.model.peekText = nil
+            self?.model.activity = .idle
+        }
     }
 
     // MARK: Double tap
@@ -293,6 +323,8 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     /// a permission prompt. The chat panel holds nothing that would be lost, so it closes.
     func dismissForOutsideInteraction() {
         guard model.panelMode == .chat else { return }
+        // A permission request waits for an answer, so a click elsewhere must not hide it.
+        guard KaiDeskController.shared.approvals.isEmpty else { return }
         collapse()
     }
 
@@ -361,6 +393,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
 
     private func processingChanged(_ isProcessing: Bool) {
         flourishTask?.cancel()
+        model.peekText = nil
         if isProcessing {
             model.activity = .running
             return

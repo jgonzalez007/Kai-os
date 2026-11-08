@@ -183,6 +183,9 @@ Kai OS macOS/
 | 6.4 | Draft preview | Built | Unsent until you send |
 | 6.5 | Local model support | Partial | Needs wiring |
 
+### Desk (clipboard history, Shelf, Claude Code in the notch)
+> **2026-11-07:** added, modelled on features in Glance for Mac 1.1.0 (own code). Logic and the socket are tested, including the real `kai-hook` helper process. Not yet tried by hand: dragging an item out of the Shelf into real apps, dropping on the closed notch, ⌃⌥Y / ⌃⌥N, and a live Claude Code session with the hooks installed.
+
 ### 3.7 Night Shift Scheduler
 > **2026-11-07:** a checklist in Settings picks what Night Shift covers (knowledge folder, Calendar, Notes, Mail, Slack, morning cards). Mail starts off, and when on it reads only a chosen window (today, yesterday and today, last 3 days, last 7 days; 200 messages at most, stopping at the first message older than the window). The same list governs "Index now" and the morning briefing, which can now include recent Slack.
 

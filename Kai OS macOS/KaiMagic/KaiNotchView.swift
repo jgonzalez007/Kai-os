@@ -14,6 +14,8 @@ struct KaiNotchView: View {
     @ObservedObject var model: KaiNotchModel
     @ObservedObject var appState: AppState
     let controller: KaiNotchWindowController
+    @ObservedObject private var desk = KaiDeskController.shared
+    @State private var dropTargeted = false
 
     private var size: CGSize {
         model.layout?.frame(for: model.surface).size ?? .zero
@@ -46,6 +48,16 @@ struct KaiNotchView: View {
         .frame(width: size.width, height: size.height)
         .contentShape(Rectangle())
         .onTapGesture { if !isExpanded { controller.expand() } }
+        // Dropping files, links or text on the notch puts them on the Shelf.
+        .onDrop(of: [.fileURL, .url, .plainText], isTargeted: $dropTargeted) { providers in
+            desk.acceptDrop(providers)
+        }
+        .onChange(of: dropTargeted) { _, targeted in
+            if targeted {
+                desk.tab = .shelf
+                controller.expand()
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .ignoresSafeArea()
         .environment(\.colorScheme, .dark)
@@ -78,6 +90,8 @@ struct KaiNotchView: View {
     }
 
     private var wingText: String {
+        if let note = model.peekText { return note }
+        if model.activity == .idle, !desk.clones.isEmpty { return "Claude ·\(desk.clones.count)" }
         switch model.activity {
         case .idle: return "Ask"
         case .running: return "Working"
@@ -225,6 +239,7 @@ private struct KaiNotchPanelContent: View {
     @ObservedObject var appState: AppState
     let controller: KaiNotchWindowController
     let topInset: CGFloat
+    @ObservedObject private var desk = KaiDeskController.shared
 
     @FocusState private var inputFocused: Bool
 
@@ -239,26 +254,42 @@ private struct KaiNotchPanelContent: View {
     var body: some View {
         VStack(spacing: 10) {
             header
-            ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    if transcript.isEmpty {
-                        Text("Ask anything. Replies come from your local model, and this chat also appears in the main window.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
-                    ForEach(transcript) { MessageBubbleView(message: $0) }
+            KaiDeskTabBar(desk: desk)
+            if let approval = desk.approvals.first {
+                KaiApprovalCard(desk: desk, approval: approval)
+            } else {
+                switch desk.tab {
+                case .chat: chatBody
+                case .shelf: KaiShelfPanel(desk: desk)
+                case .clipboard: KaiClipboardPanel(desk: desk)
+                case .claude: KaiClaudePanel(desk: desk)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .defaultScrollAnchor(.bottom)
-            KaiPendingScreenshotChip().environmentObject(appState)
-            input
         }
         .padding(.top, topInset + 8)
         .padding(.horizontal, 28)
         .padding(.bottom, 16)
-        .onAppear { inputFocused = true }
+        .onAppear { if desk.tab == .chat { inputFocused = true } }
+        .onChange(of: desk.tab) { _, tab in if tab == .chat { inputFocused = true } }
         .onExitCommand { controller.collapse() }
+    }
+
+    @ViewBuilder
+    private var chatBody: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 10) {
+                if transcript.isEmpty {
+                    Text("Ask anything. Replies come from your local model, and this chat also appears in the main window.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(transcript) { MessageBubbleView(message: $0) }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .defaultScrollAnchor(.bottom)
+        KaiPendingScreenshotChip().environmentObject(appState)
+        input
     }
 
     private var header: some View {
