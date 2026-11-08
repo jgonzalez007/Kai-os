@@ -42,12 +42,13 @@ final class KaiNotchModel: ObservableObject {
     @Published var hiddenForFullScreen = false
     /// Slim status strips stay beside the notch.
     @Published var showsStatus = KaiNotchPreferences.showsStatus { didSet { onSurfaceChange?() } }
+    @Published var showsPeeks = KaiNotchPreferences.showsPeeks { didSet { onSurfaceChange?() } }
 
     var onSurfaceChange: (() -> Void)?
 
     var surface: KaiNotchSurface {
         if isExpanded { return .expanded }
-        if isHovering || activity != .idle || peekText != nil { return .peek }
+        if showsPeeks && (isHovering || activity != .idle || peekText != nil) { return .peek }
         return showsStatus && !hiddenForFullScreen ? .status : .closed
     }
 }
@@ -283,6 +284,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     /// Applies a changed preference without a restart.
     func preferencesChanged() {
         model.showsStatus = KaiNotchPreferences.showsStatus
+        model.showsPeeks = KaiNotchPreferences.showsPeeks
         updateFullScreen()
     }
 

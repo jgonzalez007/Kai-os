@@ -13,8 +13,9 @@ import KaiShared
 struct KaiSettingsView: View {
     @EnvironmentObject var appState: AppState
     @AppStorage("kai.notch.enabled") private var notchEnabled = true
-    @AppStorage(KaiNotchPreferences.hoverOpenKey) private var hoverOpen = true
-    @AppStorage(KaiNotchPreferences.statusKey) private var notchStatus = true
+    @AppStorage(KaiNotchPreferences.hoverOpenKey) private var hoverOpen = false
+    @AppStorage(KaiNotchPreferences.statusKey) private var notchStatus = false
+    @AppStorage(KaiNotchPreferences.peeksKey) private var notchPeeks = false
     @AppStorage(KaiNotchPreferences.hideFullScreenKey) private var hideFullScreen = true
     @AppStorage(KaiNotchPreferences.menuBarKey) private var menuBar = true
     @ObservedObject private var desk = KaiDeskController.shared
@@ -257,6 +258,10 @@ struct KaiSettingsView: View {
                         .onChange(of: notchEnabled) {
                             _, _ in KaiNotchWindowController.shared.applyEnabledPreference()
                         }
+                    Toggle("Show activity beside the notch", isOn: $notchPeeks)
+                        .onChange(of: notchPeeks) { _, _ in KaiNotchWindowController.shared.preferencesChanged() }
+                    Text("Off: the notch stays its own size until you click it or use the hotkey. On: small wings appear beside it on hover, while Kai works, and for events like a finished task. A Claude Code permission request always opens the panel so you can answer it.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                     Toggle("Open when I hover over the notch", isOn: $hoverOpen)
                     Text("Hover for a moment and the panel opens, then closes when you move away. It stays open while you are typing, talking or answering a permission request. Clicking the notch or using the hotkey opens it and keeps it open.")
                         .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
