@@ -7,6 +7,7 @@
 //
 
 import KaiDesk
+import KaiShared
 import SwiftUI
 
 struct KaiDeskTabBar: View {
@@ -302,5 +303,81 @@ private struct KaiCloneCard: View {
                 Text(clone.waitingForYou ? "needs you" : "working").font(.caption).foregroundStyle(color)
             }
         }
+    }
+}
+
+// MARK: Stats
+
+/// Clock, battery, CPU, memory and heat as small glass cards, and quick actions for the notch.
+struct KaiStatsPanel: View {
+    let controller: KaiNotchWindowController
+    @ObservedObject private var sampler = KaiStatsSampler.shared
+    @State private var chosen = KaiStatsItem.stored()
+
+    var body: some View {
+        VStack(spacing: 12) {
+            if chosen.isEmpty {
+                Text("No stats are turned on. Choose them in Preferences → Notch & Desk.")
+                    .font(.callout).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                if chosen.contains(.clock) {
+                    VStack(spacing: 2) {
+                        Text(sampler.now, format: .dateTime.hour().minute())
+                            .font(.system(size: 34, weight: .semibold, design: .rounded))
+                        Text(sampler.now, format: .dateTime.weekday(.wide).month().day())
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                let gauges = KaiStatsItem.allCases.filter { $0 != .clock && chosen.contains($0) }
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: min(3, max(1, gauges.count))), spacing: 10) {
+                    ForEach(gauges, id: \.self) { item in KaiMetricCard(item: item, snapshot: sampler.snapshot) }
+                }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 8) {
+                Button { controller.hideNotch() } label: { Label("Hide notch", systemImage: "eye.slash") }
+                Spacer()
+                Button { controller.openPreferences() } label: { Label("Stats settings", systemImage: "slider.horizontal.3") }
+            }
+            .controlSize(.small)
+        }
+        .onAppear { chosen = KaiStatsItem.stored(); sampler.start() }
+        .onDisappear { sampler.stop() }
+    }
+}
+
+private struct KaiMetricCard: View {
+    let item: KaiStatsItem
+    let snapshot: KaiStatsSnapshot
+
+    private var tint: Color {
+        switch item {
+        case .cpu: return KaiColor.cyan
+        case .memory: return KaiColor.violet
+        case .battery: return KaiColor.magenta
+        case .thermal: return KaiColor.liquidBlue
+        case .clock: return .white
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(item.title.uppercased()).font(.system(size: 9, weight: .medium)).tracking(1).foregroundStyle(.white.opacity(0.5))
+            Text(snapshot.value(for: item)).font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(tint)
+            if let gauge = snapshot.gauge(for: item) {
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.1))
+                    Capsule().fill(tint).frame(maxWidth: .infinity).scaleEffect(x: max(0.02, gauge), y: 1, anchor: .leading)
+                }
+                .frame(height: 4)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))
     }
 }

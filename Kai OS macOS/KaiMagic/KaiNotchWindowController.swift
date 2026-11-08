@@ -390,6 +390,27 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         }
     }
 
+    // MARK: Hide and show
+
+    /// Hides the notch until it is shown again from the menu bar item or Preferences. This is the
+    /// same switch as "Show at notch" in Preferences.
+    func hideNotch() {
+        collapse()
+        UserDefaults.standard.set(false, forKey: KaiNotchPreferences.enabledKey)
+        applyEnabledPreference()
+    }
+
+    func showNotch() {
+        UserDefaults.standard.set(true, forKey: KaiNotchPreferences.enabledKey)
+        applyEnabledPreference()
+    }
+
+    func openPreferences() {
+        KaiSettingsView.startPage = .notch
+        appState?.activeSidebar = "Settings"
+        openMainWindow()
+    }
+
     // MARK: Claude Code
 
     /// Opens the panel for a permission request without taking keyboard focus from the terminal.

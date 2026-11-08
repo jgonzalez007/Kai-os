@@ -9,15 +9,9 @@
 import SwiftUI
 
 enum KaiSpectrum {
+    /// Cyan, liquid blue, violet and magenta from the brand palette, looping back to cyan.
     static let colors: [Color] = [
-        Color(red: 0.992, green: 0.886, blue: 0.639),
-        Color(red: 1.000, green: 0.557, blue: 0.235),
-        Color(red: 1.000, green: 0.275, blue: 0.275),
-        Color(red: 0.910, green: 0.220, blue: 0.561),
-        Color(red: 0.608, green: 0.282, blue: 0.831),
-        Color(red: 0.424, green: 0.361, blue: 0.898),
-        Color(red: 0.290, green: 0.565, blue: 0.886),
-        Color(red: 0.992, green: 0.886, blue: 0.639)
+        KaiColor.cyan, KaiColor.liquidBlue, KaiColor.violet, KaiColor.magenta, KaiColor.violet, KaiColor.cyan
     ]
 }
 

@@ -58,17 +58,14 @@ struct KaiSidebarView: View {
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
         }
-        .background(Color(red: 0.05, green: 0.05, blue: 0.06))
+        .background(Color.black.opacity(0.35))
     }
 
     // MARK: Pieces
 
     private var header: some View {
         HStack(spacing: 10) {
-            Image(systemName: "sparkles")
-                .font(.title2)
-                .foregroundStyle(KaiColor.primary)
-                .kaiGlow()
+            KaiLogoMark(size: 38)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Kai OS").font(.system(size: 18, weight: .semibold))
                 Text("Personal AI").font(.caption).foregroundStyle(.secondary)
@@ -90,7 +87,7 @@ struct KaiSidebarView: View {
     private func pill<Content: View>(selected: Bool, @ViewBuilder _ content: () -> Content) -> some View {
         HStack(spacing: 12) { content() }
             .padding(.horizontal, 12).padding(.vertical, 10)
-            .background(RoundedRectangle(cornerRadius: 14).fill(selected ? Color.white.opacity(0.1) : .clear))
+            .background(RoundedRectangle(cornerRadius: 14).fill(selected ? LinearGradient(colors: [KaiColor.cyan.opacity(0.18), KaiColor.violet.opacity(0.22)], startPoint: .leading, endPoint: .trailing) : LinearGradient(colors: [.clear], startPoint: .leading, endPoint: .trailing)))
             .contentShape(Rectangle())
     }
 
@@ -140,11 +137,7 @@ struct KaiSidebarView: View {
             Image(systemName: symbol).foregroundStyle(tint)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.04))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
-        )
+        .kaiGlassSurface(radius: 16)
     }
 
     private var recentNotes: some View {

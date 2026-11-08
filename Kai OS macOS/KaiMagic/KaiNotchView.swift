@@ -19,6 +19,7 @@ struct KaiNotchView: View {
     @ObservedObject private var updates = KaiUpdateController.shared
     @State private var dropTargeted = false
     @AppStorage(KaiMotion.key) private var motion = true
+    @AppStorage(KaiNotchPreferences.glowKey) private var glowStrength = 0.9
 
     private var size: CGSize {
         model.shapeFrame?.size ?? .zero
@@ -40,7 +41,7 @@ struct KaiNotchView: View {
             if isExpanded {
                 // Black fill, like the hardware notch, so the two read as one shape.
                 KaiNotchGlow(size: size, topRadius: 14, bottomRadius: 22,
-                             intensity: desk.approvals.isEmpty ? 0.9 : 1)
+                             intensity: desk.approvals.isEmpty ? glowStrength : 1)
             }
             if isExpanded {
                 if model.panelMode == .reply, let doubleTap = controller.doubleTap {
@@ -314,6 +315,7 @@ private struct KaiNotchPanelContent: View {
                 case .shelf: KaiShelfPanel(desk: desk)
                 case .clipboard: KaiClipboardPanel(desk: desk)
                 case .claude: KaiClaudePanel(desk: desk)
+                case .stats: KaiStatsPanel(controller: controller)
                 }
             }
         }
@@ -353,7 +355,7 @@ private struct KaiNotchPanelContent: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
-                    KaiSpectrumLogo(spinning: appState.isProcessing)
+                    KaiLogoMark(size: 20, pulsing: appState.isProcessing)
                     Text("Kai").fontWeight(.semibold)
                     Text(KaiModelTag.name(from: appState.selectedModel))
                         .font(.caption)
@@ -519,7 +521,7 @@ private struct KaiNotchBarContent: View {
         VStack(spacing: 0) {
             // Beside the notch: the mark on the left, open-in-window and send on the right.
             HStack(spacing: 12) {
-                KaiSpectrumLogo(spinning: appState.isProcessing)
+                KaiLogoMark(size: 20, pulsing: appState.isProcessing)
                 Spacer()
                 shortcut("arrow.up.forward.app", "Open Kai OS") { controller.openMainWindow() }
                 Button(action: send) {
@@ -593,6 +595,7 @@ private struct KaiNotchBarContent: View {
             shortcut("tray", "Shelf") { desk.tab = .shelf }
             shortcut("doc.on.clipboard", "Clipboard history") { desk.tab = .clipboard }
             shortcut("terminal", "Claude Code") { desk.tab = .claude }
+            shortcut("gauge.with.dots.needle.33percent", "Stats") { desk.tab = .stats }
             shortcut("rectangle.expand.vertical", "Open the full conversation") { controller.setFullConversation(true) }
         }
         .padding(.horizontal, 20)

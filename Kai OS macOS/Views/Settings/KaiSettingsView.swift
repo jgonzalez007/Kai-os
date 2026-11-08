@@ -74,7 +74,7 @@ struct KaiSettingsView: View {
                 .frame(width: 270)
             pageScroll
         }
-        .background(Color(red: 0.035, green: 0.035, blue: 0.04))
+        .background(KaiAmbientBackground())
         .environment(\.colorScheme, .dark)
         .preferredColorScheme(.dark)
     }
@@ -332,6 +332,8 @@ struct KaiSettingsView: View {
                 }
 
                 if page == .sidekick { sidekickPage }
+
+                if page == .notch { notchLookCards }
 
                 if page == .knowledge { sourceGrid }
 
@@ -619,11 +621,48 @@ struct KaiSettingsView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(0.04))
-                .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.1), lineWidth: 1))
-        )
+        .kaiGlassSurface(radius: 20)
+    }
+
+    // ── Notch look and stats ──
+    @State private var statsChosen = KaiStatsItem.stored()
+    @AppStorage(KaiNotchPreferences.glowKey) private var glowStrength = 0.9
+
+    private var notchLookCards: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            settingsCard {
+                SectionHeader(title: "Notch customization")
+                HStack {
+                    Text("Glow strength")
+                    Slider(value: $glowStrength, in: 0.2...1).tint(KaiColor.cyan)
+                    Text("\(Int(glowStrength * 100))%").font(.caption).foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
+                }
+                Text("How bright the colored edge is around the open notch.")
+                    .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                Button("Hide the notch") { KaiNotchWindowController.shared.hideNotch(); notchEnabled = false }
+                    .controlSize(.small)
+                Text("The same as turning off \"Show at notch\" above. Bring it back from the Kai icon in the menu bar or with that switch.")
+                    .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+            }
+            settingsCard {
+                SectionHeader(title: "Stats bar")
+                Text("What the Stats tab in the notch shows. Kai only reads these while that tab is open.")
+                    .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                ForEach(KaiStatsItem.allCases, id: \.self) { item in
+                    Toggle(isOn: Binding(
+                        get: { statsChosen.contains(item) },
+                        set: { isOn in
+                            if isOn { statsChosen.insert(item) } else { statsChosen.remove(item) }
+                            KaiStatsItem.store(statsChosen)
+                        }
+                    )) {
+                        Label(item.title, systemImage: item.symbol)
+                    }
+                }
+                Text("Heat is the Mac's thermal state (cool, warm, hot), not a temperature in degrees: macOS does not give apps the sensor reading.")
+                    .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+            }
+        }
     }
 
     // ── Sidekick page ──
@@ -649,8 +688,7 @@ struct KaiSettingsView: View {
                             .onChange(of: notchPeeks) { _, _ in KaiNotchWindowController.shared.preferencesChanged() }
                     }
                 }
-                .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.04)))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                .kaiGlassSurface(radius: 16)
             }
 
             VStack(alignment: .leading, spacing: 12) {
@@ -680,8 +718,7 @@ struct KaiSettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(20)
-                .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.04)))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                .kaiGlassSurface(radius: 16)
             }
 
             VStack(alignment: .leading, spacing: 12) {
@@ -701,8 +738,7 @@ struct KaiSettingsView: View {
                     Text((KaiAgentEffort(rawValue: effort) ?? .default).detail).font(.caption).foregroundStyle(.secondary)
                 }
                 .padding(20)
-                .background(RoundedRectangle(cornerRadius: 16).fill(Color.white.opacity(0.04)))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                .kaiGlassSurface(radius: 16)
             }
         }
     }
@@ -886,17 +922,17 @@ private struct KaiSourceCard: View {
                 Spacer()
                 switch state {
                 case .available: Image(systemName: "plus").foregroundStyle(.secondary)
-                case .connected: Image(systemName: "checkmark").foregroundStyle(Color.green)
+                case .connected: Image(systemName: "checkmark").foregroundStyle(KaiColor.cyan)
                 case .locked: Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
+            .kaiGlassSurface(radius: 22, fill: state == .connected ? 0.12 : 0.05)
+            .overlay(
                 RoundedRectangle(cornerRadius: 22)
-                    .fill(state == .connected ? Color.green.opacity(0.08) : Color.white.opacity(0.04))
-                    .overlay(RoundedRectangle(cornerRadius: 22)
-                        .stroke(state == .connected ? Color.green.opacity(0.55) : Color.white.opacity(0.12), lineWidth: 1))
+                    .stroke(state == .connected ? KaiColor.cyan.opacity(0.7) : .clear, lineWidth: 1.2)
+                    .shadow(color: KaiColor.cyan.opacity(state == .connected ? 0.5 : 0), radius: 8)
             )
             .opacity(state == .locked ? 0.6 : 1)
             .contentShape(Rectangle())

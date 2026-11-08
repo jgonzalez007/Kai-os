@@ -37,6 +37,11 @@ struct KaiMenuBarContent: View {
         ForEach(summary.lines, id: \.self) { Text($0) }
         Divider()
         Button("Ask Kai") { KaiNotchWindowController.shared.expand() }
+        if KaiNotchPreferences.isEnabled {
+            Button("Hide notch") { KaiNotchWindowController.shared.hideNotch() }
+        } else {
+            Button("Show notch") { KaiNotchWindowController.shared.showNotch() }
+        }
         if summary.aiOffline && KaiOllamaSetup.isInstalled() {
             Button("Start Ollama") { startOllama() }
         }

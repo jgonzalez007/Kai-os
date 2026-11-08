@@ -11,15 +11,21 @@ import SwiftUI
 // MARK: - Colors
 
 struct KaiColor {
-    static let primary = Color(red: 0.424, green: 0.365, blue: 0.969)
-    static let primaryLight = Color(red: 0.639, green: 0.608, blue: 0.996)
-    static let primaryDark = Color(red: 0.353, green: 0.294, blue: 0.816)
-    static let secondary = Color(red: 0.0, green: 0.808, blue: 0.788)
-    static let accent = Color(red: 0.992, green: 0.475, blue: 0.659)
+    // Brand colors (brand_color_system): electric cyan, liquid blue, deep violet, neon magenta.
+    static let cyan = Color(red: 0.0, green: 0.941, blue: 1.0)            // #00F0FF
+    static let liquidBlue = Color(red: 0.227, green: 0.525, blue: 1.0)    // #3A86FF
+    static let violet = Color(red: 0.439, green: 0.0, blue: 1.0)          // #7000FF
+    static let magenta = Color(red: 1.0, green: 0.0, blue: 0.478)         // #FF007A
+
+    static let primary = liquidBlue
+    static let primaryLight = cyan
+    static let primaryDark = violet
+    static let secondary = cyan
+    static let accent = magenta
     
     static let card = Color.white.opacity(0.7)
     static let cardDark = Color.black.opacity(0.3)
-    static let border = Color.white.opacity(0.14)
+    static let border = Color.white.opacity(0.18)
     static let textPrimary = Color(nsColor: .textColor)
     static let textSecondary = Color(nsColor: .secondaryLabelColor)
     static let textTertiary = Color(nsColor: .tertiaryLabelColor)
@@ -33,7 +39,7 @@ struct KaiColor {
     // Kai OS is always dark now: cards are a faint lift on the near-black window.
     static var cardBg: Color { Color.white.opacity(0.05) }
     static var surfaceBg: Color { Color.white.opacity(0.05) }
-    static let windowBg = Color(red: 0.035, green: 0.035, blue: 0.04)
+    static let windowBg = Color(red: 0.043, green: 0.043, blue: 0.055)   // #0B0B0E
 }
 
 extension Color {
@@ -417,5 +423,73 @@ struct KaiPendingScreenshotChip: View {
             .padding(KaiSpacing.small)
             .background(KaiColor.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: KaiSpacing.cornerRadius))
         }
+    }
+}
+
+
+// MARK: - Liquid glass
+
+/// The brand's glass surface: a frosted fill, a bright hairline that is strongest at the top edge, a
+/// soft inner highlight and a deep shadow.
+struct KaiGlass: ViewModifier {
+    var radius: CGFloat = 18
+    var fill: Double = 0.06
+
+    func body(content: Content) -> some View {
+        content
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: radius, style: .continuous).fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: radius, style: .continuous).fill(Color.white.opacity(fill))
+                }
+                .shadow(color: .black.opacity(0.45), radius: 18, x: 0, y: 10)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(colors: [Color.white.opacity(0.32), Color.white.opacity(0.10), Color.white.opacity(0.04)],
+                                       startPoint: .top, endPoint: .bottom),
+                        lineWidth: 1
+                    )
+            )
+            .overlay(alignment: .top) {
+                // The specular line along the top edge.
+                Capsule().fill(Color.white.opacity(0.28)).frame(height: 1)
+                    .padding(.horizontal, radius).padding(.top, 0.5)
+                    .blur(radius: 0.4)
+            }
+    }
+}
+
+extension View {
+    func kaiGlassSurface(radius: CGFloat = 18, fill: Double = 0.06) -> some View {
+        modifier(KaiGlass(radius: radius, fill: fill))
+    }
+}
+
+/// The window background: near-black with soft cyan, violet and magenta light behind it, so the glass
+/// has something to frost.
+struct KaiAmbientBackground: View {
+    var body: some View {
+        ZStack {
+            KaiColor.windowBg
+            GeometryReader { geo in
+                let w = geo.size.width, h = geo.size.height
+                ZStack {
+                    glow(KaiColor.violet, opacity: 0.34, diameter: w * 0.95).position(x: w * 0.05, y: h * 0.05)
+                    glow(KaiColor.cyan, opacity: 0.20, diameter: w * 0.8).position(x: w * 0.95, y: h * 0.35)
+                    glow(KaiColor.magenta, opacity: 0.20, diameter: w * 0.8).position(x: w * 0.4, y: h * 0.98)
+                }
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    /// A soft light made with a radial fade, so it looks the same everywhere without relying on blur.
+    private func glow(_ color: Color, opacity: Double, diameter: CGFloat) -> some View {
+        Circle()
+            .fill(RadialGradient(colors: [color.opacity(opacity), color.opacity(opacity * 0.4), .clear],
+                                 center: .center, startRadius: 0, endRadius: diameter / 2))
+            .frame(width: diameter, height: diameter)
     }
 }

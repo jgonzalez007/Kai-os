@@ -13,13 +13,43 @@ import SwiftUI
 
 @MainActor
 enum KaiPageSnapshots {
-    static var directory: String? { ProcessInfo.processInfo.environment["KAI_PAGE_SNAPSHOT_DIR"] }
+    static var directory: String? {
+        ProcessInfo.processInfo.environment["KAI_PAGE_SNAPSHOT_DIR"] ?? ProcessInfo.processInfo.environment["KAI_ICON_DIR"]
+    }
+
+    /// Draws the app icon (the K on a dark glass tile) at 1024 points.
+    private static func renderIcon(to folder: URL) {
+        let icon = ZStack {
+            RoundedRectangle(cornerRadius: 230, style: .continuous)
+                .fill(LinearGradient(colors: [Color(red: 0.07, green: 0.06, blue: 0.13), KaiColor.windowBg], startPoint: .top, endPoint: .bottom))
+            Circle().fill(RadialGradient(colors: [KaiColor.violet.opacity(0.55), .clear], center: .center, startRadius: 0, endRadius: 360))
+                .frame(width: 720, height: 720).offset(x: -150, y: -160)
+            Circle().fill(RadialGradient(colors: [KaiColor.cyan.opacity(0.35), .clear], center: .center, startRadius: 0, endRadius: 300))
+                .frame(width: 600, height: 600).offset(x: 200, y: 120)
+            Circle().fill(RadialGradient(colors: [KaiColor.magenta.opacity(0.3), .clear], center: .center, startRadius: 0, endRadius: 280))
+                .frame(width: 560, height: 560).offset(x: -60, y: 260)
+            RoundedRectangle(cornerRadius: 230, style: .continuous)
+                .strokeBorder(LinearGradient(colors: [.white.opacity(0.35), .white.opacity(0.05)], startPoint: .top, endPoint: .bottom), lineWidth: 6)
+            KaiLogoMark(size: 900)
+        }
+        .frame(width: 1024, height: 1024)
+        .clipShape(RoundedRectangle(cornerRadius: 230, style: .continuous))
+        let renderer = ImageRenderer(content: icon)
+        renderer.scale = 1
+        if let image = renderer.nsImage, let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) {
+            try? rep.representation(using: .png, properties: [:])?.write(to: folder.appendingPathComponent("icon_1024.png"))
+        }
+    }
 
     static func runAndExit() {
         guard let dir = directory else { return }
         Task {
             let folder = URL(fileURLWithPath: dir)
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            if ProcessInfo.processInfo.environment["KAI_ICON_DIR"] != nil {
+                renderIcon(to: folder)
+                exit(0)
+            }
             let pages: [(String, KaiSettingsView.Page)] = [
                 ("sidekick", .sidekick), ("knowledge", .knowledge), ("notch", .notch), ("system", .system)
             ]

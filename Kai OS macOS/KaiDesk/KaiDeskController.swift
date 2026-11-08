@@ -18,7 +18,7 @@ final class KaiDeskController: ObservableObject {
     static let shared = KaiDeskController()
 
     enum Tab: String, CaseIterable, Identifiable {
-        case chat, shelf, clipboard, claude
+        case chat, shelf, clipboard, claude, stats
         var id: String { rawValue }
         var title: String {
             switch self {
@@ -26,6 +26,7 @@ final class KaiDeskController: ObservableObject {
             case .shelf: return "Shelf"
             case .clipboard: return "Clipboard"
             case .claude: return "Claude Code"
+            case .stats: return "Stats"
             }
         }
         var symbol: String {
@@ -34,6 +35,7 @@ final class KaiDeskController: ObservableObject {
             case .shelf: return "tray"
             case .clipboard: return "doc.on.clipboard"
             case .claude: return "terminal"
+            case .stats: return "gauge.with.dots.needle.33percent"
             }
         }
     }

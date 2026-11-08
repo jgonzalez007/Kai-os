@@ -781,7 +781,7 @@ struct KaiMainView: View {
 
     private var mainSplit: some View {
         splitView
-            .background(KaiColor.windowBg)
+            .background(KaiAmbientBackground())
     }
 
     private var splitView: some View {

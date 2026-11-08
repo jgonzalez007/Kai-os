@@ -13,6 +13,7 @@ enum KaiNotchPreferences {
     static let menuBarKey = "kai.menubar.enabled"
     static let peeksKey = "kai.notch.peeks"
     static let clickKey = "kai.notch.click"
+    static let glowKey = "kai.notch.glow"
 
     private static func flag(_ key: String, default value: Bool = true) -> Bool {
         UserDefaults.standard.object(forKey: key) as? Bool ?? value
@@ -30,5 +31,10 @@ enum KaiNotchPreferences {
     static var hidesInFullScreen: Bool { flag(hideFullScreenKey) }
     /// Clicking (or hovering over) the notch opens Kai. Off leaves the notch to other apps; the shared key still works.
     static var clickOpens: Bool { flag(clickKey) }
+    /// How bright the colored edge is, 0.2 to 1.
+    static var glowStrength: Double {
+        let value = UserDefaults.standard.object(forKey: glowKey) as? Double ?? 0.9
+        return min(1, max(0.2, value))
+    }
     static var menuBarEnabled: Bool { flag(menuBarKey) }
 }

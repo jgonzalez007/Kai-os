@@ -2298,6 +2298,57 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testStats() async throws {
+        check("CPU load is the busy share between two readings") {
+            let a = KaiCPUTicks(user: 100, system: 50, idle: 850, nice: 0)
+            let b = KaiCPUTicks(user: 200, system: 100, idle: 1_050, nice: 0)
+            return abs((KaiCPUTicks.load(from: a, to: b) ?? 0) - 150.0 / 350.0) < 0.0001
+        }
+        check("CPU load is unknown when nothing advanced or the counters went backward") {
+            let a = KaiCPUTicks(user: 100, system: 50, idle: 850, nice: 0)
+            return KaiCPUTicks.load(from: a, to: a) == nil
+                && KaiCPUTicks.load(from: a, to: KaiCPUTicks(user: 10, system: 5, idle: 20, nice: 0)) == nil
+        }
+        check("a fully busy CPU reads 100 percent") {
+            let a = KaiCPUTicks(user: 0, system: 0, idle: 0, nice: 0)
+            return KaiCPUTicks.load(from: a, to: KaiCPUTicks(user: 90, system: 10, idle: 0, nice: 0)) == 1
+        }
+        check("the numbers are worded for the panel") {
+            let s = KaiStatsSnapshot(cpuLoad: 0.426, memoryUsedBytes: 8, memoryTotalBytes: 16, batteryPercent: 98, isCharging: false, thermal: .fair)
+            return s.cpuText == "43%" && s.memoryText == "50%" && s.batteryText == "98%" && s.value(for: .thermal) == "Warm"
+        }
+        check("before the first reading the CPU and memory show an ellipsis") {
+            let s = KaiStatsSnapshot()
+            return s.cpuText == "…" && s.memoryText == "…" && s.gauge(for: .cpu) == nil
+        }
+        check("a Mac with no battery says AC, and charging is marked") {
+            KaiStatsSnapshot().batteryText == "AC" && KaiStatsSnapshot().batterySymbol == "powerplug"
+                && KaiStatsSnapshot(batteryPercent: 50, isCharging: true).batteryText.contains("⚡︎")
+                && KaiStatsSnapshot(batteryPercent: 50, isCharging: true).batterySymbol == "battery.100percent.bolt"
+        }
+        check("values outside 0 to 100 are held inside it") {
+            KaiStatsSnapshot(cpuLoad: 1.7).cpuText == "100%" && KaiStatsSnapshot(batteryPercent: 140).batteryText == "100%"
+                && KaiStatsSnapshot(batteryPercent: -5).batteryText == "0%"
+        }
+        check("the battery symbol follows the charge") {
+            KaiStatsSnapshot(batteryPercent: 5).batterySymbol == "battery.0percent"
+                && KaiStatsSnapshot(batteryPercent: 30).batterySymbol == "battery.25percent"
+                && KaiStatsSnapshot(batteryPercent: 99).batterySymbol == "battery.100percent"
+        }
+        check("every stat except the clock has a gauge") {
+            let s = KaiStatsSnapshot(cpuLoad: 0.5, memoryUsedBytes: 1, memoryTotalBytes: 2, batteryPercent: 80)
+            return KaiStatsItem.allCases.filter { $0 != .clock }.allSatisfy { s.gauge(for: $0) != nil } && s.gauge(for: .clock) == nil
+        }
+        check("the chosen stats are saved, default to all, and survive a bad value") {
+            let d = UserDefaults(suiteName: "kai-test-\(UUID().uuidString)")!
+            let first = KaiStatsItem.stored(d)
+            KaiStatsItem.store([.cpu, .clock], d)
+            let second = KaiStatsItem.stored(d)
+            d.set(["cpu", "bogus"], forKey: KaiStatsItem.defaultsKey)
+            return first == KaiStatsItem.defaults && second == [.cpu, .clock] && KaiStatsItem.stored(d) == [.cpu]
+        }
+    }
+
     // MARK: Setup guide and updates
 
     func testSetupAndUpdates() async throws {
