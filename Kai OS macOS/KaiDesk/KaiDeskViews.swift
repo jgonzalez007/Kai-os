@@ -11,6 +11,8 @@ import SwiftUI
 
 struct KaiDeskTabBar: View {
     @ObservedObject var desk: KaiDeskController
+    @AppStorage(KaiMotion.key) private var motion = true
+    @Namespace private var highlight
 
     var body: some View {
         HStack(spacing: 2) {
@@ -19,10 +21,17 @@ struct KaiDeskTabBar: View {
                     Image(systemName: tab.symbol)
                         .font(.system(size: 13))
                         .frame(width: 34, height: 26)
-                        .background(
-                            desk.tab == tab ? Color.blue.opacity(0.28) : .clear,
-                            in: RoundedRectangle(cornerRadius: 9)
-                        )
+                        .background {
+                            if desk.tab == tab {
+                                if motion {
+                                    // One highlight that slides from tab to tab.
+                                    RoundedRectangle(cornerRadius: 9).fill(Color.blue.opacity(0.28))
+                                        .matchedGeometryEffect(id: "tabHighlight", in: highlight)
+                                } else {
+                                    RoundedRectangle(cornerRadius: 9).fill(Color.blue.opacity(0.28))
+                                }
+                            }
+                        }
                         .overlay(alignment: .topTrailing) {
                             if tab == .claude && !desk.approvals.isEmpty {
                                 Text("\(desk.approvals.count)")
@@ -39,6 +48,7 @@ struct KaiDeskTabBar: View {
                 .help(tab.title)
             }
         }
+        .animation(motion ? .spring(response: 0.32, dampingFraction: 0.74) : nil, value: desk.tab)
         .padding(3)
         .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
     }

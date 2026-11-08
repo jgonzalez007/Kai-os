@@ -16,6 +16,7 @@ struct KaiNotchView: View {
     let controller: KaiNotchWindowController
     @ObservedObject private var desk = KaiDeskController.shared
     @State private var dropTargeted = false
+    @AppStorage(KaiMotion.key) private var motion = true
 
     private var size: CGSize {
         model.layout?.frame(for: model.surface).size ?? .zero
@@ -82,24 +83,37 @@ struct KaiNotchView: View {
             leftWing.frame(width: KaiNotchLayout.wingWidth)
             Spacer(minLength: 0)
             rightWing.frame(width: KaiNotchLayout.wingWidth)
+                .animation(motion ? .spring(response: 0.35, dampingFraction: 0.7) : nil, value: model.activity)
         }
         .frame(height: notchHeight)
     }
 
     @ViewBuilder
     private var leftWing: some View {
-        switch model.activity {
-        case .done:
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-        case .failed:
-            Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
-        case .idle, .running:
-            KaiSpinningLogo(spinning: model.activity == .running)
+        ZStack {
+            switch model.activity {
+            case .done:
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    .transition(motion ? .scale(scale: 0.2).combined(with: .opacity) : .identity)
+            case .failed:
+                Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+                    .transition(motion ? .scale(scale: 0.2).combined(with: .opacity) : .identity)
+            case .idle, .running:
+                KaiSpinningLogo(spinning: model.activity == .running)
+                    .transition(motion ? .scale(scale: 0.2).combined(with: .opacity) : .identity)
+            }
         }
+        .animation(motion ? .spring(response: 0.35, dampingFraction: 0.55) : nil, value: model.activity)
     }
 
+    @ViewBuilder
     private var rightWing: some View {
-        Text(wingText).font(.caption).foregroundStyle(.white.opacity(0.8))
+        if motion && model.activity == .running && model.peekText == nil {
+            KaiWorkingPill().transition(.opacity)
+        } else {
+            Text(wingText).font(.caption).foregroundStyle(.white.opacity(0.8))
+                .transition(motion ? .opacity.combined(with: .scale(scale: 0.8)) : .identity)
+        }
     }
 
     private var wingText: String {
@@ -301,7 +315,7 @@ private struct KaiNotchPanelContent: View {
                     }
                     .padding(.top, 4)
                 }
-                ForEach(transcript) { MessageBubbleView(message: $0) }
+                ForEach(transcript) { MessageBubbleView(message: $0, isStreaming: appState.isProcessing && $0.id == transcript.last?.id && !$0.isUser) }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

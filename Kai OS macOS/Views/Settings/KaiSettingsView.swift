@@ -14,6 +14,7 @@ struct KaiSettingsView: View {
     @EnvironmentObject var appState: AppState
     @AppStorage("kai.notch.enabled") private var notchEnabled = true
     @ObservedObject private var desk = KaiDeskController.shared
+    @AppStorage(KaiMotion.key) private var motion = true
     
     var body: some View {
         ScrollView {
@@ -36,6 +37,10 @@ struct KaiSettingsView: View {
                 // ── Appearance ──
                 settingsCard {
                     SectionHeader(title: "Appearance")
+
+                    Toggle("Animated effects", isOn: $motion)
+                    Text("A shimmering Working pill, a sliding tab highlight and replies that fade in as they are written. Turn this off for the plain look from before.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                     
                     Picker("Theme", selection: $appState.themeMode) {
                         Text("Auto").tag("auto")
