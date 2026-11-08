@@ -29,7 +29,12 @@ struct KaiSystemScreen: KaiAgentScreen {
               let width = properties[kCGImagePropertyPixelWidth] as? Int,
               let height = properties[kCGImagePropertyPixelHeight] as? Int else { throw KaiScreenCaptureError.encodingFailed }
         let bounds = CGDisplayBounds(display)
-        return KaiAgentFrame(jpeg: data, pixelWidth: width, pixelHeight: height, screenWidth: bounds.width, screenHeight: bounds.height)
+        // The clickable items of the front window, found through Accessibility. If that fails or the app is
+        // off limits, the model simply gets the picture alone.
+        let elements = await Task.detached(priority: .userInitiated) {
+            KaiAXElements.collect(bounds: bounds, pixelWidth: width, pixelHeight: height, ownBundleIdentifier: Bundle.main.bundleIdentifier)
+        }.value
+        return KaiAgentFrame(jpeg: data, pixelWidth: width, pixelHeight: height, screenWidth: bounds.width, screenHeight: bounds.height, elements: elements)
     }
 }
 
@@ -138,7 +143,39 @@ final class KaiSystemInput: KaiAgentInput, @unchecked Sendable {
             try postKey(code, flags: KaiKeyCodes.flags(combo.modifiers), source: source)
         case .type(let text):
             try await type(text, source: source)
+        case .openApp(let name):
+            try await openApplication(named: name)
         }
+    }
+
+    /// Opens an app by name from the usual folders. The app it resolves to is checked again against the
+    /// blocked list, so a different name for a blocked app does not get around it.
+    private func openApplication(named name: String) async throws {
+        guard let url = Self.applicationURL(named: name) else {
+            throw KaiAgentActionProblem("There is no app called \(name). Use an app that is installed, or call task_complete.")
+        }
+        let identifier = Bundle(url: url)?.bundleIdentifier
+        if let identifier, KaiAgentPolicy.blockedBundleIdentifiers.contains(identifier) || identifier == Bundle.main.bundleIdentifier {
+            throw KaiAgentActionProblem("Kai never operates \(name).")
+        }
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        _ = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+        try await Task.sleep(for: .milliseconds(700))
+    }
+
+    static func applicationURL(named name: String) -> URL? {
+        var wanted = name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if wanted.hasSuffix(".app") { wanted.removeLast(4) }
+        let folders = ["/Applications", "/System/Applications", "/System/Applications/Utilities", "/Applications/Utilities",
+                       NSHomeDirectory() + "/Applications"]
+        for folder in folders {
+            guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder) else { continue }
+            if let match = names.first(where: { $0.lowercased() == wanted + ".app" }) {
+                return URL(fileURLWithPath: folder).appendingPathComponent(match)
+            }
+        }
+        return nil
     }
 
     private func refuseOwnControls(_ point: CGPoint) async throws {

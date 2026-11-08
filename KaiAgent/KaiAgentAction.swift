@@ -8,6 +8,7 @@ public enum KaiAgentAction: Equatable, Sendable {
     case key(KaiKeyCombo)
     case scroll(x: Int, y: Int, dx: Int, dy: Int)
     case wait(seconds: Double)
+    case openApp(String)
     case finish(String)
 
     public var summary: String {
@@ -20,6 +21,7 @@ public enum KaiAgentAction: Equatable, Sendable {
         case .key(let combo): return "Press \(combo.display)"
         case .scroll(_, _, let dx, let dy): return "Scroll \(dy != 0 ? (dy > 0 ? "down" : "up") : (dx > 0 ? "right" : "left"))"
         case .wait(let seconds): return "Wait \(seconds.formatted()) s"
+        case .openApp(let name): return "Open \(name)"
         case .finish(let text): return "Finish: \(text)"
         }
     }
@@ -88,7 +90,7 @@ public enum KaiAgentTools {
     public static let maxTextLength = 500
     public static let maxWaitSeconds = 10.0
 
-    public static let names = ["computer_click", "computer_type", "computer_key", "computer_scroll", "computer_wait", "task_complete"]
+    public static let names = ["computer_click", "computer_type", "computer_key", "computer_scroll", "computer_wait", "computer_open_app", "task_complete"]
 
     public static let definitions: [KaiOllamaTool] = [
         KaiOllamaTool(name: "computer_click", description: "Click at a point on the screenshot. x and y are pixels in the latest screenshot.",
@@ -109,6 +111,8 @@ public enum KaiAgentTools {
                         .init(name: "amount", type: "integer", description: "How far, from 1 to 10. Defaults to 3.", required: false)]),
         KaiOllamaTool(name: "computer_wait", description: "Wait for something to load, up to 10 seconds.",
                       parameters: [.init(name: "seconds", type: "number", description: "Seconds to wait", required: true)]),
+        KaiOllamaTool(name: "computer_open_app", description: "Open or switch to an app by name, such as Notes, Safari or Mail. Use this instead of hunting for an app icon.",
+                      parameters: [.init(name: "name", type: "string", description: "The app's name", required: true)]),
         KaiOllamaTool(name: "task_complete", description: "Call this when the task is done, or when you cannot continue. Say what happened.",
                       parameters: [.init(name: "summary", type: "string", description: "What was done, or why you stopped", required: true)]),
     ]
@@ -160,6 +164,10 @@ public enum KaiAgentTools {
         case "computer_wait":
             guard let seconds = number("seconds") else { return .failure(.missing("seconds")) }
             return .success(.wait(seconds: min(max(seconds, 0), maxWaitSeconds)))
+        case "computer_open_app":
+            guard let name = string("name")?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return .failure(.missing("name")) }
+            guard name.count <= 60, !name.contains("/"), !name.contains("\n") else { return .failure(.invalid("Give just the app's name.")) }
+            return .success(.openApp(name))
         case "task_complete":
             return .success(.finish(string("summary") ?? "Done."))
         default:

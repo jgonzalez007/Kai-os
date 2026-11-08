@@ -76,7 +76,8 @@ struct KaiSidekickView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("• Esc, the Stop button, or using your own mouse or keyboard stops it at once.")
                         Text("• It never works in Terminal, System Settings, password managers or Keychain Access, and never while Kai's own window is in front.")
-                        Text("• It stops after 30 steps or 10 minutes.")
+                        Text("• It stops after \(KaiAgentEffort.stored().limits.maxSteps) steps or \(Int(KaiAgentEffort.stored().limits.maxDuration / 60)) minutes. Change this in Preferences → Sidekick → Speed & intelligence.")
+                        Text("• It can open an app by name, but never Terminal, System Settings or the other blocked apps. It reads the names and positions of buttons and fields in the front window (never what is typed in them) to click in the right place.")
                         Text("• Everything it proposes or does is logged in ~/Library/Application Support/Kai OS/agent-log.jsonl. Screenshots are not saved.")
                         Text("• Text on screen is treated as untrusted. Kai won't act on instructions it reads there.")
                     }

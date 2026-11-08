@@ -34,6 +34,20 @@ public struct KaiAgentPolicy: Sendable {
         self.ownBundleIdentifier = ownBundleIdentifier
     }
 
+    /// Names of the apps in `blockedBundleIdentifiers`, as a person or a model would say them.
+    static let blockedAppNames: Set<String> = [
+        "terminal", "iterm", "iterm2", "warp", "ghostty", "kitty", "alacritty", "wezterm", "hyper",
+        "system settings", "system preferences", "passwords", "keychain access", "1password", "1password 7", "bitwarden",
+        "lastpass", "dashlane", "script editor", "automator", "activity monitor", "console",
+    ]
+
+    /// True for an app the agent must never open, by the name it was given.
+    public static func isBlockedAppName(_ name: String) -> Bool {
+        var n = name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        if n.hasSuffix(".app") { n.removeLast(4) }
+        return blockedAppNames.contains(n)
+    }
+
     static let riskyKeys: Set<String> = ["return", "delete", "forwarddelete"]
 
     public func decide(_ action: KaiAgentAction, frontmostBundleIdentifier: String?) -> KaiAgentDecision {
@@ -41,6 +55,12 @@ public struct KaiAgentPolicy: Sendable {
         case .finish, .wait:
             return .allow
         default: break
+        }
+
+        // Opening an app does not depend on what is in front. It can never open one of the blocked apps.
+        if case .openApp(let name) = action {
+            if Self.isBlockedAppName(name) { return .deny("Kai never operates \(name).") }
+            return mode == .askEach ? .needsApproval(action.summary) : .allow
         }
 
         guard let app = frontmostBundleIdentifier else { return .deny("Kai can't tell which app is in front, so it won't act.") }
