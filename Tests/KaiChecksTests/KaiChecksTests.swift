@@ -266,6 +266,20 @@ final class KaiChecksTests: XCTestCase {
                 && KaiNotchLayout.statusWingWidth < KaiNotchLayout.wingWidth
         }
 
+        check("the bar hangs just below the notch, centered, flush with the top, and smaller than the full panel") {
+            let bar = macBook.frame(for: .bar)
+            let full = macBook.frame(for: .expanded)
+            return bar.width == KaiNotchLayout.barWidth && bar.height == 38 + KaiNotchLayout.barExtraHeight
+                && bar.maxY == macBook.frame(for: .closed).maxY && bar.midX == macBook.frame(for: .closed).midX
+                && bar.width < full.width && bar.height < full.height
+        }
+        check("the bar fits a very narrow screen") {
+            let narrow = KaiNotchLayout(screenFrame: CGRect(x: 0, y: 0, width: 300, height: 600),
+                                        safeAreaTop: 0, leftAreaWidth: nil, rightAreaWidth: nil, menuBarHeight: 24)
+            let bar = narrow.frame(for: .bar)
+            return bar.minX >= 0 && bar.maxX <= 300
+        }
+
         check("the peek frame adds wings and stays flush with the top") {
             let peek = macBook.frame(for: .peek)
             return peek.midX == 756 && peek.width > 176 && peek.maxY == 982 && peek.height == 38

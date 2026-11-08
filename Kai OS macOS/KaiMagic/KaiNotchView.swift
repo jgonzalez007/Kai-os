@@ -29,7 +29,7 @@ struct KaiNotchView: View {
     }
 
     private var isExpanded: Bool {
-        model.surface == .expanded
+        model.isExpanded
     }
 
     var body: some View {
@@ -52,6 +52,9 @@ struct KaiNotchView: View {
             if isExpanded {
                 if model.panelMode == .reply, let doubleTap = controller.doubleTap {
                     KaiNotchReplyContent(model: model, doubleTap: doubleTap, controller: controller, topInset: notchHeight)
+                        .transition(.opacity)
+                } else if model.compact {
+                    KaiNotchBarContent(model: model, appState: appState, controller: controller, notchHeight: notchHeight)
                         .transition(.opacity)
                 } else {
                     KaiNotchPanelContent(model: model, appState: appState, controller: controller, topInset: notchHeight)
@@ -499,5 +502,70 @@ struct KaiNotchChip: View {
             .foregroundStyle(.white.opacity(0.9))
         }
         .buttonStyle(.plain)
+    }
+}
+
+
+/// The open notch with no conversation: the Kai mark and a few shortcuts beside the notch, and one
+/// input line below it. Sending a message grows it into the full panel.
+private struct KaiNotchBarContent: View {
+    @ObservedObject var model: KaiNotchModel
+    @ObservedObject var appState: AppState
+    let controller: KaiNotchWindowController
+    let notchHeight: CGFloat
+    @ObservedObject private var desk = KaiDeskController.shared
+    @FocusState private var focused: Bool
+
+    private var canSend: Bool { !model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                KaiSpinningLogo(spinning: appState.isProcessing)
+                Spacer()
+                shortcut("tray", "Shelf") { desk.tab = .shelf }
+                shortcut("doc.on.clipboard", "Clipboard") { desk.tab = .clipboard }
+                shortcut("terminal", "Claude Code") { desk.tab = .claude }
+                shortcut("macwindow", "Open Kai OS") { controller.openMainWindow() }
+            }
+            .padding(.horizontal, 18)
+            .frame(height: notchHeight)
+            HStack(spacing: 10) {
+                TextField(model.voicePhase == .listening ? "Listening…" : "Ask Kai…", text: $model.draft)
+                    .textFieldStyle(.plain)
+                    .focused($focused)
+                    .onSubmit(send)
+                Button(action: controller.toggleVoice) {
+                    Image(systemName: model.voicePhase == .listening ? "mic.fill" : "mic")
+                        .foregroundStyle(model.voicePhase == .listening ? Color.red : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.voicePhase == .transcribing)
+                .help("Talk")
+                Button(action: send) {
+                    Image(systemName: "arrow.up.circle.fill").font(.title3).foregroundStyle(canSend ? Color.blue : Color.secondary.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSend)
+                .help("Send")
+            }
+            .padding(.horizontal, 18)
+            .frame(maxHeight: .infinity)
+        }
+        .onAppear { focused = true }
+        .onExitCommand { controller.collapse() }
+    }
+
+    private func shortcut(_ symbol: String, _ help: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) { Image(systemName: symbol).font(.system(size: 12)) }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white.opacity(0.6))
+            .help(help)
+    }
+
+    private func send() {
+        guard canSend, !appState.isProcessing, model.voicePhase == .idle else { return }
+        appState.sendMessage(text: model.draft)
+        model.draft = ""
     }
 }

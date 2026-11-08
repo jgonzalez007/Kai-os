@@ -37,6 +37,8 @@ final class KaiNotchModel: ObservableObject {
     @Published var layout: KaiNotchLayout?
     @Published var draft = ""
     /// Short text for the right wing, such as "Claude done". Replaces the activity text while set.
+    /// True while there is no conversation, so the open notch is just a slim input bar.
+    @Published var compact = true { didSet { onSurfaceChange?() } }
     @Published var peekText: String? { didSet { onSurfaceChange?() } }
     /// Another app is full screen, so the notch steps away.
     @Published var hiddenForFullScreen = false
@@ -47,7 +49,7 @@ final class KaiNotchModel: ObservableObject {
     var onSurfaceChange: (() -> Void)?
 
     var surface: KaiNotchSurface {
-        if isExpanded { return .expanded }
+        if isExpanded { return compact ? .bar : .expanded }
         if showsPeeks && (isHovering || activity != .idle || peekText != nil) { return .peek }
         return showsStatus && !hiddenForFullScreen ? .status : .closed
     }
@@ -135,6 +137,18 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
             .removeDuplicates()
             .sink { [weak self] isProcessing in self?.processingChanged(isProcessing) }
             .store(in: &cancellables)
+        // The open notch is a slim bar until there is something to show: a message, another tab,
+        // a permission request or an email reply.
+        Publishers.MergeMany([
+            appState.$messages.map { _ in () }.eraseToAnyPublisher(),
+            appState.$isProcessing.map { _ in () }.eraseToAnyPublisher(),
+            KaiDeskController.shared.$tab.map { _ in () }.eraseToAnyPublisher(),
+            KaiDeskController.shared.$approvals.map { _ in () }.eraseToAnyPublisher(),
+            model.$panelMode.map { _ in () }.eraseToAnyPublisher()
+        ])
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] in self?.updateCompact() }
+        .store(in: &cancellables)
         model.$isHovering.removeDuplicates().dropFirst()
             .sink { [weak self] hovering in self?.hoverChanged(hovering) }
             .store(in: &cancellables)
@@ -171,6 +185,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
         }
         applyEnabledPreference()
         updateFullScreen()
+        updateCompact()
     }
 
     func applyEnabledPreference() {
@@ -212,6 +227,14 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     }
 
     // MARK: Hover, full screen, events
+
+    private func updateCompact() {
+        guard let appState else { return }
+        let hasConversation = appState.messages.contains { $0.kind != .notice }
+        let compact = model.panelMode == .chat && KaiDeskController.shared.tab == .chat
+            && KaiDeskController.shared.approvals.isEmpty && !hasConversation && !appState.isProcessing
+        if model.compact != compact { model.compact = compact }
+    }
 
     /// Hover opens the panel after a short pause, and closes it again after the mouse leaves,
     /// but only when the hover opened it and nothing is in progress.

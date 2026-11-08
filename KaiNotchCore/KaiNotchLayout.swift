@@ -14,6 +14,8 @@ public enum KaiNotchSurface: Equatable, Sendable {
     case status
     /// Black wings beside the notch that show activity.
     case peek
+    /// A slim input bar hanging just below the notch, for when there is no conversation yet.
+    case bar
     /// The full panel hanging below the notch.
     case expanded
 }
@@ -22,6 +24,9 @@ public struct KaiNotchLayout: Equatable, Sendable {
     public static let wingWidth: CGFloat = 72
     public static let statusWingWidth: CGFloat = 26
     public static let expandedSize = CGSize(width: 560, height: 480)
+    /// The slim bar: this wide, and this much taller than the notch itself.
+    public static let barWidth: CGFloat = 464
+    public static let barExtraHeight: CGFloat = 42
     private static let pillWidth: CGFloat = 120
     private static let fallbackHeight: CGFloat = 24
 
@@ -63,6 +68,12 @@ public struct KaiNotchLayout: Equatable, Sendable {
             return notch.insetBy(dx: -Self.statusWingWidth, dy: 0)
         case .peek:
             return notch.insetBy(dx: -Self.wingWidth, dy: 0)
+        case .bar:
+            let width = min(Self.barWidth, screenFrame.width)
+            let height = notch.height + Self.barExtraHeight
+            let centeredX = (notch.midX - width / 2).rounded(.down)
+            let x = max(screenFrame.minX, min(centeredX, screenFrame.maxX - width))
+            return CGRect(x: x, y: screenFrame.maxY - height, width: width, height: height)
         case .expanded:
             let width = min(Self.expandedSize.width, screenFrame.width)
             let height = min(Self.expandedSize.height, screenFrame.height)
