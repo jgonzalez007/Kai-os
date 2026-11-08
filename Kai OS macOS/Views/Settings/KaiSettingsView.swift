@@ -408,7 +408,9 @@ struct KaiSettingsView: View {
                 .font(KaiFont.caption2Strong)
                 .foregroundStyle(note == nil ? (source == .mail ? KaiColor.warning : KaiColor.textTertiary) : KaiColor.textTertiary)
                 .padding(.leading, 20)
-            if source == .mail, appState.nightShift.includes(.mail) {
+            if source == .mail {
+                let mailOn = appState.nightShift.includes(.mail)
+                Text("How far back to read mail").font(KaiFont.captionStrong).foregroundStyle(KaiColor.textTertiary).padding(.leading, 20)
                 Picker("Mail from", selection: Binding(
                     get: { appState.nightShift.mailWindow },
                     set: { var next = appState.nightShift; next.mailWindow = $0; appState.updateNightShift(next) }
@@ -417,8 +419,9 @@ struct KaiSettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .disabled(!mailOn)
                 .padding(.leading, 20)
-                Text(appState.nightShift.mailWindow.detail)
+                Text(mailOn ? appState.nightShift.mailWindow.detail : "Switch Mail on above to use this. Your choice is kept either way.")
                     .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary).padding(.leading, 20)
             }
         }
