@@ -504,8 +504,72 @@ Use a scripted approach:
 
 ---
 
-## 11. Next Steps
+## 11. Next Steps: ranked plan (2026-11-08)
 
-1. **You choose:** Do you want me to start scaffolding the project now?
-2. **Priority features:** Which of the new features (App-Awareness, Spotlight, Calendar, Plugin System, Health Dashboard) do you want prioritized?
-3. **Scope:** Do you want the full 30-day plan executed, or a subset first?
+This replaces the earlier "next steps" list. It comes from comparing Kai with Sentient OS (code and docs read, Sentient not run). Items are ranked by how much they unblock or how much a regular user would notice. Size: S is under a day, M a few days, L a week or more.
+
+### What Kai has today that Sentient does not
+Shelf, clipboard history, Claude Code approvals in the notch, a menu bar status item, a first-run setup guide, a one-line installer with an update check, Slack read-only connector, Night Shift checklist.
+
+### Where Kai trails
+Computer use (unproven, no own cursor, local model only), Double Tap outside Apple Mail, a real overnight run that wakes the Mac, source coverage (Gmail, Outlook, iMessage, WhatsApp), knowledge as a browsable graph, signed builds that keep permissions.
+
+---
+
+### Tier 0: make everything else trustworthy
+
+| # | Item | Size | Why it is first | Done when |
+|---|------|------|-----------------|-----------|
+| 0.1 | **Signing that keeps permissions.** Sign local builds with a free Apple Development certificate (Xcode, your Apple ID) instead of ad-hoc. | S | macOS forgets Screen Recording, Accessibility and Mail grants after every ad-hoc rebuild, so Sidekick, Summarize and the hotkeys cannot be tested twice in a row. | Rebuild, relaunch, and permissions are still granted. `install-app.sh` uses the certificate when found. Needs you to sign in to Xcode once. |
+| 0.2 | **Licensing check.** Sentient is AGPL-3.0, Kai is MIT. Rewrite `KaiNotchSkirtShape` (close to Sentient's `NotchSkirtShape`), review the other notch files for anything copied rather than re-derived, then decide: stay MIT with a clean rewrite, or relicense. | S | Shipping a public release with mixed licenses is a legal problem, and the release is already live. | A short `LICENSING.md` note records the decision, and no file is derived from AGPL code without being under AGPL. |
+| 0.3 | **Hands-on verification pass.** Run each unproven feature once on a real screen and record the result: Sidekick supervised run, Summarize/Proofread, Shelf drag-out, Claude Code approval (and ⌃⌥Y/N), full-screen hiding, Slack screen reader, Night Shift at its real hour, hold-to-talk, notch hover/click-through. | M (you and me) | Several features are built and tested only with fakes. Planning on top of them is guessing. | A checklist in `docs/` with pass/fail and notes per item, and a fix list from the failures. |
+
+### Tier 1: closest gaps with Sentient
+
+| # | Item | Size | Notes | Done when |
+|---|------|------|-------|-----------|
+| 1.1 | **Double Tap beyond Apple Mail.** Draft in Slack, Gmail in the browser, iMessage and any text box: read the conversation on screen, insert at the cursor, never send. Add a one-time writing-examples file the user can edit. | M | Today only Apple Mail is solid. The screenshot path exists and needs hardening and a per-app insertion check. | Works in Slack, a browser mail tab and Messages with the draft left unsent, covered by self-test fakes plus a hands-on check. |
+| 1.2 | **Proofread with Replace, and selected text.** Use the selection (Accessibility) when there is one, else the screen. Offer Replace by pasting over the selection. | S | Replace is the part users expect from a proofread. | Select text, press Proofread, press Replace, text changes, Undo restores it. |
+| 1.3 | **Sidekick quality pass.** After 0.3, fix what fails on real tasks: step budget, prompt, click accuracy, retries. Add a dry-run preview of the plan, a visible step log and one-click undo notes. Option to use a cloud vision model, off by default, with a clear consent line. | L | Everything Sentient advertises hangs on this. | Five scripted real tasks (create a note, fill a form, move files, search and open, send-draft in Mail) succeed in at least 4 of 5 runs. |
+| 1.4 | **Night Shift that really runs overnight.** Scheduled wake with `pmset`/a privileged helper (needs admin approval once), bounded session, checkpoints so an interrupted run resumes, and a morning summary. | M-L | Today it only runs if the Mac is awake. | Lid closed, plugged in, 3:00 run completes and the Mac sleeps again. |
+| 1.5 | **Knowledge you can browse.** Mirror notes as Markdown files in `~/Kai OS - Knowledge Base`, add local semantic search (an Ollama embedding model), and a reader window with linked notes. | M-L | Matches "knowledge you own". Search quality jumps with embeddings. | Ask a question that shares no keyword with the answer, and the right note is found. |
+
+### Tier 2: more sources (each needs your accounts)
+
+| # | Item | Size | Needs from you |
+|---|------|------|----------------|
+| 2.1 | Gmail and Google Calendar | M | A Google Cloud OAuth client ID (public client, read-only scopes). |
+| 2.2 | Outlook / Exchange mail and calendar through Microsoft Graph (replaces the parked AppleScript mailbox work) | M | An Entra app registration, or admin consent in your tenant. Check SailPoint policy first. |
+| 2.3 | iMessage (read `chat.db`) | S-M | Full Disk Access. |
+| 2.4 | Notion, Google Drive | M each | OAuth clients. |
+| 2.5 | WhatsApp | M | Only through the desktop app's local data if reachable. Likely last or dropped. |
+
+### Tier 3: polish and distribution
+
+| # | Item | Size | Notes |
+|---|------|------|-------|
+| 3.1 | Homebrew tap repository (`homebrew-kai-os`) with the cask already in `Casks/`. | S | Needs a release checksum each version. |
+| 3.2 | README demo GIFs and screenshots, a short onboarding animation. | S-M | Do after 0.3, so it shows working things. |
+| 3.3 | Notarization and signed updates. | M | Only with a paid Apple Developer account. Until then the installer clears the quarantine flag. |
+| 3.4 | Pin the notch to all Spaces during the swipe (private SkyLight API). | S | Optional and risky for future macOS versions. Skip unless the slide is noticeable. |
+| 3.5 | Kai as a local MCP server so other AI apps can read the knowledge base. | M | Read-only, loopback only, off by default. Any cloud sharing needs its own design. |
+| 3.6 | Extra settings pages: Double Tap and Knowledge Sharing, to match Preferences. | S | After 1.1 and 3.5. |
+
+### Suggested order
+
+1. **This week:** 0.1, 0.2, then 0.3. These unblock testing and remove the legal risk.
+2. **Next:** 1.2 (small, visible), then 1.1, then 1.3 using what 0.3 found.
+3. **Then:** 1.5 and 1.4, then the sources in the order you actually use them (likely 2.2 for work mail, then 2.1).
+4. **Anytime:** 3.1 and 3.2 once the features they show work.
+
+### Decisions needed from you
+- Are you willing to sign in to Xcode with your Apple ID for 0.1?
+- MIT with a clean rewrite, or move Kai to AGPL like Sentient (0.2)?
+- Is a cloud vision model acceptable for Sidekick if you opt in (1.3)?
+- Is admin approval for a wake schedule acceptable on a work Mac (1.4)?
+- Which mail do you want first: Outlook/Exchange, Gmail, or both (Tier 2)?
+
+### Risks
+- Work-managed Mac: SailPoint device policy may block wake schedules, Full Disk Access prompts, Slack and Microsoft app registrations.
+- Each macOS update can change permission behavior for screen capture and Accessibility.
+- Local models vary: Sidekick and Summarize quality depends on the vision model the Mac can run.
