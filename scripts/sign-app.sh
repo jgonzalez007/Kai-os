@@ -40,10 +40,24 @@ if [ -n "$DEV_SHA" ] && sign "$DEV_SHA"; then
     report "Apple Development ($DEV_SHA)"; exit 0
 fi
 
+# codesign only finds an identity in a keychain on the search list, so the local development keychain
+# is put on the list for the length of the signing, and the list is put back afterwards.
 if LOCAL="$("$(dirname "$0")/setup-signing.sh" 2>/dev/null)"; then
     read -r SHA KEYCHAIN <<< "$LOCAL"
-    if [ -n "$SHA" ] && sign "$SHA" "$KEYCHAIN"; then
-        report "Kai OS Local Dev ($SHA)"; exit 0
+    if [ -n "$SHA" ]; then
+        ORIGINAL=()
+        while IFS= read -r line; do
+            line="${line#"${line%%[![:space:]]*}"}"; line="${line//\"/}"
+            [ -n "$line" ] && ORIGINAL+=("$line")
+        done < <(security list-keychains -d user)
+        restore() { security list-keychains -d user -s "${ORIGINAL[@]}" >/dev/null 2>&1 || true; }
+        trap restore EXIT
+        security list-keychains -d user -s "${ORIGINAL[@]}" "$KEYCHAIN" >/dev/null 2>&1 || true
+        if sign "$SHA"; then
+            report "Kai OS Local Dev ($SHA)"; exit 0
+        fi
+        restore
+        trap - EXIT
     fi
 fi
 
