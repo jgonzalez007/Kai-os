@@ -305,6 +305,16 @@ public struct KaiMailItem: Identifiable, Equatable, Sendable {
     public let date: Date
     public let isRead: Bool
     public let isFlagged: Bool
+    /// Where the message lives, so one message can be read or answered later. Empty when not known.
+    public let account: String
+    public let mailbox: String
+
+    public init(id: String, sender: String, subject: String, date: Date, isRead: Bool, isFlagged: Bool, account: String = "", mailbox: String = "") {
+        self.id = id; self.sender = sender; self.subject = subject; self.date = date
+        self.isRead = isRead; self.isFlagged = isFlagged; self.account = account; self.mailbox = mailbox
+    }
+
+    public var reference: KaiMailMessageReference { KaiMailMessageReference(id: id, mailbox: mailbox.isEmpty ? "INBOX" : mailbox, account: account) }
 }
 
 public enum KaiMailSource {
@@ -352,7 +362,15 @@ public enum KaiMailSource {
             if n > \(limit) then set n to \(limit)
             repeat with i from 1 to n
                 set m to message i of inbox
-                set out to out & (id of m as string) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & (read status of m as string) & US & (flagged status of m as string) & RS
+                set boxName to ""
+                set accountName to ""
+                try
+                    set boxName to name of (mailbox of m)
+                end try
+                try
+                    set accountName to name of (account of (mailbox of m))
+                end try
+                set out to out & (id of m as string) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & (read status of m as string) & US & (flagged status of m as string) & US & my cleaned(accountName) & US & my cleaned(boxName) & RS
             end repeat
         end tell
         return out
@@ -361,14 +379,16 @@ public enum KaiMailSource {
 
     static func items(from records: [[String]]) -> [KaiMailItem] {
         records.compactMap { fields in
-            guard fields.count == 6, let date = KaiAppleScriptRecords.date(fromISO: fields[3]) else { return nil }
+            guard fields.count == 6 || fields.count == 8, let date = KaiAppleScriptRecords.date(fromISO: fields[3]) else { return nil }
             return KaiMailItem(
                 id: fields[0],
                 sender: fields[1],
                 subject: fields[2],
                 date: date,
                 isRead: fields[4] == "true",
-                isFlagged: fields[5] == "true"
+                isFlagged: fields[5] == "true",
+                account: fields.count == 8 ? fields[6] : "",
+                mailbox: fields.count == 8 ? fields[7] : ""
             )
         }
     }
