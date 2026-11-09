@@ -36,7 +36,8 @@
 
 ## Where things are
 
-- **Top bar (using Kai):** home (chat), For You (morning cards), Sidekick (Task and Settings tabs), Knowledge (notes and graph), and Your stuff (Calendar, Mail, Notes).
+- **What Kai knows about you.** Each Night Shift run, the local model reads your knowledge base (notes you typed in count most) and writes a short portrait: who you are, what matters, people, what is in flight. It is on Knowledge → About you, where you can correct it; your wording is kept on the next update. Chat and the morning list read it, so cards are marked Urgent or Important for you. Nothing leaves the Mac.
+- **Top bar (using Kai):** home (chat), For You (morning cards), Sidekick (Task and Settings tabs), Knowledge (About you, graph and notes), and Your stuff (Calendar, Mail, Notes).
 - **Preferences (setting up and checking):** AI & Web, Knowledge, Sidekick (the same settings as the Sidekick page's Settings tab), Overnight, Notch & Desk, Appearance, and under Help: Permissions, Health, Setup guide, Updates & About.
 
 ## Planned

@@ -145,7 +145,10 @@ private struct KaiMorningCardRow: View {
                     .background(KaiColor.primary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(card.title).font(KaiFont.bodyStrong)
+                    HStack(spacing: 6) {
+                        if let urgency = card.urgency { UrgencyPill(urgency: urgency) }
+                        Text(card.title).font(KaiFont.bodyStrong)
+                    }
                     
                     if !card.why.isEmpty {
                         Text(card.why).font(KaiFont.caption)

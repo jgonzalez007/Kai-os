@@ -9,6 +9,7 @@
 
 #if DEBUG
 import AppKit
+import KaiKnowledge
 import SwiftUI
 
 @MainActor
@@ -66,10 +67,28 @@ enum KaiPageSnapshots {
                 }
                 window.orderOut(nil)
             }
+            // A made-up portrait, in memory only, so the About you face can be seen.
+            AppState.shared.profile = KaiProfile(markdown: """
+            ## Who you are
+            - Jose Gonzalez, runs the platform team at SailPoint.
+            - Builds Kai OS, a personal AI for the Mac, in the evenings.
+
+            ## What matters to you
+            - Shipping Kai OS so regular people can install it.
+            - Keeping your data on your own Mac.
+
+            ## In flight
+            - Contract review for the Austin trip, waiting on Ana.
+            - Kai OS update 1.2 due this week.
+
+            ## Not sure yet
+            - Which projects at work come first this quarter?
+            """, updatedAt: Date(), documentCount: 42, edited: true)
             // Health and Permissions, as full pages.
             let others: [(String, AnyView)] = [
                 ("home", AnyView(KaiMainViewForSnapshot())),
                 ("knowledge-page", AnyView(KaiMainViewForSnapshot(page: "Knowledge"))),
+                ("knowledge-graph", AnyView(KaiMainViewForSnapshot(page: "Knowledge", graph: true))),
                 ("sidekick-page", AnyView(KaiMainViewForSnapshot(page: "Sidekick"))),
                 ("health", AnyView(KaiHealthView(briefing: AppState.shared.morningCards).environmentObject(AppState.shared))),
                 ("permissions", AnyView(KaiPermissionsView(permissions: .shared).environmentObject(AppState.shared)))
@@ -104,7 +123,11 @@ enum KaiPageSnapshots {
 /// The main window's content, without Preferences, for the snapshot.
 private struct KaiMainViewForSnapshot: View {
     var page = "Chat"
+    var graph = false
     var body: some View {
-        KaiMainView().environmentObject(AppState.shared).onAppear { AppState.shared.activeSidebar = page }
+        KaiMainView().environmentObject(AppState.shared).onAppear {
+            KaiKnowledgeView.startInGraph = graph
+            AppState.shared.activeSidebar = page
+        }
     }
 }

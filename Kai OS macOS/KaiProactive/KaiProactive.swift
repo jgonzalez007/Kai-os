@@ -9,6 +9,7 @@ import AppKit
 import KaiShared
 import KaiSlack
 import KaiActions
+import KaiKnowledge
 import KaiLocalAI
 import KaiLocalData
 
@@ -52,7 +53,7 @@ struct KaiSystemBriefingInputProvider: KaiBriefingInputProviding {
                     .map { "\($0.title)\n" + String($0.text.prefix(500)) }
             }
         }
-        return KaiBriefingInput(events: events, mail: mail, slack: slack)
+        return KaiBriefingInput(events: events, mail: mail, slack: slack, profile: KaiProfilePrompt.promptSection(appState.profile))
     }
 }
 

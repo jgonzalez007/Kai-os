@@ -13,9 +13,15 @@ import SwiftUI
 struct KaiKnowledgeView: View {
     @EnvironmentObject var appState: AppState
 
-    private enum Mode: String, CaseIterable { case graph = "Graph", notes = "Notes" }
+    private enum Mode: String, CaseIterable { case about = "About you", graph = "Graph", notes = "Notes" }
 
-    @State private var mode = Mode.graph
+    /// Set by the snapshot harness, to draw the graph face.
+    static var startInGraph = false
+    @State private var mode = Mode.about
+    @State private var scale: CGFloat = 1
+    @State private var pan: CGSize = .zero
+    @State private var hiddenSources: Set<String> = []
+    @State private var hideIsolated = false
     @State private var documents: [KaiKnowledgeDocument] = []
     @State private var graph = KaiKnowledgeGraph(nodes: [], edges: [])
     @State private var loading = true
@@ -32,6 +38,8 @@ struct KaiKnowledgeView: View {
             header
             if loading {
                 ProgressView("Reading your knowledge base…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if mode == .about {
+                KaiAboutYouView(cards: appState.morningCards, documentCount: documents.count)
             } else if documents.isEmpty {
                 emptyState
             } else {
@@ -42,7 +50,7 @@ struct KaiKnowledgeView: View {
             }
         }
         .padding(.horizontal, 28).padding(.bottom, 24)
-        .task { await load() }
+        .task { if Self.startInGraph { mode = .graph }; await load() }
     }
 
     // MARK: Header
@@ -56,7 +64,7 @@ struct KaiKnowledgeView: View {
             }
             Spacer()
             Picker("", selection: $mode) { ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 160)
+                .pickerStyle(.segmented).labelsHidden().frame(width: 250)
             TextField("Search what Kai knows", text: $query)
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 12).padding(.vertical, 7)
@@ -184,12 +192,20 @@ struct KaiKnowledgeView: View {
                 Canvas { context, size in draw(&context, size) }
                     .contentShape(Rectangle())
                     .gesture(SpatialTapGesture().onEnded { tap in selectedID = nearest(to: tap.location, in: geo.size)?.id })
+                    .simultaneousGesture(DragGesture(minimumDistance: 6).onChanged { value in
+                        pan = CGSize(width: panStart.width + value.translation.width, height: panStart.height + value.translation.height)
+                    }.onEnded { _ in panStart = pan })
+                    .simultaneousGesture(MagnifyGesture().onChanged { value in
+                        scale = min(max(scaleStart * value.magnification, 0.6), 6)
+                    }.onEnded { _ in scaleStart = scale })
                     .onContinuousHover { phase in
                         switch phase {
                         case .active(let point): hoverID = nearest(to: point, in: geo.size)?.id
                         case .ended: hoverID = nil
                         }
                     }
+                    .overlay(alignment: .topTrailing) { zoomControls.padding(10) }
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
             }
             .background(RoundedRectangle(cornerRadius: 18).fill(Color.black.opacity(0.35)))
             .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
@@ -197,25 +213,60 @@ struct KaiKnowledgeView: View {
         }
     }
 
+    @State private var panStart: CGSize = .zero
+    @State private var scaleStart: CGFloat = 1
+
+    private var zoomControls: some View {
+        VStack(spacing: 6) {
+            Button { zoom(1.4) } label: { Image(systemName: "plus") }
+            Button { zoom(1 / 1.4) } label: { Image(systemName: "minus") }
+            Button { scale = 1; scaleStart = 1; pan = .zero; panStart = .zero } label: { Image(systemName: "scope") }.help("Fit everything")
+        }
+        .buttonStyle(.plain).padding(6)
+        .background(Capsule().fill(Color.black.opacity(0.5)))
+    }
+
+    private func zoom(_ factor: CGFloat) {
+        scale = min(max(scale * factor, 0.6), 6); scaleStart = scale
+    }
+
+    /// A dot shows unless its source is switched off, or it joins nothing and isolated ones are hidden.
+    private func isVisible(_ node: KaiGraphNode) -> Bool {
+        !hiddenSources.contains(node.source) && !(hideIsolated && node.degree == 0)
+    }
+
     private var legend: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 8) {
             ForEach(Array(Set(graph.nodes.map(\.source))).sorted(), id: \.self) { source in
-                HStack(spacing: 5) {
-                    Circle().fill(Self.color(for: source)).frame(width: 8, height: 8)
-                    Text(Self.label(for: source)).font(.caption).foregroundStyle(.secondary)
+                let off = hiddenSources.contains(source)
+                Button {
+                    if off { hiddenSources.remove(source) } else { hiddenSources.insert(source) }
+                } label: {
+                    HStack(spacing: 5) {
+                        Circle().fill(Self.color(for: source)).frame(width: 8, height: 8)
+                        Text(Self.label(for: source)).font(.caption)
+                    }
+                    .padding(.horizontal, 9).padding(.vertical, 4)
+                    .background(Capsule().fill(Color.white.opacity(off ? 0.02 : 0.08)))
+                    .opacity(off ? 0.4 : 1)
                 }
+                .buttonStyle(.plain).help(off ? "Show \(Self.label(for: source))" : "Hide \(Self.label(for: source))")
             }
+            Toggle("Hide unconnected", isOn: $hideIsolated).toggleStyle(.checkbox).font(.caption)
             Spacer()
-            Text("Click a dot to read it. Lines join notes about the same things.").font(.caption).foregroundStyle(.secondary)
+            Text("Drag to move, pinch or use + and − to zoom. Click a dot to read it. Ringed dots are notes you wrote for Kai.")
+                .font(.caption).foregroundStyle(.secondary)
         }
     }
 
     private func point(_ node: KaiGraphNode, _ size: CGSize) -> CGPoint {
-        CGPoint(x: 24 + node.x * (size.width - 48), y: 24 + node.y * (size.height - 48))
+        let base = CGPoint(x: 24 + node.x * (size.width - 48), y: 24 + node.y * (size.height - 48))
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        return CGPoint(x: center.x + (base.x - center.x) * scale + pan.width, y: center.y + (base.y - center.y) * scale + pan.height)
     }
 
     private func nearest(to location: CGPoint, in size: CGSize) -> KaiGraphNode? {
-        graph.nodes.map { ($0, hypot(point($0, size).x - location.x, point($0, size).y - location.y)) }
+        graph.nodes.filter(isVisible).map { ($0, hypot(point($0, size).x - location.x, point($0, size).y - location.y)) }
             .filter { $0.1 <= 16 }.min { $0.1 < $1.1 }?.0
     }
 
@@ -223,24 +274,25 @@ struct KaiKnowledgeView: View {
         // A name on the best-connected dot of each cluster only (daily digests of one channel share a name),
         // so the picture does not fill up with overlapping words.
         var best: [String: KaiGraphNode] = [:]
-        for node in graph.nodes where node.degree >= 2 {
+        for node in graph.nodes where node.degree >= 2 && isVisible(node) {
             let group = node.title.components(separatedBy: " — ").first ?? node.title
             if let current = best[group], current.degree >= node.degree { continue }
             best[group] = node
         }
-        let labelled = Set(best.values.sorted { $0.degree > $1.degree }.prefix(8).map(\.id))
+        let labelled = Set(best.values.sorted { $0.degree > $1.degree }.prefix(scale > 1.8 ? 24 : 8).map(\.id))
+        var placed: [CGRect] = []
         let focus = hoverID ?? selectedID
         let focusIndex = graph.nodes.first { $0.id == focus }?.index
-        for edge in graph.edges {
+        for edge in graph.edges where isVisible(graph.nodes[edge.a]) && isVisible(graph.nodes[edge.b]) {
             var path = Path()
             path.move(to: point(graph.nodes[edge.a], size))
             path.addLine(to: point(graph.nodes[edge.b], size))
             let near = focusIndex != nil && (edge.a == focusIndex || edge.b == focusIndex)
             context.stroke(path, with: .color(near ? KaiColor.cyan.opacity(0.9) : Color.white.opacity(0.10 + 0.25 * edge.weight)), lineWidth: near ? 1.6 : 0.8)
         }
-        for node in graph.nodes {
+        for node in graph.nodes where isVisible(node) {
             let center = point(node, size)
-            let radius = 4.5 + min(Double(node.degree), 6) * 1.2
+            let radius = (4.5 + min(Double(node.degree), 6) * 1.2) * min(max(Double(scale), 0.8), 1.8)
             let isFocus = node.id == focus
             let isNeighbor = focusIndex != nil && graph.edges.contains { ($0.a == focusIndex && $0.b == node.index) || ($0.b == focusIndex && $0.a == node.index) }
             let color = Self.color(for: node.source)
@@ -249,10 +301,20 @@ struct KaiKnowledgeView: View {
             }
             context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)),
                          with: .color(focusIndex != nil && !isFocus && !isNeighbor ? color.opacity(0.35) : color))
+            if node.sourceID.hasPrefix(KaiManualNote.folderName + "/") {
+                context.stroke(Path(ellipseIn: CGRect(x: center.x - radius - 3, y: center.y - radius - 3, width: (radius + 3) * 2, height: (radius + 3) * 2)), with: .color(.white.opacity(0.85)), lineWidth: 1.4)
+            }
             if isFocus || isNeighbor || labelled.contains(node.id) {
-                let text = Text(node.title.count > 28 ? String(node.title.prefix(28)) + "…" : node.title)
-                    .font(.system(size: isFocus ? 12 : 10, weight: isFocus ? .semibold : .regular)).foregroundColor(.white.opacity(isFocus ? 1 : 0.7))
-                context.draw(text, at: CGPoint(x: center.x, y: center.y + radius + 9))
+                let shown = node.title.count > 28 ? String(node.title.prefix(28)) + "…" : node.title
+                let at = CGPoint(x: center.x, y: center.y + radius + 9)
+                let box = CGRect(x: at.x - Double(shown.count) * 2.9, y: at.y - 7, width: Double(shown.count) * 5.8, height: 14)
+                // A name that would sit on top of another is left out, unless it is the one being looked at.
+                if isFocus || !placed.contains(where: { $0.intersects(box) }) {
+                    placed.append(box)
+                    let text = Text(shown)
+                        .font(.system(size: isFocus ? 12 : 10, weight: isFocus ? .semibold : .regular)).foregroundColor(.white.opacity(isFocus ? 1 : 0.7))
+                    context.draw(text, at: at)
+                }
             }
         }
     }

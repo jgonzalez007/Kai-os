@@ -61,6 +61,10 @@ enum KaiNightShiftRunner {
         let result = await appState.indexKnowledgeNow(sources: chosen)
         let indexed = appState.knowledgeDocumentCount
 
+        // The portrait comes before the briefing, so today's cards are about what matters to this person.
+        // If it can't be built (no local model running, say), the briefing is made without it.
+        await appState.rebuildProfileNow()
+
         // A briefing already made today is kept, so a run at noon doesn't replace cards you've acted on.
         let briefing = appState.morningCards
         briefing.loadStoredCards()

@@ -181,6 +181,10 @@ final class AppState: ObservableObject {
     @Published var knowledgeCounts: [String: Int] = [:]
     @Published var knowledgeState = KaiSourceState.disconnected
     @Published var isIndexingKnowledge = false
+    /// What Kai knows about the person, written by the local model from the knowledge base.
+    @Published var profile: KaiProfile? = KaiProfileStore.standard.load()
+    @Published var isBuildingProfile = false
+    @Published var profileMessage: String?
     var knowledge: KaiKnowledgeStore?
     let agent = KaiAgentController()
     @Published var mailAccess: KaiMailAccess = KaiMailAccess.current {
@@ -595,7 +599,7 @@ final class AppState: ObservableObject {
             App context: \(appCategory). \
             Adaptive mode: \(appAwarenessMode). \
             Available actions: \(suggestions.isEmpty ? "general" : suggestions.joined(separator: ", ")).
-            """ + (KaiInstructions.promptSection(KaiInstructions.stored()).map { "\n\n" + $0 } ?? "")
+            """ + (KaiProfilePrompt.promptSection(profile).map { "\n\n" + $0 } ?? "") + (KaiInstructions.promptSection(KaiInstructions.stored()).map { "\n\n" + $0 } ?? "")
         )
         let turns = messages
             .filter { ($0.kind == .chat && !$0.text.isEmpty) || $0.kind == .action }
