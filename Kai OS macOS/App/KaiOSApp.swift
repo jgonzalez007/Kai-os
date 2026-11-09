@@ -81,11 +81,13 @@ struct MailMessage: Identifiable {
     let sender: String
     let account: String
     let mailbox: String
+    /// Where it was in the inbox list when it was read, so opening it is quick.
+    let position: Int
     init(id: String = UUID().uuidString, from: String, subject: String, preview: String, date: Date = Date(), isRead: Bool = false, folder: String = "Inbox", starred: Bool = false,
-         sender: String = "", account: String = "", mailbox: String = "") {
+         sender: String = "", account: String = "", mailbox: String = "", position: Int = 1) {
         self.id = id; self.from = from; self.subject = subject; self.preview = preview
         self.date = date; self.isRead = isRead; self.folder = folder; self.starred = starred
-        self.sender = sender.isEmpty ? from : sender; self.account = account; self.mailbox = mailbox
+        self.sender = sender.isEmpty ? from : sender; self.account = account; self.mailbox = mailbox; self.position = position
     }
 }
 
@@ -318,10 +320,10 @@ final class AppState: ObservableObject {
 
     private func loadMail(connecting: Bool) async {
         do {
-            let items = try await KaiMailSource.recentMessages(limit: 60)
-            mailMessages = items.map { item in
+            let items = try await KaiMailSource.recentMessages(limit: 30)
+            mailMessages = items.enumerated().map { index, item in
                 MailMessage(id: item.id, from: Self.displayName(fromSender: item.sender), subject: item.subject, preview: "", date: item.date, isRead: item.isRead, starred: item.isFlagged,
-                            sender: item.sender, account: item.account, mailbox: item.mailbox)
+                            sender: item.sender, account: item.account, mailbox: item.mailbox, position: index + 1)
             }
             unreadCount = items.filter { !$0.isRead }.count
             starredCount = items.filter(\.isFlagged).count

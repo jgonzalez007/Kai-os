@@ -1078,6 +1078,7 @@ final class KaiChecksTests: XCTestCase {
         // MARK: Scripts and Spotlight on this Mac
 
         check("the Mail script compiles against Mail's dictionary") { compiles(KaiMailSource.script(limit: 5)) }
+        check("the script that opens one inbox message compiles against Mail's dictionary") { compiles(KaiMailSelection.inboxScript) }
         check("the mail draft script compiles and has no send command") {
             compiles(KaiMailDraftScript.source)
                 && !KaiMailDraftScript.source.lowercased().split(whereSeparator: { !$0.isLetter }).contains("send")

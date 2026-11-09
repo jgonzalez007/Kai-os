@@ -349,8 +349,9 @@ public enum KaiMailSource {
     """
 
     /// Scripting Mail launches it if it's closed, so call this only after the user connects Mail.
+    /// Mail answers slowly on a big Exchange inbox (about half a second a message), so the wait is generous.
     public static func recentMessages(limit: Int = 30) async throws -> [KaiMailItem] {
-        items(from: try await KaiAppleScriptRecords.run(script: script(limit: limit), app: "Mail"))
+        items(from: try await KaiAppleScriptRecords.run(script: script(limit: limit), app: "Mail", timeout: 120))
     }
 
     static func script(limit: Int) -> String {
@@ -362,15 +363,7 @@ public enum KaiMailSource {
             if n > \(limit) then set n to \(limit)
             repeat with i from 1 to n
                 set m to message i of inbox
-                set boxName to ""
-                set accountName to ""
-                try
-                    set boxName to name of (mailbox of m)
-                end try
-                try
-                    set accountName to name of (account of (mailbox of m))
-                end try
-                set out to out & (id of m as string) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & (read status of m as string) & US & (flagged status of m as string) & US & my cleaned(accountName) & US & my cleaned(boxName) & RS
+                set out to out & (id of m as string) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & (read status of m as string) & US & (flagged status of m as string) & RS
             end repeat
         end tell
         return out
@@ -535,6 +528,51 @@ public enum KaiMailSelection {
         end try
         return (id of m as string) & US & my cleaned(boxName) & US & my cleaned(accountName) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & my cleaned(content of m) & RS
     end tell
+    """
+
+    /// Reads one message of the inbox by its id. `position` is where it was in the list a moment ago, so it is
+    /// normally found at once; if mail has arrived since, the newest 80 are searched. Also says which account and mailbox
+    /// it is in, so a reply can be opened later. Read only.
+    public static func inboxEmail(id: String, position: Int) async throws -> (reference: KaiMailMessageReference, source: KaiEmailDraftSource)? {
+        email(from: try await KaiAppleScriptRecords.run(script: inboxScript, app: "Mail", arguments: [id, String(max(position, 1))], timeout: 90))
+    }
+
+    static let inboxScript = KaiAppleScriptRecords.handlers + """
+    on run argv
+        set US to (ASCII character 31)
+        set RS to (ASCII character 30)
+        set targetID to (item 1 of argv) as integer
+        set hint to (item 2 of argv) as integer
+        tell application "Mail"
+            set found to missing value
+            try
+                set c to message hint of inbox
+                if (id of c) is targetID then set found to c
+            end try
+            if found is missing value then
+                repeat with i from 1 to 80
+                    try
+                        set c to message i of inbox
+                        if (id of c) is targetID then
+                            set found to c
+                            exit repeat
+                        end if
+                    end try
+                end repeat
+            end if
+            if found is missing value then error "That message isn't among the newest 80 in your inbox. Open it in Mail."
+            set m to found
+            set boxName to ""
+            set accountName to ""
+            try
+                set boxName to name of (mailbox of m)
+            end try
+            try
+                set accountName to name of (account of (mailbox of m))
+            end try
+            return (id of m as string) & US & my cleaned(boxName) & US & my cleaned(accountName) & US & my cleaned(sender of m) & US & my cleaned(subject of m) & US & my isoDate(date received of m) & US & my cleaned(content of m) & RS
+        end tell
+    end run
     """
 
     /// Reads one known message, wherever the user's selection is.

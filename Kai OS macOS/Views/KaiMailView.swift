@@ -48,6 +48,8 @@ struct KaiMailView: View {
     @State private var readTask: Task<Void, Never>?
     @State private var assistTask: Task<Void, Never>?
     @State private var replyNote: String?
+    /// Where the open message lives, as Mail said when it was read. A reply is opened from this.
+    @State private var reference: KaiMailMessageReference?
 
     private let calendar = Calendar.current
 
@@ -195,7 +197,14 @@ struct KaiMailView: View {
     private var list: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 4, pinnedViews: []) {
-                if visible.isEmpty {
+                if visible.isEmpty && messages.isEmpty && appState.mailState == .loading {
+                    VStack(spacing: 8) {
+                        ProgressView()
+                        Text("Reading your inbox…").font(.headline)
+                        Text("Mail can take up to half a minute with a big inbox.").font(.caption).foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity).padding(.top, 60)
+                } else if visible.isEmpty {
                     VStack(spacing: 8) {
                         Image(systemName: view == .all ? "tray" : "checkmark.circle").font(.system(size: 28)).foregroundStyle(.secondary)
                         Text(emptyText).font(.headline)
@@ -470,8 +479,7 @@ struct KaiMailView: View {
     /// Opens a reply in Mail with the draft in it, for the person to read and send themselves. Pressing the
     /// button is the approval, and it is written to the action log like any other action.
     private func openReply(_ message: MailMessage, draft: String) {
-        guard case .loaded(let source) = bodyState else { return }
-        let reference = KaiMailMessageReference(id: message.id, mailbox: message.mailbox.isEmpty ? "INBOX" : message.mailbox, account: message.account)
+        guard case .loaded(let source) = bodyState, let reference else { return }
         var card = KaiActionCard(action: .mailReply(reference: reference, recipient: source.sender, subject: source.subject,
                                                     body: KaiMailReplyBody.compose(draft: draft, source: source)))
         guard card.approve() else { return }
