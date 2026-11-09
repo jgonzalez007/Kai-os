@@ -51,7 +51,7 @@ enum KaiPageSnapshots {
                 exit(0)
             }
             let pages: [(String, KaiSettingsView.Page)] = [
-                ("sidekick", .sidekick), ("knowledge", .knowledge), ("notch", .notch), ("system", .system)
+                ("ai", .ai), ("sidekick", .sidekick), ("knowledge", .knowledge), ("notch", .notch), ("system", .system)
             ]
             for (name, page) in pages {
                 KaiSettingsView.startPage = page

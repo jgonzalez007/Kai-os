@@ -8,6 +8,7 @@
 
 import KaiAgent
 import KaiDesk
+import KaiWeb
 import KaiNotchCore
 import SwiftUI
 import KaiShared
@@ -23,6 +24,10 @@ struct KaiSettingsView: View {
     @AppStorage(KaiNotchPreferences.clickKey) private var clickOpens = true
     @AppStorage(KaiWebPreferences.key) private var webLookups = true
     @State private var braveDraft = ""
+    @State private var askingForKey = false
+    @State private var testing = false
+    @State private var testResult: String?
+    @AppStorage(KaiWebPreferences.useBraveKey) private var useBrave = false
     @State private var braveSaved = (KaiKeychain.cachedApiKey(for: "brave") ?? nil) != nil
     @AppStorage(KaiSharedKey.defaultsKey) private var sharedKey = KaiSharedKey.default.rawValue
     @AppStorage(KaiInstructions.defaultsKey) private var instructions = ""
@@ -226,34 +231,9 @@ struct KaiSettingsView: View {
                 settingsCard {
                     SectionHeader(title: "Web lookups")
                     Toggle("Let Kai look things up on the web", isOn: $webLookups)
-                    HStack(spacing: 6) {
-                        Image(systemName: braveSaved ? "checkmark.seal.fill" : "magnifyingglass")
-                            .foregroundStyle(braveSaved ? KaiColor.cyan : KaiColor.textTertiary)
-                        Text(braveSaved ? "Searching with Brave Search (your key)" : "Searching with DuckDuckGo (no key)")
-                            .font(KaiFont.caption)
-                    }
-                    if braveSaved {
-                        Button("Remove the Brave key") {
-                            KaiKeychain.deleteApiKey(for: AppState.braveKeychainName)
-                            braveSaved = false
-                        }
-                        .controlSize(.small)
-                    } else {
-                        HStack {
-                            SecureField("Brave Search API key (optional)", text: $braveDraft).kaiInput()
-                            Button("Save") {
-                                let key = braveDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-                                guard !key.isEmpty else { return }
-                                braveSaved = KaiKeychain.setApiKey(key, for: AppState.braveKeychainName)
-                                braveDraft = ""
-                            }
-                            .controlSize(.small)
-                        }
-                    }
-                    Text("DuckDuckGo works without a key, but on a shared or office network it can ask for a human check and refuse searches. A free key from brave.com/search/api (2,000 searches a month) avoids that. The key is kept in your Keychain and sent only to Brave.")
-                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                     Text("Kai can search the web and read a page when you ask about something current. Only the search words go to DuckDuckGo, and a page is fetched only if it came from a search result or you wrote the link. Kai never opens addresses on this Mac or your local network, sends no cookies, and treats what it reads as information, not instructions. Turn this off to keep every question on this Mac.")
                         .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    if webLookups { braveSettings }
                 }
                 .onAppear { braveSaved = (KaiKeychain.cachedApiKey(for: AppState.braveKeychainName) ?? nil) != nil }
                 }
@@ -663,6 +643,93 @@ struct KaiSettingsView: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .kaiLiquidGlass(accent, radius: 20, glow: 0.18)
+    }
+
+    // ── Web search service ──
+    private var braveSettings: some View {
+        let backend = KaiWebBackend.choose(useBrave: useBrave, key: braveSaved ? "saved" : nil)
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: backend == .brave ? "checkmark.seal.fill" : (backend == .braveWithoutKey ? "exclamationmark.triangle.fill" : "magnifyingglass"))
+                    .foregroundStyle(backend == .brave ? KaiColor.cyan : (backend == .braveWithoutKey ? KaiColor.warning : KaiColor.textTertiary))
+                Text(backend.statusText).font(KaiFont.caption)
+            }
+
+            Toggle("Use Brave Search", isOn: $useBrave)
+                .onChange(of: useBrave) { _, on in
+                    // Turning it on without a key asks for one right away. Turning it off leaves a saved key alone.
+                    askingForKey = on && !braveSaved
+                    testResult = nil
+                }
+            Text("More reliable than DuckDuckGo on a shared or office network, where DuckDuckGo can ask for a human check and refuse searches. Needs a free key (2,000 searches a month).")
+                .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+
+            if useBrave && (askingForKey || !braveSaved) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Paste your Brave Search API key").font(KaiFont.captionStrong)
+                    SecureField("Key", text: $braveDraft).kaiInput()
+                    HStack {
+                        Button("Save key") {
+                            let key = braveDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !key.isEmpty else { return }
+                            braveSaved = KaiKeychain.setApiKey(key, for: AppState.braveKeychainName)
+                            braveDraft = ""
+                            askingForKey = !braveSaved
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(braveDraft.trimmingCharacters(in: .whitespaces).isEmpty)
+                        Button("Cancel") { useBrave = false; braveDraft = ""; askingForKey = false }
+                            .controlSize(.small)
+                        Spacer()
+                        Link("Get a free key", destination: URL(string: "https://brave.com/search/api/")!)
+                            .font(KaiFont.caption)
+                    }
+                    Text("The key is kept in your Keychain and sent only to Brave. Choose the free plan.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                }
+                .padding(12)
+                .kaiGlassSurface(radius: 12)
+            } else if useBrave && braveSaved {
+                HStack {
+                    Label("Key saved in your Keychain", systemImage: "key.fill").font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                    Spacer()
+                    Button("Replace") { askingForKey = true }.controlSize(.small)
+                    Button("Remove key") {
+                        KaiKeychain.deleteApiKey(for: AppState.braveKeychainName)
+                        braveSaved = false
+                        useBrave = false
+                        askingForKey = false
+                    }
+                    .controlSize(.small)
+                }
+            }
+
+            HStack {
+                Button(testing ? "Testing…" : "Test a search") { runSearchTest() }
+                    .controlSize(.small).disabled(testing)
+                if let testResult {
+                    Text(testResult).font(KaiFont.caption).foregroundStyle(testResult.hasPrefix("Found") ? KaiColor.cyan : KaiColor.warning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// Runs one real search with the current choice and says what came back.
+    private func runSearchTest() {
+        testing = true
+        testResult = nil
+        let session = AppState.makeWebSession()
+        Task {
+            do {
+                let results = try await session.search("Kai OS test")
+                testResult = results.isEmpty ? "The search worked but found nothing." : "Found \(results.count) results. Searching works."
+            } catch {
+                testResult = error.localizedDescription
+            }
+            testing = false
+        }
     }
 
     // ── Logo and icon to try ──

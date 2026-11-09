@@ -2612,6 +2612,13 @@ final class KaiChecksTests: XCTestCase {
             do { _ = try await KaiWebSession(transport: web, braveKey: { "bad" }).search("x"); return false }
             catch { return (error as? KaiWebError) == .searchBlocked(usingKey: true) && (error.localizedDescription).contains("Brave Search key") }
         }
+        check("the search service follows the checkbox and the key, and says which it is using") {
+            KaiWebBackend.choose(useBrave: false, key: "saved") == .duckDuckGo
+                && KaiWebBackend.choose(useBrave: true, key: "saved") == .brave
+                && KaiWebBackend.choose(useBrave: true, key: nil) == .braveWithoutKey
+                && KaiWebBackend.choose(useBrave: true, key: "  ") == .braveWithoutKey
+                && KaiWebBackend.braveWithoutKey.statusText.contains("no key yet")
+        }
         await checkAsync("an empty key falls back to DuckDuckGo") {
             let web = FakeWeb(["https://html.duckduckgo.com/html/": (200, "text/html", "<a class=\"result__a\" href=\"https://e.com/p\">Page</a>")])
             let results = try await KaiWebSession(transport: web, braveKey: { "  " }).search("x")

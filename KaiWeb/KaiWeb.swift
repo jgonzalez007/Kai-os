@@ -285,6 +285,28 @@ public final class KaiURLSessionTransport: NSObject, KaiWebTransport, URLSession
     }
 }
 
+// MARK: - Which search service is in use
+
+public enum KaiWebBackend: Equatable, Sendable {
+    case duckDuckGo
+    case brave
+    /// Brave is chosen but there is no key yet, so searches still go to DuckDuckGo.
+    case braveWithoutKey
+
+    public static func choose(useBrave: Bool, key: String?) -> KaiWebBackend {
+        guard useBrave else { return .duckDuckGo }
+        return (key?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true) ? .braveWithoutKey : .brave
+    }
+
+    public var statusText: String {
+        switch self {
+        case .duckDuckGo: return "Searching with DuckDuckGo (no key needed)"
+        case .brave: return "Searching with Brave Search (your key)"
+        case .braveWithoutKey: return "Brave Search is chosen but has no key yet, so DuckDuckGo is used"
+        }
+    }
+}
+
 // MARK: - The session
 
 /// One conversation's web access. It remembers which addresses are fair to open: those from search results

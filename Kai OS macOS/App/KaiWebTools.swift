@@ -15,6 +15,9 @@ import KaiWeb
 enum KaiWebPreferences {
     static let key = "kai.web.enabled"
     static var enabled: Bool { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
+    static let useBraveKey = "kai.web.useBrave"
+    /// Whether the person ticked "Use Brave Search". A saved key alone does not turn it on.
+    static var useBrave: Bool { UserDefaults.standard.bool(forKey: useBraveKey) }
 }
 
 extension AppState {
@@ -36,7 +39,7 @@ extension AppState {
     /// A web session that uses the Brave Search key when there is one. It reads only what the Keychain read
     /// at launch already remembered, so a search never waits on a Keychain dialog.
     static func makeWebSession() -> KaiWebSession {
-        KaiWebSession(braveKey: { (KaiKeychain.cachedApiKey(for: AppState.braveKeychainName) ?? nil) })
+        KaiWebSession(braveKey: { KaiWebPreferences.useBrave ? (KaiKeychain.cachedApiKey(for: AppState.braveKeychainName) ?? nil) : nil })
     }
 
     static let webToolNames: Set<String> = Set(webTools.map(\.name))
