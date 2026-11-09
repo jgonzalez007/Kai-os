@@ -777,54 +777,41 @@ final class KaiAppDelegate: NSObject, NSApplicationDelegate {
 struct KaiMainView: View {
     @EnvironmentObject var appState: AppState
 
-    private var selection: Binding<String?> {
-        Binding(
-            get: { appState.activeSidebar },
-            set: { if let value = $0 { appState.activeSidebar = value } }
-        )
-    }
-
     var body: some View {
         // Preferences use the whole window, with their own navigation and a Home button.
         if appState.activeSidebar == "Settings" {
             KaiSettingsView()
                 .environmentObject(appState)
         } else {
-            mainSplit
+            shell
         }
     }
 
-    private var mainSplit: some View {
-        splitView
-            .background(KaiAmbientBackground())
-    }
-
-    private var splitView: some View {
-        NavigationSplitView {
-            KaiSidebarView(selection: selection)
-                .environmentObject(appState)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260)
-        } detail: {
-            switch appState.activeSidebar {
-            case "ForYou": KaiForYouView(controller: appState.morningCards)
-                .environmentObject(appState)
-            case "Calendar": KaiCalendarView()
-                .environmentObject(appState)
-            case "Mail": KaiMailView()
-                .environmentObject(appState)
-            case "Notes": KaiNotesView()
-                .environmentObject(appState)
-            case "Sidekick": KaiSidekickView(agent: appState.agent)
-                .environmentObject(appState)
-            case "Settings": KaiSettingsView()
-                .environmentObject(appState)
-            case "Welcome": KaiWelcomeView()
-                .environmentObject(appState)
-            default: KaiChatView()
-                .environmentObject(appState)
+    /// Black with light from the top, a bar across the top, and the page below it.
+    private var shell: some View {
+        ZStack {
+            KaiAmbientBackground()
+            VStack(spacing: 0) {
+                KaiTopBar()
+                page
             }
         }
         .tint(KaiColor.primary)
+        .environment(\.colorScheme, .dark)
+    }
+
+    @ViewBuilder
+    private var page: some View {
+        switch appState.activeSidebar {
+        case "ForYou": KaiForYouView(controller: appState.morningCards).environmentObject(appState)
+        case "Calendar": KaiCalendarView().environmentObject(appState)
+        case "Mail": KaiMailView().environmentObject(appState)
+        case "Notes": KaiNotesView().environmentObject(appState)
+        case "Sidekick": KaiSidekickView(agent: appState.agent).environmentObject(appState)
+        case "Knowledge": KaiKnowledgeView().environmentObject(appState)
+        case "Welcome": KaiWelcomeView().environmentObject(appState)
+        default: KaiChatView().environmentObject(appState)
+        }
     }
 }
 

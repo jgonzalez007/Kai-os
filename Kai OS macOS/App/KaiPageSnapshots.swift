@@ -68,13 +68,14 @@ enum KaiPageSnapshots {
             }
             // Health and Permissions, as full pages.
             let others: [(String, AnyView)] = [
-                ("sidebar", AnyView(KaiSidebarView(selection: .constant("Chat")).environmentObject(AppState.shared).frame(width: 280, height: 820))),
+                ("home", AnyView(KaiMainViewForSnapshot())),
+                ("knowledge-page", AnyView(KaiMainViewForSnapshot(page: "Knowledge"))),
                 ("health", AnyView(KaiHealthView(briefing: AppState.shared.morningCards).environmentObject(AppState.shared))),
                 ("permissions", AnyView(KaiPermissionsView(permissions: .shared).environmentObject(AppState.shared)))
             ]
             for (name, view) in others {
-                let narrow = name == "sidebar"
-                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: narrow ? 280 : 1100, height: narrow ? 820 : 900), styleMask: [.titled], backing: .buffered, defer: false)
+                let narrow = false
+                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 860), styleMask: [.titled], backing: .buffered, defer: false)
                 window.contentView = NSHostingView(rootView: view.environment(\.colorScheme, .dark))
                 window.orderFrontRegardless()
                 try? await Task.sleep(for: .milliseconds(1500))
@@ -98,3 +99,11 @@ enum KaiPageSnapshots {
     }
 }
 #endif
+
+/// The main window's content, without Preferences, for the snapshot.
+private struct KaiMainViewForSnapshot: View {
+    var page = "Chat"
+    var body: some View {
+        KaiMainView().environmentObject(AppState.shared).onAppear { AppState.shared.activeSidebar = page }
+    }
+}

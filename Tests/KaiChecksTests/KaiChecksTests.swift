@@ -2668,6 +2668,88 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testGreeting() async throws {
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "UTC")!
+        func at(_ hour: Int) -> Date { cal.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: hour))! }
+        check("the greeting follows the time of day") {
+            KaiGreeting.text(now: at(8), fullName: "jose gonzalez", calendar: cal) == "Good morning, Jose."
+                && KaiGreeting.text(now: at(13), fullName: "Jose Gonzalez", calendar: cal) == "Good afternoon, Jose."
+                && KaiGreeting.text(now: at(20), fullName: "Jose", calendar: cal) == "Good evening, Jose."
+                && KaiGreeting.text(now: at(2), fullName: "Jose", calendar: cal) == "Hello, Jose."
+        }
+        check("a blank or odd name gives a greeting without a name") {
+            KaiGreeting.text(now: at(9), fullName: "   ", calendar: cal) == "Good morning."
+                && KaiGreeting.text(now: at(9), fullName: "123", calendar: cal) == "Good morning."
+                && KaiGreeting.firstName("anne-marie o'neil") == "Anne-marie"
+        }
+    }
+
+    func testKnowledgeGraph() async throws {
+        func doc(_ title: String, _ text: String, source: String = "files", id: String? = nil) -> KaiKnowledgeDocument {
+            KaiKnowledgeDocument(source: source, sourceID: id ?? title, title: title, text: text, fingerprint: title)
+        }
+        let trip1 = doc("Austin trip plan", "Flights to Austin, hotel near the convention center, barbecue dinner booked for Saturday in Austin.")
+        let trip2 = doc("Austin hotel options", "Compare hotel prices in Austin near the convention center; flights arrive Friday evening.")
+        let tax = doc("Tax receipts", "Collect receipts for the accountant: invoices, deductible expenses, quarterly estimated payments.")
+        let garden = doc("Garden notes", "Tomatoes need staking; compost the leaves; plant basil beside the tomatoes in spring.")
+
+        check("words are lowercased, short and filler words dropped, and counted") {
+            let t = KaiKnowledgeGraph.terms("The Austin hotel, the hotel near AUSTIN! 12345 with")
+            return t["austin"] == 2 && t["hotel"] == 2 && t["the"] == nil && t["with"] == nil && t["12345"] == nil
+        }
+        check("two notes about the same thing are joined, and unrelated ones are not") {
+            let g = KaiKnowledgeGraph.build(documents: [trip1, trip2, tax, garden])
+            let connected = g.edges.contains { Set([$0.a, $0.b]) == [0, 1] }
+            let linkedToUnrelated = g.edges.contains { $0.a >= 2 || $0.b >= 2 }
+            return connected && !linkedToUnrelated
+        }
+        check("a [[link]] by title joins two notes even when they share no words") {
+            let a = doc("Alpha", "See [[Omega]] for the rest.")
+            let b = doc("Omega", "Zebra quartz mountain.")
+            let g = KaiKnowledgeGraph.build(documents: [a, b, tax, garden])
+            return g.edges.contains { Set([$0.a, $0.b]) == [0, 1] }
+        }
+        check("each dot counts its lines") {
+            let g = KaiKnowledgeGraph.build(documents: [trip1, trip2, tax, garden])
+            return g.nodes[0].degree == g.edges.filter { $0.a == 0 || $0.b == 0 }.count && g.nodes[2].degree == 0
+        }
+        check("no dot has more than the limit of lines") {
+            let same = (0..<12).map { doc("Austin note \($0)", "Austin hotel flights convention center barbecue", id: "\($0)") }
+            let g = KaiKnowledgeGraph.build(documents: same, maxPerNode: 3)
+            return g.nodes.allSatisfy { $0.degree <= 3 }
+        }
+        check("the graph holds at most 160 documents") {
+            let many = (0..<300).map { doc("Note \($0)", "alpha beta gamma delta \($0)", id: "\($0)") }
+            return KaiKnowledgeGraph.build(documents: many).nodes.count == KaiKnowledgeGraph.maxNodes
+        }
+        check("every dot is placed inside the square, and the same input gives the same picture") {
+            let docs = [trip1, trip2, tax, garden]
+            let a = KaiKnowledgeGraph.build(documents: docs), b = KaiKnowledgeGraph.build(documents: docs)
+            return a == b && a.nodes.allSatisfy { (0...1).contains($0.x) && (0...1).contains($0.y) }
+        }
+        check("joined notes end up closer than unrelated ones") {
+            let docs = [trip1, trip2, tax, garden]
+            let g = KaiKnowledgeGraph.build(documents: docs)
+            func dist(_ i: Int, _ j: Int) -> Double { let dx = g.nodes[i].x - g.nodes[j].x, dy = g.nodes[i].y - g.nodes[j].y; return (dx * dx + dy * dy).squareRoot() }
+            return dist(0, 1) < dist(0, 2) && dist(0, 1) < dist(0, 3)
+        }
+        check("no documents and one document are handled") {
+            KaiKnowledgeGraph.build(documents: []).nodes.isEmpty
+                && KaiKnowledgeGraph.build(documents: [tax]).nodes.count == 1
+                && KaiKnowledgeGraph.build(documents: [tax]).edges.isEmpty
+        }
+        check("the store lists documents newest first with their text") {
+            let dir = FileManager.default.temporaryDirectory.appendingPathComponent("kai-graph-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: dir) }
+            let store = try KaiKnowledgeStore(url: dir.appendingPathComponent("k.sqlite"))
+            try store.upsert(KaiKnowledgeDocument(source: "files", sourceID: "old", title: "Old", text: "old text here", modified: Date(timeIntervalSince1970: 100), fingerprint: "1"))
+            try store.upsert(KaiKnowledgeDocument(source: "notes", sourceID: "new", title: "New", text: "new text here", modified: Date(timeIntervalSince1970: 200), fingerprint: "2"))
+            let list = try store.documents()
+            let one = try store.documents(limit: 1)
+            return list.map(\.title) == ["New", "Old"] && list[0].text.contains("new text here") && one.count == 1
+        }
+    }
+
     // MARK: Setup guide and updates
 
     func testSetupAndUpdates() async throws {

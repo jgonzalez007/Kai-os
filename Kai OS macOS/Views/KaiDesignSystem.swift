@@ -39,7 +39,7 @@ struct KaiColor {
     // Kai OS is always dark now: cards are a faint lift on the near-black window.
     static var cardBg: Color { Color.white.opacity(0.05) }
     static var surfaceBg: Color { Color.white.opacity(0.05) }
-    static let windowBg = Color(red: 0.039, green: 0.059, blue: 0.122)   // #0A0F1F, the sheet color
+    static let windowBg = Color(red: 0.016, green: 0.016, blue: 0.027)   // near black, #040407
     static let panelBg = Color(red: 0.176, green: 0.227, blue: 0.310)    // #2D3A4F
     static let textBase = Color(red: 0.878, green: 0.878, blue: 0.878)   // #E0E0E0
 }
@@ -478,9 +478,11 @@ struct KaiAmbientBackground: View {
             GeometryReader { geo in
                 let w = geo.size.width, h = geo.size.height
                 ZStack {
-                    glow(KaiColor.violet, opacity: 0.34, diameter: w * 0.95).position(x: w * 0.05, y: h * 0.05)
-                    glow(KaiColor.cyan, opacity: 0.20, diameter: w * 0.8).position(x: w * 0.95, y: h * 0.35)
-                    glow(KaiColor.magenta, opacity: 0.20, diameter: w * 0.8).position(x: w * 0.4, y: h * 0.98)
+                    // Black, with light coming in from the top: violet and magenta on the left, cyan on the right.
+                    glow(KaiColor.violet, opacity: 0.30, diameter: w * 0.85).position(x: w * 0.05, y: -h * 0.05)
+                    glow(KaiColor.magenta, opacity: 0.20, diameter: w * 0.55).position(x: w * 0.30, y: -h * 0.12)
+                    glow(KaiColor.cyan, opacity: 0.17, diameter: w * 0.65).position(x: w * 0.98, y: -h * 0.05)
+                    glow(KaiColor.liquidBlue, opacity: 0.08, diameter: w * 0.9).position(x: w * 0.5, y: h * 1.15)
                 }
             }
         }
@@ -490,12 +492,11 @@ struct KaiAmbientBackground: View {
     /// A soft light made with a radial fade, so it looks the same everywhere without relying on blur.
     private func glow(_ color: Color, opacity: Double, diameter: CGFloat) -> some View {
         Circle()
-            .fill(RadialGradient(colors: [color.opacity(opacity), color.opacity(opacity * 0.4), .clear],
+            .fill(RadialGradient(colors: [color.opacity(opacity), color.opacity(opacity * 0.35), .clear],
                                  center: .center, startRadius: 0, endRadius: diameter / 2))
             .frame(width: diameter, height: diameter)
     }
 }
-
 
 // MARK: - Liquid glass card (asset package)
 

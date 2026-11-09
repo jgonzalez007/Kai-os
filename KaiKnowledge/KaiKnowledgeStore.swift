@@ -147,6 +147,21 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
         return Dictionary(uniqueKeysWithValues: pairs)
     }
 
+    /// Documents for browsing and the graph, newest first, each with its text joined from the stored chunks.
+    public func documents(limit: Int = 300, maxText: Int = 4_000) throws -> [KaiKnowledgeDocument] {
+        lock.lock(); defer { lock.unlock() }
+        let heads = try rows("SELECT id, source, source_id, title, modified, fingerprint FROM documents ORDER BY COALESCE(modified, 0) DESC, id DESC LIMIT ?",
+                             [max(limit, 1)]) { row in
+            (id: row.int(0), source: row.text(1), sourceID: row.text(2), title: row.text(3),
+             modified: row.isNull(4) ? nil : Date(timeIntervalSince1970: row.double(4)), fingerprint: row.text(5))
+        }
+        return try heads.map { head in
+            let parts = try rows("SELECT text FROM chunks WHERE doc_id = ? ORDER BY rowid", [head.id]) { $0.text(0) }
+            return KaiKnowledgeDocument(source: head.source, sourceID: head.sourceID, title: head.title,
+                                        text: String(parts.joined(separator: "\n").prefix(maxText)), modified: head.modified, fingerprint: head.fingerprint)
+        }
+    }
+
     /// Best chunk per document, most relevant first. Every word must match; if nothing does,
     /// any word may.
     public func search(_ query: String, limit: Int = 8) throws -> [KaiKnowledgeHit] {
