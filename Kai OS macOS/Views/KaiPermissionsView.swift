@@ -186,8 +186,20 @@ struct KaiPermissionsView: View {
         .kaiLiquidGlass(on ? KaiColor.cyan : KaiColor.magenta, radius: 18, glow: on ? 0.08 : 0.2)
     }
 
-    @ViewBuilder
+    /// The row's own state, then a Reset of just this permission, whatever the state is.
     private func control(_ permission: KaiPermission) -> some View {
+        HStack(spacing: 8) {
+            status(permission)
+            if permission.tccService != nil, permissions.requesting != permission {
+                Button { permissions.reset([permission]) } label: { Label("Reset", systemImage: "arrow.counterclockwise") }
+                    .controlSize(.small)
+                    .help("Clears what macOS remembers about \(permission.title) for Kai OS. Kai OS restarts and macOS asks again. Use it when this shows Off although it is on in System Settings.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func status(_ permission: KaiPermission) -> some View {
         let status = permissions.statuses[permission] ?? .notRequested
         if permissions.requesting == permission {
             ProgressView().controlSize(.small)
@@ -201,10 +213,6 @@ struct KaiPermissionsView: View {
                 HStack(spacing: 6) {
                     Text("Off").font(.callout).foregroundStyle(KaiColor.magenta)
                     Button("Open Settings") { permissions.openSettings(for: permission) }
-                    if permission.tccService != nil {
-                        Button("Reset") { permissions.reset([permission]) }
-                            .help("Already on in System Settings but still off here? Reset clears the old entry, then Kai OS restarts and asks again.")
-                    }
                 }
             case .restart:
                 HStack(spacing: 6) {
