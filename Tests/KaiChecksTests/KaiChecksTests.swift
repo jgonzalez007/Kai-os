@@ -2629,6 +2629,22 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testPermissionReset() async throws {
+        check("a reset runs tccutil once per service, with Mail and Notes sharing one") {
+            let all = KaiPermissionReset.commands(for: KaiPermission.allCases, bundleID: "ai.kai")
+            return all.contains(["reset", "ScreenCapture", "ai.kai"]) && all.contains(["reset", "Accessibility", "ai.kai"])
+                && all.filter { $0[1] == "AppleEvents" }.count == 1 && !all.contains { $0.count != 3 }
+                && KaiPermissionReset.commands(for: [.notifications], bundleID: "ai.kai").isEmpty
+        }
+        check("a bundle id with odd characters is refused, so nothing odd reaches a command") {
+            KaiPermissionReset.commands(for: [.screenRecording], bundleID: "ai.kai; rm -rf ~").isEmpty
+                && KaiPermissionReset.commands(for: [.screenRecording], bundleID: "").isEmpty
+        }
+        check("a missing tool is reported, not ignored") {
+            !KaiPermissionReset.run([.screenRecording], bundleID: "ai.kai", tool: "/nonexistent/tccutil").isEmpty
+        }
+    }
+
     func testProfile() async throws {
         func doc(_ source: String, _ id: String, _ text: String, days: Double = 0) -> KaiKnowledgeDocument {
             KaiKnowledgeDocument(source: source, sourceID: id, title: id, text: text, modified: Date(timeIntervalSince1970: 1_800_000_000 - days * 86_400), fingerprint: id)

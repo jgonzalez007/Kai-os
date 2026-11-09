@@ -71,6 +71,19 @@ public enum KaiPermission: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// The name `tccutil reset` uses for this permission. Notifications aren't kept there.
+    public var tccService: String? {
+        switch self {
+        case .accessibility: return "Accessibility"
+        case .mailAutomation, .notesAutomation: return "AppleEvents"
+        case .screenRecording: return "ScreenCapture"
+        case .microphone: return "Microphone"
+        case .speech: return "SpeechRecognition"
+        case .calendar: return "Calendar"
+        case .notifications: return nil
+        }
+    }
+
     /// These can't show an inline Allow prompt and send the user to System Settings instead,
     /// so they come after the simple prompts.
     var opensSystemSettings: Bool { self == .accessibility || self == .screenRecording }
@@ -230,5 +243,49 @@ public final class KaiSystemPermissionProvider: KaiPermissionProviding {
             let target = NSAppleEventDescriptor(bundleIdentifier: bundleIdentifier)
             return AEDeterminePermissionToAutomateTarget(target.aeDesc, AEEventClass(typeWildCard), AEEventID(typeWildCard), ask)
         }.value
+    }
+}
+
+/// Makes macOS forget what it was told about Kai OS, so it asks again. This is for when a permission shows
+/// as off although it is on in System Settings, which happens after the app's signature changes.
+/// It runs Apple's own `tccutil reset <service> <bundle id>` and touches nothing but Kai OS's own entries.
+public enum KaiPermissionReset {
+    /// The bundle id goes into a command, so only the usual characters are accepted.
+    static func isSafe(_ bundleID: String) -> Bool {
+        !bundleID.isEmpty && bundleID.count <= 100
+            && bundleID.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" }
+    }
+
+    /// One argument list per service. Mail and Notes share one, so it is not repeated.
+    public static func commands(for permissions: [KaiPermission], bundleID: String) -> [[String]] {
+        guard isSafe(bundleID) else { return [] }
+        var seen = Set<String>()
+        return permissions.compactMap(\.tccService).filter { seen.insert($0).inserted }.map { ["reset", $0, bundleID] }
+    }
+
+    /// Runs them and returns what failed, as sentences. An empty list means everything was reset.
+    public static func run(_ permissions: [KaiPermission], bundleID: String, tool: String = "/usr/bin/tccutil") -> [String] {
+        let list = commands(for: permissions, bundleID: bundleID)
+        if list.isEmpty { return ["There is nothing to reset for this."] }
+        var failures: [String] = []
+        for arguments in list {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: tool)
+            process.arguments = arguments
+            let errors = Pipe()
+            process.standardError = errors
+            process.standardOutput = Pipe()
+            do {
+                try process.run()
+                process.waitUntilExit()
+                if process.terminationStatus != 0 {
+                    let text = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+                    failures.append("\(arguments[1]): \(text.isEmpty ? "failed" : text)")
+                }
+            } catch {
+                failures.append("\(arguments[1]): \(error.localizedDescription)")
+            }
+        }
+        return failures
     }
 }

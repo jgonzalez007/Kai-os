@@ -77,6 +77,24 @@ final class KaiPermissionsModel: ObservableObject {
         if let url = permission.settingsURL { NSWorkspace.shared.open(url) }
     }
 
+    @Published private(set) var resetMessage: String?
+
+    /// Clears Kai OS's entries for these permissions, then restarts so macOS asks again.
+    func reset(_ list: [KaiPermission]) {
+        guard let bundleID = Bundle.main.bundleIdentifier else { resetMessage = "Kai OS has no bundle id here, so there is nothing to reset."; return }
+        resetMessage = nil
+        Task {
+            let failures = await Task.detached { KaiPermissionReset.run(list, bundleID: bundleID) }.value
+            if failures.isEmpty {
+                resetMessage = "Reset. Kai OS is restarting, and macOS will ask again."
+                try? await Task.sleep(for: .seconds(1))
+                relaunch()
+            } else {
+                resetMessage = "Couldn't reset: " + failures.joined(separator: " ")
+            }
+        }
+    }
+
     func relaunch() {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
@@ -89,6 +107,8 @@ final class KaiPermissionsModel: ObservableObject {
 struct KaiPermissionsView: View {
     @ObservedObject var permissions: KaiPermissionsModel
     @EnvironmentObject var appState: AppState
+
+    @State private var confirmReset = false
 
     private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
@@ -109,8 +129,13 @@ struct KaiPermissionsView: View {
                 .frame(maxWidth: .infinity)
             }
             HStack(spacing: 12) {
-                Text(summary).font(.callout).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(summary).font(.callout).foregroundStyle(.secondary)
+                    if let message = permissions.resetMessage { Text(message).font(.caption).foregroundStyle(KaiColor.warning) }
+                }
                 Spacer()
+                Button("Reset permissions…") { confirmReset = true }
+                    .help("For when a permission shows as off although it is on in System Settings")
                 Button("Allow All", action: permissions.requestAll)
                     .disabled(permissions.isRequestingAll || permissions.missingCount == 0)
                 Button("Done") {
@@ -125,6 +150,12 @@ struct KaiPermissionsView: View {
             .overlay(alignment: .top) { Divider().overlay(Color.white.opacity(0.08)) }
         }
         .background(KaiAmbientBackground())
+        .confirmationDialog("Reset all of Kai OS's permissions?", isPresented: $confirmReset, titleVisibility: .visible) {
+            Button("Reset and restart", role: .destructive) { permissions.reset(KaiPermission.allCases) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("macOS forgets what you allowed Kai OS, and Kai OS restarts. You allow each one again. Nothing else on your Mac changes.")
+        }
         .task { await permissions.refresh() }
         .onReceive(refreshTimer) { _ in Task { await permissions.refresh() } }
     }
@@ -170,6 +201,10 @@ struct KaiPermissionsView: View {
                 HStack(spacing: 6) {
                     Text("Off").font(.callout).foregroundStyle(KaiColor.magenta)
                     Button("Open Settings") { permissions.openSettings(for: permission) }
+                    if permission.tccService != nil {
+                        Button("Reset") { permissions.reset([permission]) }
+                            .help("Already on in System Settings but still off here? Reset clears the old entry, then Kai OS restarts and asks again.")
+                    }
                 }
             case .restart:
                 HStack(spacing: 6) {
