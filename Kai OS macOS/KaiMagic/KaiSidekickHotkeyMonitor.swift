@@ -4,8 +4,10 @@
 //
 //  Two keys drive the notch: tap to toggle, hold to talk, double tap to draft an email reply.
 //  Control-Option-Space uses a Carbon
-//  hotkey, which needs no permission. Right Command needs Accessibility, because macOS
-//  withholds global keyboard events from untrusted apps.
+//  hotkey, which needs no permission. Right Command is read from modifier changes only (never a global
+//  keyDown monitor, which macOS withholds from apps it doesn't trust), the same way Sentient does it.
+//  A check every second and a half puts the monitors back if they went quiet, for example after the
+//  Accessibility permission was reset and granted again while Kai was running.
 //
 
 import AppKit
@@ -27,7 +29,10 @@ final class KaiSidekickHotkeyMonitor {
     private var hotKeyGesture = KaiHoldGesture()
     private var rightCommandGesture = KaiHoldGesture()
     private var activationObserver: NSObjectProtocol?
+    private var healthTimer: Timer?
     private var monitoredWhileTrusted = false
+    /// When the shared key went down, so a key pressed meanwhile (Right Command with C) cancels the tap.
+    private var sharedKeyDownAt: TimeInterval?
 
     private(set) var isHotKeyRegistered = false
 
@@ -40,7 +45,14 @@ final class KaiSidekickHotkeyMonitor {
         registerHotKey()
         installModifierMonitors()
         // Monitors installed before the permission was granted may stay silent, so they are
-        // replaced the next time the app activates after the grant.
+        // replaced as soon as the permission state changes, and when the app becomes active.
+        healthTimer?.invalidate()
+        healthTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.monitors.isEmpty || self.isRightCommandAvailable != self.monitoredWhileTrusted { self.installModifierMonitors() }
+            }
+        }
         activationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification,
             object: nil,
@@ -124,12 +136,14 @@ final class KaiSidekickHotkeyMonitor {
         monitors.forEach(NSEvent.removeMonitor)
         monitors = []
         monitoredWhileTrusted = isRightCommandAvailable
-        let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown]
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] event in
+        // Modifier changes only: a global keyDown monitor is withheld from an app macOS doesn't trust, and it
+        // can leave this one silent too. Other keys are noticed when the shared key is let go.
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, handler: { [weak self] event in
             MainActor.assumeIsolated { self?.handle(event) }
         }) {
             monitors.append(global)
         }
+        let mask: NSEvent.EventTypeMask = [.flagsChanged, .keyDown]
         if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
             MainActor.assumeIsolated { self?.handle(event) }
             return event
@@ -145,9 +159,18 @@ final class KaiSidekickHotkeyMonitor {
             return
         }
         if event.modifierFlags.rawValue & key.deviceMask != 0 {
+            sharedKeyDownAt = event.timestamp
             let token = rightCommandGesture.press(at: event.timestamp)
             scheduleHoldTimer { monitor in monitor.rightCommandGesture.holdTimerFired(token: token) }
         } else {
+            // Another key was pressed while it was held (Right Command with C): that was a shortcut, not a tap.
+            if let down = sharedKeyDownAt,
+               CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown) < event.timestamp - down {
+                sharedKeyDownAt = nil
+                onAction?(rightCommandGesture.interrupt())
+                return
+            }
+            sharedKeyDownAt = nil
             dispatch(rightCommandGesture.release(at: event.timestamp)) { monitor, token in
                 monitor.rightCommandGesture.tapTimerFired(token: token)
             }
