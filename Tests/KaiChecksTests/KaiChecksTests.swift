@@ -2777,6 +2777,11 @@ final class KaiChecksTests: XCTestCase {
         check("the scripts that change mail, make a rule and list folders compile against Mail's dictionary") {
             compiles(KaiMailCleanupRunner.changeScript) && compiles(KaiMailCleanupRunner.ruleScript) && compiles(KaiMailCleanupRunner.foldersScript)
         }
+        check("a rule that moves a sender's mail to a folder compiles, is named so it can be found, and says what it does") {
+            let plan = KaiMailCleanupPlan(operation: .moveRule(to: "Noise"), senderKey: "amazon.com", senderName: "AWS", items: [.init(id: "1", position: 3, subject: "s")])
+            return compiles(KaiMailCleanupRunner.moveRuleScript) && KaiMailCleanup.moveRuleName(for: "amazon.com", folder: "Noise") == "Kai: move mail from amazon.com to Noise"
+                && plan.change.contains("always goes to “Noise”") && KaiProposedAction.mailCleanup(plan).details.contains { $0.value.contains("always goes to") }
+        }
     }
 
     func testProfile() async throws {

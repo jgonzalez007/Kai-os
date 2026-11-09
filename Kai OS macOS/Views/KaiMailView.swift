@@ -58,6 +58,8 @@ struct KaiMailView: View {
     @State private var cleanBusy = false
     @State private var cleanNote: String?
     @State private var folders: [String]?
+    /// With "Always move to…": also move the messages already here, in the same go.
+    @State private var alsoMoveExisting = true
 
     private let calendar = Calendar.current
 
@@ -414,7 +416,20 @@ struct KaiMailView: View {
                                 .padding(.horizontal, 12).padding(.vertical, 6).background(Capsule().fill(Color.white.opacity(0.1)))
                         }
                         .menuStyle(.borderlessButton).fixedSize().disabled(group.changeable.isEmpty || cleanBusy)
-                        action("Make a rule in Mail", "gearshape") { arm(.rule, group, items: []) }.disabled(cleanBusy)
+                        Menu {
+                            if let folders, !folders.isEmpty {
+                                ForEach(folders, id: \.self) { folder in
+                                    Button(folder) { alsoMoveExisting = true; arm(.moveRule(to: folder), group, items: Array(group.messages.prefix(1))) }
+                                }
+                            } else {
+                                Text(folders == nil ? "Loading folders…" : "No folder to move to")
+                            }
+                        } label: {
+                            Label("Always move to…", systemImage: "arrow.triangle.branch").font(.system(size: 12, weight: .medium))
+                                .padding(.horizontal, 12).padding(.vertical, 6).background(Capsule().fill(Color.white.opacity(0.1)))
+                        }
+                        .menuStyle(.borderlessButton).fixedSize().disabled(group.messages.isEmpty || cleanBusy)
+                        action("Always mark read", "gearshape") { arm(.rule, group, items: group.messages.prefix(1).map { $0 }) }.disabled(cleanBusy)
                         action(group.isMuted ? "Unmute" : "Mute in Kai", group.isMuted ? "bell" : "bell.slash") { toggleMute(group) }
                     }
                     if let pending { confirmBar(pending, group) }
@@ -455,6 +470,12 @@ struct KaiMailView: View {
             if plan.operation == .rule {
                 Text("From now on Mail marks new mail from \(plan.senderKey) as read, while Mail is open. It shows in Mail → Settings → Rules, and you can switch it off there.")
                     .font(.caption).foregroundStyle(.secondary)
+            } else if case .moveRule(let folder) = plan.operation {
+                Text("From now on Mail moves new mail from \(plan.senderKey) to “\(folder)” by itself, while Mail is open. The rule stays until you remove it in Mail → Settings → Rules. Nothing is deleted.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if !group.changeable.isEmpty {
+                    Toggle("Also move the \(group.changeable.count) messages already here", isOn: $alsoMoveExisting).toggleStyle(.checkbox).font(.caption)
+                }
             } else {
                 Text("Only these messages, nothing else. Nothing is deleted.").font(.caption).foregroundStyle(.secondary)
             }
@@ -504,6 +525,19 @@ struct KaiMailView: View {
                 case .markRead: appState.applyMailCleanup(ids: ids, moved: false)
                 case .move: appState.applyMailCleanup(ids: ids, moved: true)
                 case .rule: break
+                case .moveRule(let folder):
+                    if alsoMoveExisting, let group = selectedGroup, !group.changeable.isEmpty {
+                        let existing = KaiMailCleanupPlan(operation: .move(to: folder), senderKey: plan.senderKey, senderName: plan.senderName,
+                                                          items: group.changeable.map { .init(id: $0.id, position: $0.position, subject: $0.subject) })
+                        var second = KaiActionCard(action: .mailCleanup(existing))
+                        if second.approve(), (try? appState.actionLog.record(event: "approved", card: second, detail: "mail page, with the rule")) != nil {
+                            let more = try await executor.perform(second.action)
+                            second.finish(.succeeded(more))
+                            try? appState.actionLog.record(event: "succeeded", card: second, detail: more)
+                            cleanNote = detail + " " + more
+                            appState.applyMailCleanup(ids: Set(existing.items.map(\.id)), moved: true)
+                        }
+                    }
                 }
             } catch {
                 card.finish(.failed(error.localizedDescription))

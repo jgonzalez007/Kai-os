@@ -105,6 +105,8 @@ public enum KaiMailCleanup {
 
     /// A name for a Mail rule that says it came from Kai, so the person can find and remove it in Mail.
     public static func ruleName(for key: String) -> String { "Kai: mark mail from \(key) as read" }
+
+    public static func moveRuleName(for key: String, folder: String) -> String { "Kai: move mail from \(key) to \(folder)" }
 }
 
 /// What the person approves when cleaning up: exactly which messages, and what happens to them.
@@ -114,6 +116,8 @@ public struct KaiMailCleanupPlan: Codable, Equatable, Sendable {
         case move(to: String)
         /// A rule in Apple Mail that marks future mail from the sender as read.
         case rule
+        /// A rule in Apple Mail that moves future mail from the sender to a folder of the same account.
+        case moveRule(to: String)
     }
 
     public struct Item: Codable, Equatable, Sendable {
@@ -139,6 +143,7 @@ public struct KaiMailCleanupPlan: Codable, Equatable, Sendable {
         case .markRead: return "Mark \(items.count) \(noun) from \(senderName) as read"
         case .move(let folder): return "Move \(items.count) \(noun) from \(senderName) to “\(folder)”"
         case .rule: return "Make a rule in Mail: mail from \(senderKey) is marked as read when it arrives"
+        case .moveRule(let folder): return "Make a rule in Mail: mail from \(senderKey) always goes to “\(folder)”"
         }
     }
 }
@@ -208,6 +213,28 @@ public enum KaiMailCleanupRunner {
     end run
     """
 
+    /// Arguments: rule name, the text the sender must contain, the folder, and where a message of that sender is in the
+    /// inbox (the rule's folder is the one with that name in the same account). Does nothing if a rule of that name exists.
+    static let moveRuleScript = """
+    on run argv
+        set ruleName to item 1 of argv
+        set expr to item 2 of argv
+        set folderName to item 3 of argv
+        set hint to (item 4 of argv) as integer
+        tell application "Mail"
+            if (count of (rules whose name is ruleName)) > 0 then return "exists"
+            set c to message hint of inbox
+            set acct to account of (mailbox of c)
+            set dest to mailbox folderName of acct
+            set r to make new rule at end of rules with properties {name:ruleName, enabled:true, all conditions must be met:true, move message:dest}
+            tell r
+                make new rule condition at end of rule conditions with properties {rule type:from header, qualifier:does contain value, expression:expr}
+            end tell
+        end tell
+        return "made"
+    end run
+    """
+
     /// Argument: where the first message was in the inbox. Names the folders of that message's account.
     static let foldersScript = KaiAppleScriptRecords.handlers + """
     on run argv
@@ -241,6 +268,10 @@ public enum KaiMailCleanupRunner {
         case .rule:
             let result = try await run([ruleScript, KaiMailCleanup.ruleName(for: plan.senderKey), plan.senderKey], timeout: 45)
             return result == "exists" ? "Mail already has a rule for \(plan.senderKey)." : "Made a rule in Mail. You can see or remove it in Mail → Settings → Rules."
+        case .moveRule(let folder):
+            guard let sample = plan.items.first else { throw KaiSourceError.invalid("Kai needs one message from this sender to find its account.") }
+            let result = try await run([moveRuleScript, KaiMailCleanup.moveRuleName(for: plan.senderKey, folder: folder), plan.senderKey, folder, String(sample.position)], timeout: 60)
+            return result == "exists" ? "Mail already has this rule." : "Made a rule in Mail: mail from \(plan.senderKey) now goes to “\(folder)”. You can see or remove it in Mail → Settings → Rules."
         case .markRead, .move:
             guard !plan.items.isEmpty else { return "There was nothing to change." }
             // Highest position first, so changing one message doesn't move the ones still to come.
