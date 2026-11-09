@@ -20,7 +20,7 @@ struct KaiMailView: View {
     @EnvironmentObject var appState: AppState
 
     private enum Smart: String, CaseIterable, Identifiable {
-        case all = "All", unread = "Unread", needsYou = "Needs you", flagged = "Flagged", today = "Today"
+        case all = "All", unread = "Unread", needsYou = "Needs you", flagged = "Flagged", today = "Today", cleanUp = "Clean up"
         var id: String { rawValue }
         var symbol: String {
             switch self {
@@ -29,6 +29,7 @@ struct KaiMailView: View {
             case .needsYou: return "exclamationmark.bubble"
             case .flagged: return "flag"
             case .today: return "sun.max"
+            case .cleanUp: return "wand.and.stars"
             }
         }
     }
@@ -50,8 +51,20 @@ struct KaiMailView: View {
     @State private var replyNote: String?
     /// Where the open message lives, as Mail said when it was read. A reply is opened from this.
     @State private var reference: KaiMailMessageReference?
+    // Clean up
+    @State private var mutedSet = KaiMailMuteStore.muted()
+    @State private var cleanKey: String?
+    @State private var pending: KaiMailCleanupPlan?
+    @State private var cleanBusy = false
+    @State private var cleanNote: String?
+    @State private var folders: [String]?
 
     private let calendar = Calendar.current
+
+    #if DEBUG
+    /// Set by the snapshot harness, to draw the Clean up view.
+    static var startInCleanUp = false
+    #endif
 
     // MARK: Data
 
@@ -59,7 +72,8 @@ struct KaiMailView: View {
     private var selected: MailMessage? { messages.first { $0.id == selectedID } }
 
     private func needsYou(_ message: MailMessage) -> Bool {
-        KaiMailDisplay.looksLikeItNeedsYou(sender: message.sender, subject: message.subject, isRead: message.isRead, isFlagged: message.starred)
+        !KaiMailMuteStore.isMuted(sender: message.sender, in: mutedSet)
+            && KaiMailDisplay.looksLikeItNeedsYou(sender: message.sender, subject: message.subject, isRead: message.isRead, isFlagged: message.starred)
     }
 
     private func matches(_ message: MailMessage, _ smart: Smart) -> Bool {
@@ -69,10 +83,13 @@ struct KaiMailView: View {
         case .needsYou: return needsYou(message)
         case .flagged: return message.starred
         case .today: return calendar.isDateInToday(message.date)
+        case .cleanUp: return true
         }
     }
 
-    private func count(_ smart: Smart) -> Int { messages.filter { matches($0, smart) }.count }
+    private func count(_ smart: Smart) -> Int {
+        smart == .cleanUp ? groups.filter { !$0.isMuted && $0.unread > 0 }.count : messages.filter { matches($0, smart) }.count
+    }
 
     private var visible: [MailMessage] {
         let query = appState.mailQuery.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -81,6 +98,13 @@ struct KaiMailView: View {
                                        || message.sender.localizedCaseInsensitiveContains(query))
         }
     }
+
+    private var groups: [KaiMailGroup] {
+        let inputs = messages.map { KaiMailCleanupInput(id: $0.id, position: $0.position, sender: $0.sender, subject: $0.subject, date: $0.date, isRead: $0.isRead, isFlagged: $0.starred) }
+        return KaiMailCleanup.groups(from: inputs, muted: mutedSet)
+    }
+
+    private var selectedGroup: KaiMailGroup? { groups.first { $0.id == cleanKey } }
 
     private var grouped: [(day: Date, list: [MailMessage])] {
         Dictionary(grouping: visible) { calendar.startOfDay(for: $0.date) }
@@ -120,6 +144,7 @@ struct KaiMailView: View {
         .onAppear {
             #if DEBUG
             if ProcessInfo.processInfo.environment["KAI_PAGE_SNAPSHOT_DIR"] != nil {
+                if Self.startInCleanUp { view = .cleanUp; cleanKey = groups.first?.id; folders = ["Archive", "Noise", "Projects"]; return }
                 selectedID = messages.dropFirst(1).first?.id
                 bodyState = .loaded(Self.sampleBody)
                 assist = .summary(Self.sampleSummary)
@@ -181,6 +206,10 @@ struct KaiMailView: View {
                 }
                 .buttonStyle(.plain)
             }
+            if view == .cleanUp {
+                Text("Mail grouped by sender. Mark a whole group read, move it to a folder, make a rule in Mail for what comes next, or mute the sender in Kai. Flagged messages are never touched.")
+                    .font(.caption2).foregroundStyle(.secondary).padding(10)
+            }
             if view == .needsYou {
                 Text("A guess from the sender and the subject: unread messages from a person that ask for something, and anything you flagged.")
                     .font(.caption2).foregroundStyle(.secondary).padding(10)
@@ -195,6 +224,10 @@ struct KaiMailView: View {
     // MARK: List
 
     private var list: some View {
+        Group { if view == .cleanUp { cleanupList } else { messageList } }
+    }
+
+    private var messageList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 4, pinnedViews: []) {
                 if visible.isEmpty && messages.isEmpty && appState.mailState == .loading {
@@ -231,6 +264,7 @@ struct KaiMailView: View {
         case .needsYou: return "Nothing looks like it needs you"
         case .flagged: return "Nothing flagged"
         case .today: return "No mail today"
+        case .cleanUp: return "Nothing to clean up"
         }
     }
 
@@ -284,12 +318,209 @@ struct KaiMailView: View {
         .buttonStyle(.plain)
     }
 
+
+    // MARK: Clean up
+
+    private var cleanupList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 4) {
+                if groups.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle").font(.system(size: 28)).foregroundStyle(.secondary)
+                        Text("Nothing to clean up").font(.headline)
+                        Text("Groups show up when a sender has two or more recent messages, or sends automated mail.").font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity).padding(.top, 60)
+                }
+                ForEach(groups) { group in groupRow(group) }
+            }
+            .padding(10)
+        }
+        .frame(maxHeight: .infinity)
+        .kaiLiquidGlass(KaiColor.cyan, radius: 18, glow: 0.08)
+    }
+
+    private func groupRow(_ group: KaiMailGroup) -> some View {
+        let isSelected = group.id == cleanKey
+        return Button { chooseGroup(group) } label: {
+            HStack(alignment: .top, spacing: 10) {
+                avatar(group.name)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(group.name).fontWeight(.semibold).lineLimit(1)
+                        if group.isAutomated { tag("Automated", KaiColor.cyan) }
+                        if group.isMuted { tag("Muted", .secondary) }
+                        Spacer(minLength: 4)
+                        Text("\(group.messages.count)").font(.callout.weight(.semibold))
+                    }
+                    Text(group.messages.prefix(2).map(\.subject).joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    if group.unread > 0 { Text("\(group.unread) unread").font(.caption2).foregroundStyle(KaiColor.cyan) }
+                }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 12).fill(isSelected ? Color.white.opacity(0.13) : .clear))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func tag(_ text: String, _ color: Color) -> some View {
+        Text(text).font(.system(size: 9, weight: .semibold)).padding(.horizontal, 6).padding(.vertical, 2)
+            .background(Capsule().fill(color.opacity(0.2))).foregroundStyle(color)
+    }
+
+    private func chooseGroup(_ group: KaiMailGroup) {
+        cleanKey = group.id
+        pending = nil
+        cleanNote = nil
+        folders = nil
+        guard let position = group.messages.first?.position else { return }
+        Task {
+            let found = try? await KaiMailCleanupRunner.folders(forMessageAt: position)
+            guard cleanKey == group.id else { return }
+            folders = found ?? []
+        }
+    }
+
+    @ViewBuilder
+    private var cleanupPanel: some View {
+        if let group = selectedGroup {
+            let unreadItems = group.changeable.filter { !$0.isRead }
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        avatar(group.name, size: 42)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(group.name).font(.system(size: 20, weight: .semibold))
+                            Text(group.key + (group.isAutomated ? " · automated sender" : "")).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button { cleanKey = nil; pending = nil } label: { Image(systemName: "xmark") }.buttonStyle(.plain)
+                    }
+                    Text("\(group.messages.count) recent messages, \(group.unread) unread" + (group.messages.count != group.changeable.count ? ", \(group.messages.count - group.changeable.count) flagged (left alone)" : ""))
+                        .font(.callout).foregroundStyle(.secondary)
+                    FlowButtons {
+                        action("Mark \(unreadItems.count) read", "envelope.open") { arm(.markRead, group, items: unreadItems) }
+                            .disabled(unreadItems.isEmpty || cleanBusy)
+                        Menu {
+                            if let folders, !folders.isEmpty {
+                                ForEach(folders, id: \.self) { folder in Button(folder) { arm(.move(to: folder), group, items: group.changeable) } }
+                            } else {
+                                Text(folders == nil ? "Loading folders…" : "No folder to move to")
+                            }
+                        } label: {
+                            Label("Move to…", systemImage: "folder").font(.system(size: 12, weight: .medium))
+                                .padding(.horizontal, 12).padding(.vertical, 6).background(Capsule().fill(Color.white.opacity(0.1)))
+                        }
+                        .menuStyle(.borderlessButton).fixedSize().disabled(group.changeable.isEmpty || cleanBusy)
+                        action("Make a rule in Mail", "gearshape") { arm(.rule, group, items: []) }.disabled(cleanBusy)
+                        action(group.isMuted ? "Unmute" : "Mute in Kai", group.isMuted ? "bell" : "bell.slash") { toggleMute(group) }
+                    }
+                    if let pending { confirmBar(pending, group) }
+                    if let cleanNote { Text(cleanNote).font(.callout).foregroundStyle(KaiColor.cyan) }
+                }
+                .padding(18)
+                Divider().overlay(Color.white.opacity(0.1))
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(group.messages, id: \.id) { message in
+                            HStack(spacing: 10) {
+                                Circle().fill(message.isRead ? Color.clear : KaiColor.cyan).frame(width: 7, height: 7)
+                                Text(message.subject).lineLimit(1).foregroundStyle(message.isRead ? Color.white.opacity(0.6) : .white)
+                                if message.isFlagged { Image(systemName: "flag.fill").font(.caption2).foregroundStyle(KaiColor.warning) }
+                                Spacer()
+                                Text(timeLabel(message.date)).font(.caption).foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 18).padding(.vertical, 8)
+                            Divider().overlay(Color.white.opacity(0.05))
+                        }
+                    }
+                }
+            }
+        } else {
+            VStack(spacing: 10) {
+                Image(systemName: "wand.and.stars").font(.system(size: 34)).foregroundStyle(KaiColor.cyan)
+                Text("Pick a sender to clean up").font(.headline)
+                Text("Kai shows exactly which messages a change would touch, and asks you first. It never sends or deletes anything.")
+                    .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 340)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func confirmBar(_ plan: KaiMailCleanupPlan, _ group: KaiMailGroup) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(plan.change + "?").font(.callout.weight(.semibold))
+            if plan.operation == .rule {
+                Text("From now on Mail marks new mail from \(plan.senderKey) as read, while Mail is open. It shows in Mail → Settings → Rules, and you can switch it off there.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Text("Only these messages, nothing else. Nothing is deleted.").font(.caption).foregroundStyle(.secondary)
+            }
+            HStack {
+                Button("Approve") { approve(plan) }.buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small).disabled(cleanBusy)
+                Button("Cancel") { pending = nil }.controlSize(.small)
+                if cleanBusy { ProgressView().controlSize(.small); Text("Working in Mail…").font(.caption).foregroundStyle(.secondary) }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12).fill(KaiColor.liquidBlue.opacity(0.15)))
+    }
+
+    private func arm(_ operation: KaiMailCleanupPlan.Operation, _ group: KaiMailGroup, items: [KaiMailCleanupInput]) {
+        cleanNote = nil
+        pending = KaiMailCleanupPlan(operation: operation, senderKey: group.key, senderName: group.name,
+                                     items: items.map { .init(id: $0.id, position: $0.position, subject: $0.subject) })
+    }
+
+    private func toggleMute(_ group: KaiMailGroup) {
+        if group.isMuted { KaiMailMuteStore.unmute(group.key) } else { KaiMailMuteStore.mute(group.key) }
+        mutedSet = KaiMailMuteStore.muted()
+        cleanNote = group.isMuted ? "\(group.name) is no longer muted." : "Muted. \(group.name) won't show under Needs you or in your morning list."
+    }
+
+    /// Pressing Approve is the approval. It is written to the action log like any other action.
+    private func approve(_ plan: KaiMailCleanupPlan) {
+        var card = KaiActionCard(action: .mailCleanup(plan))
+        guard card.approve() else { return }
+        guard (try? appState.actionLog.record(event: "approved", card: card, detail: "mail page")) != nil else {
+            cleanNote = "The action log couldn't be written, so nothing was done."
+            return
+        }
+        cleanBusy = true
+        let executor = appState.actionExecutor
+        let ids = Set(plan.items.map(\.id))
+        Task {
+            defer { cleanBusy = false }
+            do {
+                let detail = try await executor.perform(card.action)
+                card.finish(.succeeded(detail))
+                try? appState.actionLog.record(event: "succeeded", card: card, detail: detail)
+                cleanNote = detail
+                pending = nil
+                switch plan.operation {
+                case .markRead: appState.applyMailCleanup(ids: ids, moved: false)
+                case .move: appState.applyMailCleanup(ids: ids, moved: true)
+                case .rule: break
+                }
+            } catch {
+                card.finish(.failed(error.localizedDescription))
+                try? appState.actionLog.record(event: "failed", card: card, detail: error.localizedDescription)
+                cleanNote = error.localizedDescription
+            }
+        }
+    }
+
     // MARK: Reader
 
     @ViewBuilder
     private var reader: some View {
         Group {
-            if let message = selected { readerContent(message) } else {
+            if view == .cleanUp {
+                cleanupPanel
+            } else if let message = selected { readerContent(message) } else {
                 VStack(spacing: 10) {
                     KaiLogoMark(size: 44)
                     Text("Choose a message to read it").font(.headline)
@@ -527,8 +758,23 @@ extension KaiMailView {
             MailMessage(id: "4", from: "Sam Lee", subject: "Lunch on Thursday?", preview: "", date: ago(200), isRead: false, sender: "Sam Lee <sam@lee.io>"),
             MailMessage(id: "5", from: "Delta", subject: "Your receipt for flight to Austin", preview: "", date: ago(60 * 20), isRead: true, sender: "Delta <no-reply@delta.com>"),
             MailMessage(id: "6", from: "Marco Diaz", subject: "Re: platform migration timeline", preview: "", date: ago(60 * 27), isRead: true, sender: "Marco Diaz <marco@acme.com>"),
+            MailMessage(id: "8", from: "Amazon Web Services", subject: "A new Amazon ElastiCache service update is available [AWS Account: 804385361365]", preview: "", date: ago(30), isRead: false, sender: "Amazon Web Services <no-reply@email.aws.amazon.com>", position: 8),
+            MailMessage(id: "9", from: "Amazon Web Services", subject: "A new Amazon ElastiCache service update is available [AWS Account: 406205545357]", preview: "", date: ago(35), isRead: false, sender: "Amazon Web Services <no-reply@email.aws.amazon.com>", position: 9),
+            MailMessage(id: "10", from: "Amazon Web Services", subject: "A new Amazon ElastiCache service update is available [AWS Account: 194416699224]", preview: "", date: ago(36), isRead: false, sender: "Amazon Web Services <no-reply@email.aws.amazon.com>", position: 10),
+            MailMessage(id: "11", from: "Amazon Web Services", subject: "A new Amazon ElastiCache service update is available [AWS Account: 572756736299]", preview: "", date: ago(38), isRead: false, sender: "Amazon Web Services <no-reply@email.aws.amazon.com>", position: 11),
             MailMessage(id: "7", from: "Medium Digest", subject: "Stories for you", preview: "", date: ago(60 * 50), isRead: true, sender: "Medium <newsletter@medium.com>"),
         ]
     }
 }
 #endif
+
+/// Buttons that wrap onto a second line when the pane is narrow.
+private struct FlowButtons<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { content }
+            VStack(alignment: .leading, spacing: 8) { content }
+        }
+    }
+}

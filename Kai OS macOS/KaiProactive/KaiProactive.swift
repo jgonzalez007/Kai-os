@@ -42,7 +42,9 @@ struct KaiSystemBriefingInputProvider: KaiBriefingInputProviding {
                 KaiBriefingEvent(title: item.title, start: item.start, minutes: Int(item.end.timeIntervalSince(item.start) / 60), location: item.location)
             }
         }
-        let mail = useMail ? try await KaiMailBriefing.unreadMessages(since: appState.nightShift.mailWindow.since()) : []
+        // Senders the person muted on the Mail page don't make it into the morning list.
+        let muted = KaiMailMuteStore.muted()
+        let mail = useMail ? try await KaiMailBriefing.unreadMessages(since: appState.nightShift.mailWindow.since()).filter { !KaiMailMuteStore.isMuted(sender: $0.sender, in: muted) } : []
         // Slack is a bonus: if it fails, the cards are still made from the rest.
         var slack: [String] = []
         if useSlack, let client = appState.slackClient {

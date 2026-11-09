@@ -89,6 +89,12 @@ struct MailMessage: Identifiable {
         self.date = date; self.isRead = isRead; self.folder = folder; self.starred = starred
         self.sender = sender.isEmpty ? from : sender; self.account = account; self.mailbox = mailbox; self.position = position
     }
+
+    /// The same message, shown as read.
+    var markedRead: MailMessage {
+        MailMessage(id: id, from: from, subject: subject, preview: preview, date: date, isRead: true, folder: folder, starred: starred,
+                    sender: sender, account: account, mailbox: mailbox, position: position)
+    }
 }
 
 struct NoteItem: Identifiable {
@@ -273,6 +279,12 @@ final class AppState: ObservableObject {
     func refreshMail() {
         mailState = .loading
         Task { await loadMail(connecting: false) }
+    }
+
+    /// After a cleanup: the changed messages show as read, or leave the list when they were moved.
+    func applyMailCleanup(ids: Set<String>, moved: Bool) {
+        mailMessages = moved ? mailMessages.filter { !ids.contains($0.id) } : mailMessages.map { ids.contains($0.id) ? $0.markedRead : $0 }
+        unreadCount = mailMessages.filter { !$0.isRead }.count
     }
 
     func disconnectMail() {

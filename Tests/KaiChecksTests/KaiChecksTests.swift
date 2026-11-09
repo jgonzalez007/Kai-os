@@ -2726,6 +2726,59 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testMailCleanup() async throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        func input(_ id: String, _ position: Int, _ sender: String, _ subject: String, read: Bool = false, flagged: Bool = false) -> KaiMailCleanupInput {
+            KaiMailCleanupInput(id: id, position: position, sender: sender, subject: subject, date: now.addingTimeInterval(Double(-position) * 60), isRead: read, isFlagged: flagged)
+        }
+        let aws = "Amazon Web Services <no-reply@email.aws.amazon.com>"
+        let sample = [input("1", 1, aws, "Update A"), input("2", 2, "Ana <ana@acme.com>", "Contract"), input("3", 3, aws, "Update B", flagged: true),
+                      input("4", 4, "Sam <sam@lee.io>", "Lunch"), input("5", 5, "Sam <sam@lee.io>", "Lunch again"), input("6", 6, "News <newsletter@medium.com>", "Digest")]
+        check("a domain key drops subdomains and keeps two-part country endings") {
+            KaiMailCleanup.domainKey(of: "no-reply@email.aws.amazon.com") == "amazon.com" && KaiMailCleanup.domainKey(of: "a@x.co.uk") == "x.co.uk"
+                && KaiMailCleanup.domainKey(of: "a@medium.com") == "medium.com" && KaiMailCleanup.domainKey(of: "a@localhost") == "localhost"
+        }
+        check("automated senders are grouped by domain, people by address, and a lone person is left out") {
+            let groups = KaiMailCleanup.groups(from: sample)
+            let keys = groups.map(\.key)
+            return keys.contains("amazon.com") && keys.contains("sam@lee.io") && keys.contains("medium.com") && !keys.contains("ana@acme.com")
+                && groups.first?.key == "amazon.com" && groups.first?.isAutomated == true
+        }
+        check("flagged messages are counted but never offered for a change") {
+            let group = KaiMailCleanup.groups(from: sample).first { $0.key == "amazon.com" }
+            return group?.messages.count == 2 && group?.changeable.map(\.id) == ["1"]
+        }
+        check("a muted sender stays listed, after the others") {
+            let groups = KaiMailCleanup.groups(from: sample, muted: ["amazon.com"])
+            return groups.last?.key == "amazon.com" && groups.last?.isMuted == true
+        }
+        check("the mute list keeps senders by address or domain and matches either") {
+            let defaults = UserDefaults(suiteName: "kai-mute-\(UUID().uuidString)")!
+            KaiMailMuteStore.mute("Amazon.com", defaults); KaiMailMuteStore.mute("sam@lee.io", defaults)
+            let set = KaiMailMuteStore.muted(defaults)
+            let ok = KaiMailMuteStore.isMuted(sender: aws, in: set) && KaiMailMuteStore.isMuted(sender: "Sam <sam@lee.io>", in: set)
+                && !KaiMailMuteStore.isMuted(sender: "Ana <ana@acme.com>", in: set) && !KaiMailMuteStore.isMuted(sender: aws, in: [])
+            KaiMailMuteStore.unmute("amazon.com", defaults)
+            return ok && !KaiMailMuteStore.isMuted(sender: aws, in: KaiMailMuteStore.muted(defaults))
+        }
+        check("a plan keeps at most 60 messages and says in words what will happen") {
+            let items = (0..<100).map { KaiMailCleanupPlan.Item(id: "\($0)", position: $0 + 1, subject: "s") }
+            let plan = KaiMailCleanupPlan(operation: .move(to: "Archive"), senderKey: "amazon.com", senderName: "AWS", items: items)
+            return plan.items.count == 60 && plan.change == "Move 60 messages from AWS to “Archive”"
+                && KaiMailCleanupPlan(operation: .markRead, senderKey: "k", senderName: "N", items: [items[0]]).change == "Mark 1 message from N as read"
+        }
+        check("a cleanup is an action card that lists the sender and examples, and survives being saved") {
+            let plan = KaiMailCleanupPlan(operation: .rule, senderKey: "amazon.com", senderName: "AWS", items: [])
+            let action = KaiProposedAction.mailCleanup(plan)
+            let data = try JSONEncoder().encode(action)
+            return try JSONDecoder().decode(KaiProposedAction.self, from: data) == action && action.kindName == "mail_cleanup"
+                && action.details.contains { $0.label == "Change" && $0.value.contains("rule") }
+        }
+        check("the scripts that change mail, make a rule and list folders compile against Mail's dictionary") {
+            compiles(KaiMailCleanupRunner.changeScript) && compiles(KaiMailCleanupRunner.ruleScript) && compiles(KaiMailCleanupRunner.foldersScript)
+        }
+    }
+
     func testProfile() async throws {
         func doc(_ source: String, _ id: String, _ text: String, days: Double = 0) -> KaiKnowledgeDocument {
             KaiKnowledgeDocument(source: source, sourceID: id, title: id, text: text, modified: Date(timeIntervalSince1970: 1_800_000_000 - days * 86_400), fingerprint: id)

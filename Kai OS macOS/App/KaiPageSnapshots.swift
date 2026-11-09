@@ -92,6 +92,7 @@ enum KaiPageSnapshots {
                 ("home", AnyView(KaiMainViewForSnapshot())),
                 ("knowledge-page", AnyView(KaiMainViewForSnapshot(page: "Knowledge"))),
                 ("knowledge-graph", AnyView(KaiMainViewForSnapshot(page: "Knowledge", graph: true))),
+                ("mail-cleanup", AnyView(KaiMailCleanupSnapshot())),
                 ("mail-page", AnyView(KaiMainViewForSnapshot(page: "Mail"))),
                 ("calendar-page", AnyView(KaiMainViewForSnapshot(page: "Calendar"))),
                 ("sidekick-page", AnyView(KaiMainViewForSnapshot(page: "Sidekick"))),
@@ -133,6 +134,16 @@ private struct KaiMainViewForSnapshot: View {
         KaiMainView().environmentObject(AppState.shared).onAppear {
             KaiKnowledgeView.startInGraph = graph
             AppState.shared.activeSidebar = page
+        }
+    }
+}
+
+/// The Mail page on its Clean up view, for the snapshot.
+private struct KaiMailCleanupSnapshot: View {
+    var body: some View {
+        KaiMainView().environmentObject(AppState.shared).onAppear {
+            KaiMailView.startInCleanUp = true
+            AppState.shared.activeSidebar = "Mail"
         }
     }
 }

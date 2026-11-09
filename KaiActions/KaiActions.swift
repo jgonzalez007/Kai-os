@@ -70,6 +70,8 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
     case notification(title: String, body: String, at: Date)
     /// Moves messages or marks them read. Never sends and never deletes for good.
     case mailOrganize(KaiMailPlan)
+    /// Cleans up mail from one sender in the inbox: mark read, move, or make a Mail rule. Only ever created by a click on the Mail page.
+    case mailCleanup(KaiMailCleanupPlan)
     /// Opens a web address in the person's browser. Nothing is signed in or sent by Kai.
     case openLink(url: URL, reason: String)
 
@@ -81,6 +83,7 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
         case .insertText: return "insert_text"
         case .notification: return "notification"
         case .mailOrganize: return "mail_organize"
+        case .mailCleanup: return "mail_cleanup"
         case .openLink: return "open_link"
         }
     }
@@ -93,6 +96,7 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
         case .insertText: return "Write at the Cursor"
         case .notification: return "Schedule a Notification"
         case .mailOrganize: return "Organize Mail"
+        case .mailCleanup: return "Clean Up Mail"
         case .openLink: return "Open a Link"
         }
     }
@@ -105,6 +109,7 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
         case .insertText: return "text.cursor"
         case .notification: return "bell.badge"
         case .mailOrganize: return "tray.full"
+        case .mailCleanup: return "wand.and.stars"
         case .openLink: return "safari"
         }
     }
@@ -133,6 +138,12 @@ public enum KaiProposedAction: Codable, Equatable, Sendable {
         case .mailOrganize(let plan):
             var rows = [("Mailbox", "\(plan.filter.account) › \(plan.filter.mailbox)"), ("Messages", plan.matching), ("Change", plan.change)]
             if !plan.examples.isEmpty { rows.append(("Examples", plan.examples.joined(separator: "\n"))) }
+            rows.append(("Note", "Nothing is sent or deleted for good."))
+            return rows
+        case .mailCleanup(let plan):
+            var rows = [("Sender", plan.senderName), ("Change", plan.change)]
+            let subjects = plan.items.prefix(5).map(\.subject)
+            if !subjects.isEmpty { rows.append(("Examples", subjects.joined(separator: "\n"))) }
             rows.append(("Note", "Nothing is sent or deleted for good."))
             return rows
         case .openLink(let url, let reason):
@@ -379,6 +390,9 @@ public struct KaiSystemActionExecutor: KaiActionPerforming {
             guard KaiWebURL.validate(url.absoluteString) != nil else { throw KaiActionError.notAllowed("That address is not a public web link.") }
             guard await MainActor.run(body: { NSWorkspace.shared.open(url) }) else { throw KaiActionError.failed("macOS could not open the link.") }
             return "Opened \(url.host ?? "the link") in your browser."
+        case .mailCleanup(let plan):
+            // The person's own click on the Mail page is the approval, so the assistant's mail access setting doesn't apply.
+            do { return try await KaiMailCleanupRunner.perform(plan) } catch { throw KaiActionError.failed(error.localizedDescription) }
         case .mailOrganize(let plan):
             guard mailAccess().allowsChanges else {
                 throw KaiActionError.notAllowed("Mail access is no longer set to “Read and organize”, so nothing was changed.")
