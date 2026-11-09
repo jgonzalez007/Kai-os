@@ -70,6 +70,7 @@ enum KaiPageSnapshots {
             let others: [(String, AnyView)] = [
                 ("home", AnyView(KaiMainViewForSnapshot())),
                 ("knowledge-page", AnyView(KaiMainViewForSnapshot(page: "Knowledge"))),
+                ("sidekick-page", AnyView(KaiMainViewForSnapshot(page: "Sidekick"))),
                 ("health", AnyView(KaiHealthView(briefing: AppState.shared.morningCards).environmentObject(AppState.shared))),
                 ("permissions", AnyView(KaiPermissionsView(permissions: .shared).environmentObject(AppState.shared)))
             ]

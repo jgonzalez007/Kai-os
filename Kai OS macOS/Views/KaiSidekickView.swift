@@ -13,22 +13,37 @@ struct KaiSidekickView: View {
     @EnvironmentObject var appState: AppState
     @ObservedObject var agent: KaiAgentController
 
+    private enum Tab: String, CaseIterable { case task = "Task", settings = "Settings" }
+    @State private var tab = Tab.task
+
     var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Sidekick").font(.system(size: 26, weight: .semibold))
+                Spacer()
+                Picker("", selection: $tab) { ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
+                    .pickerStyle(.segmented).labelsHidden().frame(width: 180)
+            }
+            .padding(.horizontal, 28).padding(.top, 6).padding(.bottom, 10)
+
+            if tab == .settings {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Make everyday help feel like your own.").foregroundStyle(.secondary)
+                        KaiSidekickSettingsView()
+                    }
+                    .frame(maxWidth: 780).padding(.horizontal, 28).padding(.vertical, 12)
+                    .frame(maxWidth: .infinity)
+                }
+            } else {
+                taskPage
+            }
+        }
+    }
+
+    private var taskPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("Computer tasks").font(KaiFont.title3)
-                    Spacer()
-                    // The shortcut key, custom instructions and speed live in Preferences.
-                    Button {
-                        KaiSettingsView.startPage = .sidekick
-                        appState.activeSidebar = "Settings"
-                    } label: {
-                        Label("Sidekick settings", systemImage: "slider.horizontal.3")
-                    }
-                    .controlSize(.small)
-                }
-
                 Text("Sidekick does a task in your other apps. Describe it and Kai will do it in your other apps by looking at the screen and using the mouse and keyboard, with a ring where it clicks. It uses a local model, so what's on your screen never leaves this Mac.")
                     .font(KaiFont.caption).foregroundStyle(.secondary)
 
@@ -76,7 +91,7 @@ struct KaiSidekickView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("• Esc, the Stop button, or using your own mouse or keyboard stops it at once.")
                         Text("• It never works in Terminal, System Settings, password managers or Keychain Access, and never while Kai's own window is in front.")
-                        Text("• It stops after \(KaiAgentEffort.stored().limits.maxSteps) steps or \(Int(KaiAgentEffort.stored().limits.maxDuration / 60)) minutes. Change this in Preferences → Sidekick → Speed & intelligence.")
+                        Text("• It stops after \(KaiAgentEffort.stored().limits.maxSteps) steps or \(Int(KaiAgentEffort.stored().limits.maxDuration / 60)) minutes. Change this on the Settings tab, under Speed & intelligence.")
                         Text("• It can open an app by name, but never Terminal, System Settings or the other blocked apps. It reads the names and positions of buttons and fields in the front window (never what is typed in them) to click in the right place.")
                         Text("• Everything it proposes or does is logged in ~/Library/Application Support/Kai OS/agent-log.jsonl. Screenshots are not saved.")
                         Text("• Text on screen is treated as untrusted. Kai won't act on instructions it reads there.")

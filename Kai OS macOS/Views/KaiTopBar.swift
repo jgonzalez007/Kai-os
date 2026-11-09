@@ -30,7 +30,7 @@ struct KaiTopBar: View {
             Spacer()
 
             item("For You", "sun.max", tag: "ForYou", badge: appState.morningCards.activeCards.count)
-            item("Computer tasks", "cursorarrow.motionlines", tag: "Sidekick")
+            item("Sidekick", "cursorarrow.motionlines", tag: "Sidekick")
             item("Knowledge", "point.3.connected.trianglepath.dotted", tag: "Knowledge")
             yourStuff
 

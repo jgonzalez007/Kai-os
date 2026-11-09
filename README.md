@@ -36,8 +36,8 @@
 
 ## Where things are
 
-- **Sidebar (using Kai):** Chat, For You (morning cards), Computer tasks (Sidekick), and your Calendar, Mail and Notes.
-- **Preferences (setting up and checking):** AI & Web, Knowledge, Sidekick, Overnight, Notch & Desk, Appearance, and under Help: Permissions, Health, Setup guide, Updates & About.
+- **Top bar (using Kai):** home (chat), For You (morning cards), Sidekick (Task and Settings tabs), Knowledge (notes and graph), and Your stuff (Calendar, Mail, Notes).
+- **Preferences (setting up and checking):** AI & Web, Knowledge, Sidekick (the same settings as the Sidekick page's Settings tab), Overnight, Notch & Desk, Appearance, and under Help: Permissions, Health, Setup guide, Updates & About.
 
 ## Planned
 
