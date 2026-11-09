@@ -410,11 +410,12 @@ struct KaiMailView: View {
         assist = .none
         replyNote = nil
         readTask?.cancel(); assistTask?.cancel()
-        let reference = KaiMailMessageReference(id: message.id, mailbox: message.mailbox.isEmpty ? "INBOX" : message.mailbox, account: message.account)
+        reference = nil
         readTask = Task {
             do {
-                if let found = try await KaiMailSelection.email(at: reference) {
+                if let found = try await KaiMailSelection.inboxEmail(id: message.id, position: message.position) {
                     guard !Task.isCancelled, selectedID == message.id else { return }
+                    reference = found.reference
                     bodyState = .loaded(found.source)
                 } else {
                     bodyState = .failed("Mail returned nothing for this message.")
