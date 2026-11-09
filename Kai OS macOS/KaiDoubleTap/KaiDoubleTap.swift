@@ -18,6 +18,10 @@ import KaiLocalData
 enum KaiReplyContext: Equatable {
     case mail(reference: KaiMailMessageReference, source: KaiEmailDraftSource)
     case screen(jpeg: Data)
+    /// A conversation in a chat app such as Slack, read from its window as text.
+    case chat(app: String, text: String)
+    /// The same, when the window's text can't be read and a screenshot is the only way.
+    case chatScreen(app: String, jpeg: Data)
 }
 
 /// Abstracted so the flow can be tested without Mail or screen permissions.
@@ -49,6 +53,15 @@ struct KaiSystemReplyContextProvider: KaiReplyContextProviding {
                 throw KaiActionError.invalid("Select a message in Mail, then double tap again.")
             }
         }
+        if appState.frontmostBundleIdentifier == KaiSlackScreenReader.bundleIdentifier {
+            // Slack shows its conversation as text, which is quicker and exact. A screenshot is the way out if that fails.
+            do {
+                return .chat(app: "Slack", text: try await KaiSlackScreenReader.read())
+            } catch {
+                guard appState.selectedModelSupportsVision, KaiScreenGrabber.hasPermission else { throw error }
+                return .chatScreen(app: "Slack", jpeg: try await Self.screenshot())
+            }
+        }
         guard appState.selectedModelSupportsVision else {
             throw KaiActionError.invalid("\(appState.selectedModel) can't read images. Open the email in Apple Mail, or choose a model with vision.")
         }
@@ -56,11 +69,14 @@ struct KaiSystemReplyContextProvider: KaiReplyContextProviding {
             KaiScreenGrabber.requestPermission()
             throw KaiScreenCaptureError.needsPermission
         }
+        return .screen(jpeg: try await Self.screenshot())
+    }
+
+    private static func screenshot() async throws -> Data {
         let cursor = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { $0.frame.contains(cursor) } ?? NSScreen.main
         let display = (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
-        let jpeg = try await KaiScreenGrabber.capture(displayID: display, excludingBundleIdentifier: Bundle.main.bundleIdentifier)
-        return .screen(jpeg: jpeg)
+        return try await KaiScreenGrabber.capture(displayID: display, excludingBundleIdentifier: Bundle.main.bundleIdentifier)
     }
 }
 
@@ -201,6 +217,10 @@ final class KaiDoubleTapController: ObservableObject {
             messages = KaiReplyPrompt.messages(source: source, instruction: instruction, previousDraft: previousDraft, style: appState.writingStyle.activeStyle)
         case .screen(let jpeg):
             messages = KaiReplyPrompt.messages(screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: appState.writingStyle.activeStyle)
+        case .chat(let app, let text):
+            messages = KaiReplyPrompt.chatMessages(app: app, conversation: text, instruction: instruction, previousDraft: previousDraft, style: appState.writingStyle.activeStyle)
+        case .chatScreen(let app, let jpeg):
+            messages = KaiReplyPrompt.chatMessages(app: app, screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: appState.writingStyle.activeStyle)
         }
         do {
             if !appState.chatModels.contains(appState.selectedModel) { try await appState.refreshChatModels() }
@@ -256,8 +276,12 @@ final class KaiDoubleTapController: ObservableObject {
     /// the result is false, so it's held for the user with a warning instead of being written.
     /// A screenshot's text isn't available to compare, so that path can't be checked.
     private func passesFactCheck(context: KaiReplyContext, messages: [KaiOllamaMessage]) async -> Bool {
-        guard case .mail(_, let source) = context else { return true }
-        let sources = [source.subject, source.body, instruction]
+        let sources: [String]
+        switch context {
+        case .mail(_, let source): sources = [source.subject, source.body, instruction]
+        case .chat(_, let text): sources = [text, instruction]
+        default: return true
+        }
         let added = KaiReplyFactCheck.addedTimeWords(draft: draft, sources: sources)
         guard !added.isEmpty else { return true }
         let retry = messages + [

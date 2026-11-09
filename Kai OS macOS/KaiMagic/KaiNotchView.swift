@@ -181,6 +181,10 @@ private struct KaiNotchReplyContent: View {
     @FocusState private var instructionFocused: Bool
 
     private var title: String {
+        switch doubleTap.context {
+        case .chat(let app, _), .chatScreen(let app, _): return "Reply in \(app)"
+        default: break
+        }
         guard case .mail(_, let source) = doubleTap.context else { return "Reply to the email on screen" }
         let name = source.sender.split(separator: "<").first.map { $0.trimmingCharacters(in: .whitespaces) }
         return "Reply to \(name.flatMap { $0.isEmpty ? nil : $0 } ?? source.sender)"
