@@ -48,6 +48,8 @@ final class AgentFakes: @unchecked Sendable {
         KaiOllamaToolCall(name: name, arguments: arguments)
     }
     static func click(_ x: Int, _ y: Int) -> KaiOllamaToolCall { call("computer_click", ["x": .number(Double(x)), "y": .number(Double(y))]) }
+    static func typed(_ text: String) -> KaiOllamaToolCall { call("computer_type", ["text": .string(text)]) }
+    static func keys(_ keys: String) -> KaiOllamaToolCall { call("computer_key", ["keys": .string(keys)]) }
     static func finish(_ text: String = "Done.") -> KaiOllamaToolCall { call("task_complete", ["summary": .string(text)]) }
 }
 
@@ -103,11 +105,11 @@ struct FakeFailingScreen: KaiAgentScreen {
 
 extension AgentFakes {
     func runner(mode: KaiAgentMode, limits: KaiAgentLimits = KaiAgentLimits(), stop: KaiAgentStopSwitch = KaiAgentStopSwitch(),
-                screen: KaiAgentScreen? = nil, tick: TimeInterval = 0, userInstructions: String = "") -> KaiAgentRunner {
+                screen: KaiAgentScreen? = nil, tick: TimeInterval = 0, userInstructions: String = "", tools: KaiAgentToolRunner? = nil) -> KaiAgentRunner {
         KaiAgentRunner(
             screen: screen ?? FakeScreen(fakes: self), input: FakeInput(fakes: self), brain: FakeBrain(fakes: self),
             approver: FakeApprover(fakes: self), observer: FakeObserver(fakes: self),
-            policy: KaiAgentPolicy(mode: mode, ownBundleIdentifier: "ai.kai"), limits: limits, stop: stop, userInstructions: userInstructions,
+            policy: KaiAgentPolicy(mode: mode, ownBundleIdentifier: "ai.kai"), limits: limits, stop: stop, userInstructions: userInstructions, tools: tools,
             now: { [unowned self] in lock.lock(); defer { lock.unlock() }; clock = clock.addingTimeInterval(tick); return clock },
             sleep: { [unowned self] in lock.lock(); sleeps.append($0); lock.unlock() })
     }
@@ -2813,6 +2815,128 @@ final class KaiChecksTests: XCTestCase {
                                         isRecurring: true)
             let text = KaiKnowledgeIndexer.document(for: event).text
             return text.contains("With: Ana Torres") && !text.contains("Jose") && text.contains("Repeats") && text.contains("Bring the roadmap")
+        }
+    }
+
+    func testAgentSpeed() async throws {
+        final class Log: @unchecked Sendable { let lock = NSLock(); var calls: [String] = []; var edges: [Int] = []; var stableAsked = 0 }
+        struct Tools: KaiAgentToolRunner {
+            let log: Log
+            var fail = false
+            func run(name: String, arguments: [String: String]) async throws -> String {
+                log.lock.lock(); log.calls.append(name); log.lock.unlock()
+                if fail { throw KaiAgentActionProblem("Notes said no.") }
+                return "RESULT for \(name)"
+            }
+        }
+        struct SizedScreen: KaiAgentScreen {
+            let log: Log
+            let stable: Bool
+            func capture() async throws -> KaiAgentFrame { KaiAgentFrame(jpeg: Data([1]), pixelWidth: 1000, pixelHeight: 500, screenWidth: 500, screenHeight: 250) }
+            func capture(maxLongEdge: Int) async throws -> KaiAgentFrame { log.lock.lock(); log.edges.append(maxLongEdge); log.lock.unlock(); return try await capture() }
+            func waitUntilStable(minimum: Duration, maximum: Duration) async -> Bool { log.lock.lock(); log.stableAsked += 1; log.lock.unlock(); return stable }
+        }
+
+        check("the direct tools are listed, and each checks what it is given") {
+            let names = KaiAgentTools.definitions.map(\.name)
+            func parse(_ name: String, _ args: [String: KaiToolArgument]) -> KaiAgentAction? { if case .success(let a) = KaiAgentTools.parse(AgentFakes.call(name, args)) { return a } else { return nil } }
+            return KaiAgentTools.directToolNames.allSatisfy(names.contains)
+                && parse("open_url", ["url": .string("https://example.com/a")]) != nil && parse("open_url", ["url": .string("file:///etc/passwd")]) == nil
+                && parse("open_url", ["url": .string("javascript:alert(1)")]) == nil
+                && parse("create_note", ["title": .string("Shopping"), "body": .string("milk")]) != nil && parse("create_note", ["title": .string(" ")]) == nil
+                && parse("create_note", ["title": .string("t"), "body": .string(String(repeating: "x", count: 5_001))]) == nil
+                && parse("add_calendar_event", ["title": .string("Lunch"), "start": .string("2026-11-12T12:00:00")]) != nil && parse("add_calendar_event", ["title": .string("Lunch")]) == nil
+                && parse("compose_mail_draft", ["to": .string("a@b.com"), "subject": .string("Hi")]) != nil && parse("compose_mail_draft", ["to": .string("a@b.com")]) == nil
+                && parse("search_files", ["query": .string("")]) == nil
+                && parse("read_calendar", ["days": .number(99)]) == .tool(name: "read_calendar", arguments: ["days": "14"])
+        }
+        check("reading is allowed without asking, even in a blocked app, and making something always asks") {
+            let auto = KaiAgentPolicy(mode: .auto, ownBundleIdentifier: "ai.kai"), ask = KaiAgentPolicy(mode: .askEach, ownBundleIdentifier: "ai.kai")
+            func asks(_ d: KaiAgentDecision) -> Bool { if case .needsApproval = d { return true } else { return false } }
+            let read = KaiAgentAction.tool(name: "read_calendar", arguments: ["days": "3"])
+            let write = KaiAgentAction.tool(name: "create_note", arguments: ["title": "t", "body": ""])
+            return auto.decide(read, frontmostBundleIdentifier: "com.apple.Terminal") == .allow && ask.decide(read, frontmostBundleIdentifier: nil) == .allow
+                && asks(auto.decide(write, frontmostBundleIdentifier: "com.apple.Safari")) && asks(ask.decide(write, frontmostBundleIdentifier: nil))
+        }
+        check("a note's text is escaped, so a title or body can't add markup") {
+            let html = KaiAgentTools.noteHTML(title: "A <b>&</b>", body: "line <i>one</i>\n\nlast")
+            return html.contains("<h1>A &lt;b&gt;&amp;&lt;/b&gt;</h1>") && html.contains("<div>line &lt;i&gt;one&lt;/i&gt;</div>") && html.contains("<div><br></div>") && !html.contains("<i>")
+        }
+        check("a screen that is the same twice counts as settled, a changing one does not") {
+            let a = [UInt8](repeating: 100, count: 640)
+            var oneCell = a; oneCell[10] = 200
+            var many = a; for i in 0..<200 { many[i] = 220 }
+            return KaiScreenGrabber.isStable(a, a) && KaiScreenGrabber.isStable(a, oneCell) && !KaiScreenGrabber.isStable(a, many) && !KaiScreenGrabber.isStable(a, [1, 2])
+        }
+        check("the model stays loaded for half an hour after each request") {
+            let request = try KaiOllamaClient().chatRequest(model: "m", messages: [], keepAlive: KaiOllamaClient.keepLoaded)
+            let body = try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]
+            let plain = try JSONSerialization.jsonObject(with: KaiOllamaClient().chatRequest(model: "m", messages: []).httpBody ?? Data()) as? [String: Any]
+            return body?["keep_alive"] as? String == "30m" && plain?["keep_alive"] == nil
+        }
+        check("faster takes smaller screenshots than more careful, and the balanced default is small") {
+            KaiAgentEffort.fast.limits.screenshotLongEdge <= 1024 && KaiAgentEffort.balanced.limits.screenshotLongEdge == 1024
+                && KaiAgentEffort.careful.limits.screenshotLongEdge > 1024 && KaiAgentLimits().settleMinimum < KaiAgentLimits().settleDelay
+        }
+
+        await checkAsync("the screenshot is asked for at the size the limits say") {
+            let f = AgentFakes(script: [("", [AgentFakes.finish()])]); let log = Log()
+            var limits = KaiAgentLimits(); limits.screenshotLongEdge = 768
+            _ = await f.runner(mode: .auto, limits: limits, screen: SizedScreen(log: log, stable: false)).run(task: "t")
+            return log.edges == [768]
+        }
+        await checkAsync("a screen that says it has settled ends the wait early, one that can't tell waits the full time") {
+            let f1 = AgentFakes(script: [("", [AgentFakes.typed("a")]), ("", [AgentFakes.finish()])]); let l1 = Log()
+            _ = await f1.runner(mode: .auto, screen: SizedScreen(log: l1, stable: true)).run(task: "t")
+            let f2 = AgentFakes(script: [("", [AgentFakes.typed("a")]), ("", [AgentFakes.finish()])]); let l2 = Log()
+            _ = await f2.runner(mode: .auto, screen: SizedScreen(log: l2, stable: false)).run(task: "t")
+            return f1.sleeps.isEmpty && l1.stableAsked == 1 && f2.sleeps == [KaiAgentLimits().settleDelay] && l2.stableAsked == 1
+        }
+        await checkAsync("a reply with typing then a key does both in one step, from one screenshot") {
+            let f = AgentFakes(script: [("", [AgentFakes.typed("hello"), AgentFakes.keys("tab")]), ("", [AgentFakes.finish()])])
+            let outcome = await f.runner(mode: .auto).run(task: "t")
+            return outcome == .completed("Done.") && f.performed.count == 2 && f.captureCount == 2
+        }
+        await checkAsync("a click can only be the first action of a reply, and being refused is not a problem") {
+            let f = AgentFakes(script: [("", [AgentFakes.typed("a"), AgentFakes.click(10, 10), AgentFakes.typed("b")]), ("", [AgentFakes.finish()])])
+            let outcome = await f.runner(mode: .auto).run(task: "t")
+            let told = f.seenMessages.last?.contains { $0.role == "tool" && $0.content.contains("first action") } ?? false
+            return outcome == .completed("Done.") && f.performed.count == 1 && told
+        }
+        await checkAsync("no more actions run than the limit allows, and the rest are skipped") {
+            var limits = KaiAgentLimits(); limits.maxActionsPerStep = 2
+            let f = AgentFakes(script: [("", [AgentFakes.typed("1"), AgentFakes.typed("2"), AgentFakes.typed("3")]), ("", [AgentFakes.finish()])])
+            _ = await f.runner(mode: .auto, limits: limits).run(task: "t")
+            let skipped = f.seenMessages.last?.contains { $0.role == "tool" && $0.content.hasPrefix("Skipped") } ?? false
+            return f.performed.count == 2 && skipped
+        }
+        await checkAsync("every action in a reply still asks, and a decline stops the rest") {
+            let f = AgentFakes(script: [("", [AgentFakes.typed("a"), AgentFakes.typed("b")]), ("", [AgentFakes.finish()])], approvals: [false, true])
+            _ = await f.runner(mode: .askEach).run(task: "t")
+            return f.requests.count == 1 && f.performed.isEmpty
+        }
+        await checkAsync("a direct tool runs without the screen, and its result goes back to the model") {
+            let f = AgentFakes(script: [("", [AgentFakes.call("read_calendar", ["days": .number(2)])]), ("", [AgentFakes.finish()])]); let log = Log()
+            let outcome = await f.runner(mode: .auto, tools: Tools(log: log)).run(task: "t")
+            let told = f.seenMessages.last?.contains { $0.role == "tool" && $0.content.contains("RESULT for read_calendar") } ?? false
+            return outcome == .completed("Done.") && log.calls == ["read_calendar"] && f.performed.isEmpty && f.requests.isEmpty && told
+        }
+        await checkAsync("a tool that makes something waits for approval, and does nothing if declined") {
+            let args: [String: KaiToolArgument] = ["title": .string("Shopping"), "body": .string("milk")]
+            let declined = AgentFakes(script: [("", [AgentFakes.call("create_note", args)]), ("", [AgentFakes.finish()])], approvals: [false]); let l1 = Log()
+            _ = await declined.runner(mode: .auto, tools: Tools(log: l1)).run(task: "t")
+            let approved = AgentFakes(script: [("", [AgentFakes.call("create_note", args)]), ("", [AgentFakes.finish()])], approvals: [true]); let l2 = Log()
+            _ = await approved.runner(mode: .auto, tools: Tools(log: l2)).run(task: "t")
+            return l1.calls.isEmpty && declined.requests.count == 1 && l2.calls == ["create_note"] && approved.requests.first?.summary.contains("Shopping") == true
+        }
+        await checkAsync("a tool that fails is reported to the model, and without a tool runner it is not available") {
+            let f = AgentFakes(script: [("", [AgentFakes.call("search_files", ["query": .string("a")])]), ("", [AgentFakes.finish()])]); let log = Log()
+            _ = await f.runner(mode: .auto, tools: Tools(log: log, fail: true)).run(task: "t")
+            let failedTold = f.seenMessages.last?.contains { $0.content.contains("Notes said no.") } ?? false
+            let g = AgentFakes(script: [("", [AgentFakes.call("search_files", ["query": .string("a")])]), ("", [AgentFakes.finish()])])
+            _ = await g.runner(mode: .auto).run(task: "t")
+            let missingTold = g.seenMessages.last?.contains { $0.content.contains("isn't available") } ?? false
+            return failedTold && missingTold
         }
     }
 

@@ -57,6 +57,12 @@ public struct KaiAgentPolicy: Sendable {
         default: break
         }
 
+        // A direct tool doesn't touch the screen, so it doesn't depend on what is in front. Reading is allowed;
+        // anything that makes something waits for the person, in both modes.
+        if case .tool(let name, _) = action {
+            return KaiAgentTools.readOnlyTools.contains(name) ? .allow : .needsApproval(action.summary)
+        }
+
         // Opening an app does not depend on what is in front. It can never open one of the blocked apps.
         if case .openApp(let name) = action {
             if Self.isBlockedAppName(name) { return .deny("Kai never operates \(name).") }

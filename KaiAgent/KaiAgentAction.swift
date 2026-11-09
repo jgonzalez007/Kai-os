@@ -9,6 +9,8 @@ public enum KaiAgentAction: Equatable, Sendable {
     case scroll(x: Int, y: Int, dx: Int, dy: Int)
     case wait(seconds: Double)
     case openApp(String)
+    /// A direct tool: it does the job without the screen (make a note, add an event, look something up).
+    case tool(name: String, arguments: [String: String])
     case finish(String)
 
     public var summary: String {
@@ -22,6 +24,7 @@ public enum KaiAgentAction: Equatable, Sendable {
         case .scroll(_, _, let dx, let dy): return "Scroll \(dy != 0 ? (dy > 0 ? "down" : "up") : (dx > 0 ? "right" : "left"))"
         case .wait(let seconds): return "Wait \(seconds.formatted()) s"
         case .openApp(let name): return "Open \(name)"
+        case .tool(let name, let arguments): return KaiAgentTools.summary(name: name, arguments: arguments)
         case .finish(let text): return "Finish: \(text)"
         }
     }
@@ -90,7 +93,37 @@ public enum KaiAgentTools {
     public static let maxTextLength = 500
     public static let maxWaitSeconds = 10.0
 
-    public static let names = ["computer_click", "computer_type", "computer_key", "computer_scroll", "computer_wait", "computer_open_app", "task_complete"]
+    /// Tools that only read, so they run without asking. The rest make something, so each one asks first.
+    public static let readOnlyTools: Set<String> = ["read_calendar", "search_files"]
+    public static let directToolNames = ["open_url", "create_note", "add_calendar_event", "compose_mail_draft", "read_calendar", "search_files"]
+    public static let names = ["computer_click", "computer_type", "computer_key", "computer_scroll", "computer_wait", "computer_open_app"] + directToolNames + ["task_complete"]
+
+    /// The text of a note as HTML for Apple Notes, with the title as its heading. Characters that mean something in HTML
+    /// are escaped, so a title or body can't add markup of its own.
+    public static func noteHTML(title: String, body: String) -> String {
+        func html(_ text: String) -> String {
+            text.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+        }
+        let lines = body.components(separatedBy: .newlines).map { $0.isEmpty ? "<div><br></div>" : "<div>\(html($0))</div>" }
+        return "<div><h1>\(html(title))</h1></div>" + lines.joined()
+    }
+
+    static func short(_ text: String?, _ limit: Int = 50) -> String {
+        let one = (text ?? "").components(separatedBy: .newlines).joined(separator: " ")
+        return one.count > limit ? String(one.prefix(limit)) + "…" : one
+    }
+
+    public static func summary(name: String, arguments a: [String: String]) -> String {
+        switch name {
+        case "open_url": return "Open \(short(a["url"], 80)) in the browser"
+        case "create_note": return "Make a note called “\(short(a["title"]))” in Notes"
+        case "add_calendar_event": return "Add “\(short(a["title"]))” to Calendar at \(short(a["start"]))"
+        case "compose_mail_draft": return "Open a mail draft to \(short(a["to"])) about “\(short(a["subject"]))”"
+        case "read_calendar": return "Read your calendar for the next \(a["days"] ?? "3") days"
+        case "search_files": return "Search your files for “\(short(a["query"]))”"
+        default: return name
+        }
+    }
 
     public static let definitions: [KaiOllamaTool] = [
         KaiOllamaTool(name: "computer_click", description: "Click at a point on the screenshot. x and y are pixels in the latest screenshot.",
@@ -113,6 +146,27 @@ public enum KaiAgentTools {
                       parameters: [.init(name: "seconds", type: "number", description: "Seconds to wait", required: true)]),
         KaiOllamaTool(name: "computer_open_app", description: "Open or switch to an app by name, such as Notes, Safari or Mail. Use this instead of hunting for an app icon.",
                       parameters: [.init(name: "name", type: "string", description: "The app's name", required: true)]),
+        KaiOllamaTool(name: "open_url", description: "Open a web address in the browser. Use it instead of typing into the address bar.",
+                      parameters: [.init(name: "url", type: "string", description: "A full http or https address", required: true)]),
+        KaiOllamaTool(name: "create_note", description: "Make a new note in Apple Notes without opening the app. Much faster than clicking.",
+                      parameters: [
+                        .init(name: "title", type: "string", description: "The note's title", required: true),
+                        .init(name: "body", type: "string", description: "The note's text", required: false)]),
+        KaiOllamaTool(name: "add_calendar_event", description: "Add an event to Apple Calendar without opening the app.",
+                      parameters: [
+                        .init(name: "title", type: "string", description: "The event's title", required: true),
+                        .init(name: "start", type: "string", description: "When it starts, as local time like 2026-11-12T15:00:00", required: true),
+                        .init(name: "minutes", type: "integer", description: "How long it lasts. Defaults to 60.", required: false),
+                        .init(name: "location", type: "string", description: "Where it is", required: false)]),
+        KaiOllamaTool(name: "compose_mail_draft", description: "Open a new mail draft in Apple Mail with the recipient, subject and text filled in. It is never sent: the user reads it and sends it themselves.",
+                      parameters: [
+                        .init(name: "to", type: "string", description: "Email addresses, separated by commas", required: true),
+                        .init(name: "subject", type: "string", description: "The subject", required: true),
+                        .init(name: "body", type: "string", description: "The message text", required: false)]),
+        KaiOllamaTool(name: "read_calendar", description: "Read the user's calendar events for the next few days. Use it to learn what is scheduled instead of opening Calendar.",
+                      parameters: [.init(name: "days", type: "integer", description: "How many days, 1 to 14. Defaults to 3.", required: false)]),
+        KaiOllamaTool(name: "search_files", description: "Find files on this Mac by name or content, using Spotlight. Returns names and paths.",
+                      parameters: [.init(name: "query", type: "string", description: "Words to look for", required: true)]),
         KaiOllamaTool(name: "task_complete", description: "Call this when the task is done, or when you cannot continue. Say what happened.",
                       parameters: [.init(name: "summary", type: "string", description: "What was done, or why you stopped", required: true)]),
     ]
@@ -168,6 +222,36 @@ public enum KaiAgentTools {
             guard let name = string("name")?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return .failure(.missing("name")) }
             guard name.count <= 60, !name.contains("/"), !name.contains("\n") else { return .failure(.invalid("Give just the app's name.")) }
             return .success(.openApp(name))
+        case "open_url":
+            guard let url = string("url")?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty else { return .failure(.missing("url")) }
+            guard url.count <= 2_000, let scheme = URL(string: url)?.scheme?.lowercased(), scheme == "http" || scheme == "https" else {
+                return .failure(.invalid("Give a full http or https address."))
+            }
+            return .success(.tool(name: call.name, arguments: ["url": url]))
+        case "create_note":
+            guard let title = string("title")?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else { return .failure(.missing("title")) }
+            let body = string("body") ?? ""
+            guard title.count <= 200, body.count <= 5_000 else { return .failure(.invalid("Keep the title under 200 characters and the text under 5,000.")) }
+            return .success(.tool(name: call.name, arguments: ["title": title, "body": body]))
+        case "add_calendar_event":
+            guard let title = string("title")?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else { return .failure(.missing("title")) }
+            guard let start = string("start")?.trimmingCharacters(in: .whitespacesAndNewlines), !start.isEmpty else { return .failure(.missing("start")) }
+            guard title.count <= 200, (string("location") ?? "").count <= 200 else { return .failure(.invalid("Keep the title and location under 200 characters.")) }
+            var arguments = ["title": title, "start": start, "location": string("location") ?? ""]
+            if let minutes = int("minutes") { arguments["minutes"] = String(minutes) }
+            return .success(.tool(name: call.name, arguments: arguments))
+        case "compose_mail_draft":
+            guard let to = string("to")?.trimmingCharacters(in: .whitespacesAndNewlines), !to.isEmpty else { return .failure(.missing("to")) }
+            guard let subject = string("subject")?.trimmingCharacters(in: .whitespacesAndNewlines), !subject.isEmpty else { return .failure(.missing("subject")) }
+            let body = string("body") ?? ""
+            guard subject.count <= 300, body.count <= 10_000, to.count <= 500 else { return .failure(.invalid("That draft is too long.")) }
+            return .success(.tool(name: call.name, arguments: ["to": to, "subject": subject, "body": body]))
+        case "read_calendar":
+            return .success(.tool(name: call.name, arguments: ["days": String(min(max(int("days") ?? 3, 1), 14))]))
+        case "search_files":
+            guard let query = string("query")?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else { return .failure(.missing("query")) }
+            guard query.count <= 200 else { return .failure(.invalid("Keep the search under 200 characters.")) }
+            return .success(.tool(name: call.name, arguments: ["query": query]))
         case "task_complete":
             return .success(.finish(string("summary") ?? "Done."))
         default:

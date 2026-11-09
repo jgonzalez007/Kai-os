@@ -13,7 +13,7 @@ public struct KaiOllamaClient: KaiChatClient {
     // MARK: Requests
 
     /// Thinking is disabled because the chat UI shows only the final answer.
-    func chatRequest(model: String, messages: [KaiOllamaMessage], tools: [KaiOllamaTool]? = nil, temperature: Double? = nil, format: String? = nil) throws -> URLRequest {
+    func chatRequest(model: String, messages: [KaiOllamaMessage], tools: [KaiOllamaTool]? = nil, temperature: Double? = nil, format: String? = nil, keepAlive: String? = nil) throws -> URLRequest {
         struct Options: Encodable { let temperature: Double }
         struct Body: Encodable {
             let model: String
@@ -23,6 +23,8 @@ public struct KaiOllamaClient: KaiChatClient {
             let tools: [KaiOllamaTool]?
             let options: Options?
             let format: String?
+            /// How long Ollama keeps the model in memory after the answer. Its own default is 5 minutes.
+            let keep_alive: String?
         }
         var request = URLRequest(url: baseURL.appendingPathComponent("api/chat"))
         request.httpMethod = "POST"
@@ -30,7 +32,7 @@ public struct KaiOllamaClient: KaiChatClient {
         // Long enough for a large model to load into memory before its first token.
         request.timeoutInterval = 300
         request.httpBody = try JSONEncoder().encode(
-            Body(model: model, messages: messages, stream: true, think: false, tools: tools, options: temperature.map(Options.init), format: format)
+            Body(model: model, messages: messages, stream: true, think: false, tools: tools, options: temperature.map(Options.init), format: format, keep_alive: keepAlive)
         )
         return request
     }
@@ -97,16 +99,35 @@ public struct KaiOllamaClient: KaiChatClient {
         }
     }
 
+    /// How long a model stays loaded after it answers, so the next question doesn't wait for it to load again.
+    public static let keepLoaded = "30m"
+
+    /// Loads a model into memory now, without asking it anything, and keeps it there. Used when a task starts,
+    /// so the first step doesn't pay for the load. Failure is ignored: the first real request would fail the same way.
+    public func warm(model: String) async {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/generate"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 300
+        request.httpBody = try? JSONSerialization.data(withJSONObject: ["model": model, "keep_alive": Self.keepLoaded])
+        _ = try? await URLSession.shared.data(for: request)
+    }
+
     /// Yields reply text and tool calls as they arrive. Cancelling the consuming task cancels the request.
+    public func stream(model: String, messages: [KaiOllamaMessage], tools: [KaiOllamaTool]? = nil, temperature: Double? = nil) -> AsyncThrowingStream<KaiOllamaEvent, Error> {
+        stream(model: model, messages: messages, tools: tools, temperature: temperature, keepAlive: Self.keepLoaded)
+    }
+
     public func stream(
         model: String,
         messages: [KaiOllamaMessage],
-        tools: [KaiOllamaTool]? = nil,
-        temperature: Double? = nil) -> AsyncThrowingStream<KaiOllamaEvent, Error> {
+        tools: [KaiOllamaTool]?,
+        temperature: Double?,
+        keepAlive: String?) -> AsyncThrowingStream<KaiOllamaEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let request = try chatRequest(model: model, messages: messages, tools: tools, temperature: temperature)
+                    let request = try chatRequest(model: model, messages: messages, tools: tools, temperature: temperature, keepAlive: keepAlive)
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)
                     if let status = (response as? HTTPURLResponse)?.statusCode, status != 200 {
                         var body = ""

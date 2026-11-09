@@ -21,9 +21,28 @@ import KaiShared
 /// One screenshot of the main display, without Kai's own windows. It stays on this Mac:
 /// the agent only talks to a local model.
 struct KaiSystemScreen: KaiAgentScreen {
-    func capture() async throws -> KaiAgentFrame {
+    func capture() async throws -> KaiAgentFrame { try await capture(maxLongEdge: KaiScreenImage.defaultMaxLongEdge) }
+
+    /// Waits until the screen stops changing: two looks in a row that match. Ends at the latest after `maximum`.
+    func waitUntilStable(minimum: Duration, maximum: Duration) async -> Bool {
         let display = CGMainDisplayID()
-        let data = try await KaiScreenGrabber.capture(displayID: display, excludingBundleIdentifier: Bundle.main.bundleIdentifier)
+        let own = Bundle.main.bundleIdentifier
+        let clock = ContinuousClock()
+        let start = clock.now
+        try? await Task.sleep(for: minimum)
+        guard var previous = try? await KaiScreenGrabber.fingerprint(displayID: display, excludingBundleIdentifier: own) else { return false }
+        while clock.now - start < maximum {
+            try? await Task.sleep(for: .milliseconds(100))
+            guard let current = try? await KaiScreenGrabber.fingerprint(displayID: display, excludingBundleIdentifier: own) else { return false }
+            if KaiScreenGrabber.isStable(previous, current) { return true }
+            previous = current
+        }
+        return true
+    }
+
+    func capture(maxLongEdge: Int) async throws -> KaiAgentFrame {
+        let display = CGMainDisplayID()
+        let data = try await KaiScreenGrabber.capture(displayID: display, excludingBundleIdentifier: Bundle.main.bundleIdentifier, maxLongEdge: maxLongEdge)
         guard let source = CGImageSourceCreateWithData(data as CFData, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let width = properties[kCGImagePropertyPixelWidth] as? Int,
@@ -48,7 +67,7 @@ struct KaiOllamaAgentBrain: KaiAgentBrain, @unchecked Sendable {
     func next(messages: [KaiOllamaMessage]) async throws -> (text: String, calls: [KaiOllamaToolCall]) {
         var text = ""
         var calls: [KaiOllamaToolCall] = []
-        for try await event in client.stream(model: model, messages: messages, tools: KaiAgentTools.definitions, temperature: 0.2) {
+        for try await event in client.stream(model: model, messages: messages, tools: KaiAgentTools.definitions, temperature: 0.2, keepAlive: KaiOllamaClient.keepLoaded) {
             switch event {
             case .text(let delta): text += delta
             case .toolCalls(let found): calls += found

@@ -86,8 +86,11 @@ final class KaiAgentController: ObservableObject {
             policy: KaiAgentPolicy(mode: mode, ownBundleIdentifier: Bundle.main.bundleIdentifier),
             limits: KaiAgentEffort.stored().limits,
             stop: stopSwitch,
-            userInstructions: KaiInstructions.stored()
+            userInstructions: KaiInstructions.stored(),
+            tools: KaiAgentDirectTools()
         )
+        // Load the model into memory while Kai steps aside, so the first step doesn't wait for it.
+        Task.detached { await KaiOllamaClient().warm(model: model) }
         Task {
             // Step aside so the app you were using is in front: the agent never acts while Kai is.
             NSApp.hide(nil)
