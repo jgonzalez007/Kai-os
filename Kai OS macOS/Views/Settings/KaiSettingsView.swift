@@ -35,28 +35,37 @@ struct KaiSettingsView: View {
     @AppStorage(KaiAgentEffort.defaultsKey) private var effort = KaiAgentEffort.default.rawValue
     @ObservedObject private var desk = KaiDeskController.shared
     @ObservedObject private var updates = KaiUpdateController.shared
+    @ObservedObject private var permissions = KaiPermissionsModel.shared
     @AppStorage(KaiMotion.key) private var motion = true
     
+    /// Preferences has one page per thing to set up or check. The sidebar of the main window is only for using Kai.
     enum Page: String, CaseIterable {
-        case ai, knowledge, sidekick, overnight, notch, system
+        case ai, knowledge, sidekick, overnight, notch, appearance, permissions, health, setup, updates
+
         var title: String {
             switch self {
-            case .ai: return "AI Models & Accounts"
-            case .knowledge: return "Knowledge Sources"
+            case .ai: return "AI & Web"
+            case .knowledge: return "Knowledge"
             case .sidekick: return "Sidekick"
-            case .overnight: return "Overnight & Suggestions"
+            case .overnight: return "Overnight"
             case .notch: return "Notch & Desk"
-            case .system: return "System"
+            case .appearance: return "Appearance"
+            case .permissions: return "Permissions"
+            case .health: return "Health"
+            case .setup: return "Setup guide"
+            case .updates: return "Updates & About"
             }
         }
         var subtitle: String {
             switch self {
-            case .ai: return "Pick the model Kai thinks with, on this Mac or in the cloud."
+            case .ai: return "The model Kai thinks with, on this Mac or in the cloud, and looking things up on the web."
             case .knowledge: return "What Kai learns from to answer your questions and prepare your day."
             case .sidekick: return "Make everyday help feel like your own."
             case .overnight: return "Let Kai get things ready while you sleep. It only prepares cards: nothing is sent without your approval."
-            case .notch: return "The notch, your Shelf, clipboard history and Claude Code."
-            case .system: return "Look, updates and privacy."
+            case .notch: return "The notch, your Shelf, clipboard history, Claude Code and the stats bar."
+            case .appearance: return "The logo, the icon and the effects."
+            case .permissions, .health, .setup: return ""
+            case .updates: return "Version, updates and privacy."
             }
         }
         var symbol: String {
@@ -66,7 +75,11 @@ struct KaiSettingsView: View {
             case .sidekick: return "sparkle"
             case .overnight: return "moon.stars"
             case .notch: return "rectangle.topthird.inset.filled"
-            case .system: return "gearshape"
+            case .appearance: return "paintpalette"
+            case .permissions: return "checkmark.shield"
+            case .health: return "heart.text.square"
+            case .setup: return "wand.and.stars"
+            case .updates: return "arrow.down.circle"
             }
         }
     }
@@ -81,11 +94,23 @@ struct KaiSettingsView: View {
         HStack(spacing: 0) {
             navigation
                 .frame(width: 270)
-            pageScroll
+            content
         }
         .background(KaiAmbientBackground())
         .environment(\.colorScheme, .dark)
         .preferredColorScheme(.dark)
+        // The next visit starts on the first page, unless something asks for another.
+        .onDisappear { KaiSettingsView.startPage = .ai }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch page {
+        case .permissions: KaiPermissionsView(permissions: .shared)
+        case .health: KaiHealthView(briefing: appState.morningCards)
+        case .setup: KaiWelcomeView()
+        default: pageScroll
+        }
     }
 
     // ── Navigation column ──
@@ -106,17 +131,21 @@ struct KaiSettingsView: View {
                 .padding(.bottom, 22)
             }
             Text("Settings").font(.system(size: 26, weight: .semibold)).padding(.bottom, 14)
-            navGroup("App") { navItem(.ai) }
-            navGroup("Personalization") {
+            navGroup("Kai") {
+                navItem(.ai)
                 navItem(.knowledge)
                 navItem(.sidekick)
                 navItem(.overnight)
-                navItem(.notch)
             }
-            navGroup("Support") {
-                navItem(.system)
-                navLink("Permissions", symbol: "checkmark.shield", target: "Permissions")
-                navLink("Health", symbol: "heart.text.square", target: "Health")
+            navGroup("Look and feel") {
+                navItem(.notch)
+                navItem(.appearance)
+            }
+            navGroup("Help") {
+                navItem(.permissions, badge: permissions.missingCount)
+                navItem(.health)
+                navItem(.setup)
+                navItem(.updates, badge: updates.available == nil ? 0 : 1)
             }
             Spacer()
             Divider().overlay(Color.white.opacity(0.08))
@@ -146,12 +175,17 @@ struct KaiSettingsView: View {
         }
     }
 
-    private func navItem(_ target: Page) -> some View {
+    private func navItem(_ target: Page, badge: Int = 0) -> some View {
         Button { page = target } label: {
             HStack(spacing: 12) {
                 Image(systemName: target.symbol).frame(width: 20).foregroundStyle(.secondary)
                 Text(target.title)
                 Spacer()
+                if badge > 0 {
+                    Text("\(badge)").font(.caption).fontWeight(.medium)
+                        .padding(.horizontal, 7).padding(.vertical, 2)
+                        .background(Capsule().fill(KaiColor.magenta.opacity(0.35)))
+                }
             }
             .padding(.horizontal, 14).padding(.vertical, 11)
             .background(RoundedRectangle(cornerRadius: 14).fill(page == target ? Color.white.opacity(0.1) : .clear))
@@ -189,9 +223,9 @@ struct KaiSettingsView: View {
 
                 Divider().overlay(Color.white.opacity(0.08))
 
-                if page == .system { logoCard }
+                if page == .appearance { logoCard }
 
-                if page == .system {
+                if page == .appearance {
                 // ── Appearance ──
                 settingsCard {
                     SectionHeader(title: "Appearance")
@@ -342,7 +376,7 @@ struct KaiSettingsView: View {
                                     .font(KaiFont.captionStrong)
                             } else {
                                 Button("Open Permissions") {
-                                    appState.activeSidebar = "Permissions"
+                                    page = .permissions
                                 }
                                 .font(KaiFont.captionStrong)
                                 .foregroundStyle(KaiColor.warning)
@@ -537,7 +571,7 @@ struct KaiSettingsView: View {
 
                 }
 
-                if page == .system {
+                if page == .updates {
                 // ── Updates ──
                 settingsCard {
                     SectionHeader(title: "Updates")
@@ -586,7 +620,7 @@ struct KaiSettingsView: View {
 
                 }
 
-                if page == .system {
+                if page == .updates {
                 // ── About ──
                 settingsCard {
                     VStack(spacing: 10) {
@@ -610,7 +644,7 @@ struct KaiSettingsView: View {
                 
                 }
 
-                if page == .system {
+                if page == .updates {
                 // ── Privacy ──
                 settingsCard {
                     VStack(spacing: 8) {

@@ -71,7 +71,7 @@ struct KaiForYouView: View {
                 title: "Nothing connected yet",
                 detail: "Turn on Calendar or Apple Mail, and Kai OS will prepare cards each morning."
             ) {
-                Button("Open Permissions") { appState.activeSidebar = "Permissions" }
+                Button("Open Permissions") { appState.openPreferences(.permissions) }
                     .buttonStyle(.borderedProminent)
                     .buttonBorderShape(.roundedRectangle)
             }

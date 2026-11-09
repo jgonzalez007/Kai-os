@@ -32,7 +32,12 @@
 - **Shelf.** Drop files, links or text on the notch and drag them out later. Files stay where they are (the Shelf holds a reference, not a copy). An item you drag out leaves the Shelf, with a 5 second Undo, and pinned items stay. **New: the drag-out has not been tried against real apps.**
 - **Claude Code in the notch.** Approve or deny Claude Code's permission requests from the notch, see a Done peek when a task ends, and see the helper agents running. You paste the hooks into your Claude settings yourself: Kai OS never edits them. Nothing is allowed unless you press Allow. See [INSTALL-HOOKS.md](INSTALL-HOOKS.md). **New and not yet tried with a live Claude Code session.**
 - **Web lookups.** Ask about something current and Kai can search the web and read a page. Only the search words go to DuckDuckGo. A page is opened only if it came from a search result or you wrote the link, never an address on this Mac or your network, with no cookies. What it reads is treated as information, not instructions. Turn it off in Preferences → AI Models & Accounts.
-- **Health page.** One screen that shows whether the local model, cloud keys, permissions, sources and the morning briefing are working, and what to do if not.
+- **Health page** (Preferences → Health). One screen that shows whether the local model, cloud keys, permissions, sources and the morning briefing are working, and what to do if not.
+
+## Where things are
+
+- **Sidebar (using Kai):** Chat, For You (morning cards), Computer tasks (Sidekick), and your Calendar, Mail and Notes.
+- **Preferences (setting up and checking):** AI & Web, Knowledge, Sidekick, Overnight, Notch & Desk, Appearance, and under Help: Permissions, Health, Setup guide, Updates & About.
 
 ## Planned
 

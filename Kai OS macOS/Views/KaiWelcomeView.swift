@@ -158,7 +158,7 @@ struct KaiWelcomeView: View {
                 Label("ChatGPT or Claude (your own key)", systemImage: "cloud").font(.headline)
                 Text("Faster on older Macs. Your messages go to that company. Add the key in Preferences → Cloud AI.")
                     .font(.callout).foregroundStyle(.secondary)
-                Button("Open Preferences") { appState.activeSidebar = "Settings" }.controlSize(.small)
+                Button("Open Preferences") { appState.openPreferences(.ai) }.controlSize(.small)
             }
             .frame(maxWidth: .infinity, alignment: .leading).padding(6)
         }
@@ -241,7 +241,7 @@ struct KaiWelcomeView: View {
             }
             bullet("cursorarrow.click", "Click the notch", "Chat, your Shelf and your clipboard history are one click away from any app.")
             bullet("mic", "Hold the talk key", "Speak to Kai from anywhere. It listens only while you hold the key.")
-            bullet("heart.text.square", "Something not working?", "The Health page in the sidebar shows what is connected and how to fix what is not.")
+            bullet("heart.text.square", "Something not working?", "Preferences → Health shows what is connected and how to fix what is not.")
             Text("You can reopen this guide any time from the sidebar.").font(.callout).foregroundStyle(.secondary)
         }
     }

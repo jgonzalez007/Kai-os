@@ -488,6 +488,12 @@ final class AppState: ObservableObject {
         replyTask?.cancel()
     }
 
+    /// Opens Preferences on one page, from anywhere in the app.
+    func openPreferences(_ page: KaiSettingsView.Page) {
+        KaiSettingsView.startPage = page
+        activeSidebar = "Settings"
+    }
+
     func startNewChat() {
         replyTask?.cancel()
         activeReplyID = nil
@@ -810,13 +816,9 @@ struct KaiMainView: View {
                 .environmentObject(appState)
             case "Sidekick": KaiSidekickView(agent: appState.agent)
                 .environmentObject(appState)
-            case "Health": KaiHealthView(briefing: appState.morningCards)
-                .environmentObject(appState)
             case "Settings": KaiSettingsView()
                 .environmentObject(appState)
             case "Welcome": KaiWelcomeView()
-                .environmentObject(appState)
-            case "Permissions": KaiPermissionsView(permissions: .shared)
                 .environmentObject(appState)
             default: KaiChatView()
                 .environmentObject(appState)

@@ -102,7 +102,7 @@ public enum KaiHealth {
         i.permissionsMissing == 0
             ? KaiHealthItem(id: "permissions", title: "Permissions", status: .ok, detail: "All permissions are granted.")
             : KaiHealthItem(id: "permissions", title: "Permissions", status: .attention,
-                            detail: "\(i.permissionsMissing) not granted yet. Open Permissions in the sidebar.")
+                            detail: "\(i.permissionsMissing) not granted yet. Open Preferences → Permissions.")
     }
 
     private static func sources(_ i: KaiHealthInputs) -> KaiHealthItem {

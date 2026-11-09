@@ -15,46 +15,48 @@ struct KaiSidebarView: View {
 
     let selection: Binding<String?>
 
+    @State private var showContext = false
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
                     header
-                    group("Kai") {
+                    group("Use Kai") {
                         row("Chat", "bubble.left.and.bubble.right", tag: "Chat")
                         row("For You", "sun.max", tag: "ForYou", badge: appState.morningCards.activeCards.count)
+                        row("Computer tasks", "cursorarrow.motionlines", tag: "Sidekick")
+                    }
+                    group("Your stuff") {
                         row("Calendar", "calendar", tag: "Calendar", badge: appState.calendarEvents.count)
                         row("Mail", "envelope", tag: "Mail", badge: appState.unreadCount)
                         row("Notes", "note.text", tag: "Notes", badge: appState.notes.count)
                     }
-                    group("Context") { context }
-                    if !appState.notes.isEmpty {
-                        group("Recent notes") { recentNotes }
+                    DisclosureGroup(isExpanded: $showContext) {
+                        context.padding(.top, 6)
+                    } label: {
+                        Text("Right now").font(.caption).fontWeight(.medium).foregroundStyle(.secondary)
                     }
-                    group("More") {
-                        if let update = updates.available {
-                            Button { updates.openReleasePage() } label: {
-                                pill(selected: false) {
-                                    Image(systemName: "arrow.down.circle.fill").frame(width: 20)
-                                    Text("Update to \(update.version.description)")
-                                    Spacer()
-                                }
-                                .foregroundStyle(Color.accentColor)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Opens the release page. Kai OS does not install updates by itself.")
-                        }
-                        row("Setup guide", "wand.and.stars", tag: "Welcome")
-                        row("Computer tasks", "cursorarrow.motionlines", tag: "Sidekick")
-                        row("Health", "heart.text.square", tag: "Health")
-                        row("Permissions", "lock.shield", tag: "Permissions", badge: permissions.missingCount)
-                    }
+                    .padding(.top, 16).padding(.leading, 6)
                 }
                 .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 8)
             }
             Divider().overlay(Color.white.opacity(0.08))
             VStack(spacing: 2) {
-                row("Preferences", "gearshape", tag: "Settings")
+                if let update = updates.available {
+                    Button { updates.openReleasePage() } label: {
+                        pill(selected: false) {
+                            Image(systemName: "arrow.down.circle.fill").frame(width: 20)
+                            Text("Update to \(update.version.description)")
+                            Spacer()
+                        }
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Opens the release page. Kai OS does not install updates by itself.")
+                }
+                // Everything to set up or check is in Preferences. The badge counts permissions still to turn on.
+                row("Preferences", "gearshape", tag: "Settings", badge: permissions.missingCount)
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
         }

@@ -51,7 +51,7 @@ enum KaiPageSnapshots {
                 exit(0)
             }
             let pages: [(String, KaiSettingsView.Page)] = [
-                ("ai", .ai), ("overnight", .overnight), ("sidekick", .sidekick), ("knowledge", .knowledge), ("notch", .notch), ("system", .system)
+                ("ai", .ai), ("overnight", .overnight), ("sidekick", .sidekick), ("knowledge", .knowledge), ("notch", .notch), ("permissions-page", .permissions), ("appearance", .appearance), ("updates", .updates)
             ]
             for (name, page) in pages {
                 KaiSettingsView.startPage = page
@@ -68,11 +68,13 @@ enum KaiPageSnapshots {
             }
             // Health and Permissions, as full pages.
             let others: [(String, AnyView)] = [
+                ("sidebar", AnyView(KaiSidebarView(selection: .constant("Chat")).environmentObject(AppState.shared).frame(width: 280, height: 820))),
                 ("health", AnyView(KaiHealthView(briefing: AppState.shared.morningCards).environmentObject(AppState.shared))),
                 ("permissions", AnyView(KaiPermissionsView(permissions: .shared).environmentObject(AppState.shared)))
             ]
             for (name, view) in others {
-                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 900), styleMask: [.titled], backing: .buffered, defer: false)
+                let narrow = name == "sidebar"
+                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: narrow ? 280 : 1100, height: narrow ? 820 : 900), styleMask: [.titled], backing: .buffered, defer: false)
                 window.contentView = NSHostingView(rootView: view.environment(\.colorScheme, .dark))
                 window.orderFrontRegardless()
                 try? await Task.sleep(for: .milliseconds(1500))

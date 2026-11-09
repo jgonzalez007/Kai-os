@@ -3,7 +3,7 @@
 //  Kai OS macOS
 //
 //  One screen for every permission Kai OS uses: what each is for, whether it's on, and a way
-//  to turn it on. It appears on first launch and stays in the sidebar afterwards.
+//  to turn it on. It is under Preferences → Permissions.
 //
 
 import AppKit
@@ -113,7 +113,7 @@ struct KaiPermissionsView: View {
                 Spacer()
                 Button("Allow All", action: permissions.requestAll)
                     .disabled(permissions.isRequestingAll || permissions.missingCount == 0)
-                Button("Continue") {
+                Button("Done") {
                     KaiPermissionsModel.markOnboarded()
                     appState.activeSidebar = "Chat"
                 }
