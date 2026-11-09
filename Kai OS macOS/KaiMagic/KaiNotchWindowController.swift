@@ -370,6 +370,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     func preferencesChanged() {
         model.showsStatus = KaiNotchPreferences.showsStatus
         model.showsTime = KaiNotchPreferences.showsTime
+        refreshHoverEntry()
         model.showsPeeks = KaiNotchPreferences.showsPeeks
         updateFullScreen()
     }
@@ -602,7 +603,10 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     /// cursor pushed against the top reports exactly that edge, and a half-open rect would miss it.
     private func refreshHoverEntry() {
         guard let layout = model.layout else { hoverEntry = .null; return }
-        var rect = layout.notch
+        // What is drawn while Kai sleeps is what answers the cursor: the bare notch, the strips beside it,
+        // or the wider shape with the time. Otherwise the wings would look clickable and do nothing.
+        let resting: KaiNotchSurface = model.showsTime ? .clock : model.showsStatus ? .status : .closed
+        var rect = layout.frame(for: resting)
         rect.size.height += 2
         hoverEntry = rect
     }
