@@ -45,7 +45,7 @@ struct KaiSidebarView: View {
                             .help("Opens the release page. Kai OS does not install updates by itself.")
                         }
                         row("Setup guide", "wand.and.stars", tag: "Welcome")
-                        row("Sidekick", "cursorarrow.motionlines", tag: "Sidekick")
+                        row("Computer tasks", "cursorarrow.motionlines", tag: "Sidekick")
                         row("Health", "heart.text.square", tag: "Health")
                         row("Permissions", "lock.shield", tag: "Permissions", badge: permissions.missingCount)
                     }

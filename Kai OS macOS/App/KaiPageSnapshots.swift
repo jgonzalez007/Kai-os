@@ -66,6 +66,22 @@ enum KaiPageSnapshots {
                 }
                 window.orderOut(nil)
             }
+            // Health and Permissions, as full pages.
+            let others: [(String, AnyView)] = [
+                ("health", AnyView(KaiHealthView(briefing: AppState.shared.morningCards).environmentObject(AppState.shared))),
+                ("permissions", AnyView(KaiPermissionsView(permissions: .shared).environmentObject(AppState.shared)))
+            ]
+            for (name, view) in others {
+                let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1100, height: 900), styleMask: [.titled], backing: .buffered, defer: false)
+                window.contentView = NSHostingView(rootView: view.environment(\.colorScheme, .dark))
+                window.orderFrontRegardless()
+                try? await Task.sleep(for: .milliseconds(1500))
+                if let content = window.contentView, let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) {
+                    content.cacheDisplay(in: content.bounds, to: bitmap)
+                    try? bitmap.representation(using: .png, properties: [:])?.write(to: folder.appendingPathComponent("\(name).png"))
+                }
+                window.orderOut(nil)
+            }
             // The menu bar window, at its real width.
             let hud = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 380, height: 600), styleMask: [.titled], backing: .buffered, defer: false)
             hud.contentView = NSHostingView(rootView: KaiMenuBarContent(appState: AppState.shared))

@@ -17,7 +17,7 @@ struct KaiSidekickView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text("Sidekick").font(KaiFont.title3)
+                    Text("Computer tasks").font(KaiFont.title3)
                     Spacer()
                     // The shortcut key, custom instructions and speed live in Preferences.
                     Button {
@@ -29,7 +29,7 @@ struct KaiSidekickView: View {
                     .controlSize(.small)
                 }
 
-                Text("Describe a task and Kai will do it in your other apps by looking at the screen and using the mouse and keyboard, with a ring where it clicks. It uses a local model, so what's on your screen never leaves this Mac.")
+                Text("Sidekick does a task in your other apps. Describe it and Kai will do it in your other apps by looking at the screen and using the mouse and keyboard, with a ring where it clicks. It uses a local model, so what's on your screen never leaves this Mac.")
                     .font(KaiFont.caption).foregroundStyle(.secondary)
 
                 TextEditor(text: $agent.task)

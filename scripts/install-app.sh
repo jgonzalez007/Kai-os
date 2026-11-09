@@ -31,6 +31,10 @@ cp "$ICON_TMP/AppIcon.icns" "$ICON_TMP/Assets.car" "$CONTENTS/Resources/"
 rm -rf "$ICON_TMP"
 scripts/sign-app.sh "$APP"
 
+# Make macOS notice the new icon instead of showing a cached old one.
+touch "$APP"
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" >/dev/null 2>&1 || true
+
 open "$APP"
 sleep 2
 pgrep -x "Kai OS" >/dev/null

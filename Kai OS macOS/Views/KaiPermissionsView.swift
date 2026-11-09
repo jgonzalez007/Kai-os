@@ -93,26 +93,22 @@ struct KaiPermissionsView: View {
     private let refreshTimer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Permissions").font(.title).fontWeight(.bold)
-                Text("Kai OS needs these to work in your other apps. Everything stays on this Mac, and you can change any of them later in System Settings.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            .padding()
-            Divider()
+        VStack(spacing: 0) {
             ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(KaiPermission.allCases) { permission in
-                        row(permission)
-                        Divider()
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Permissions").font(.system(size: 30, weight: .semibold))
+                        Text("Kai OS needs these to work in your other apps. Everything stays on this Mac, and you can change any of them later in System Settings.")
+                            .font(.callout).foregroundStyle(.secondary)
                     }
+                    Divider().overlay(Color.white.opacity(0.08)).padding(.bottom, 4)
+                    ForEach(KaiPermission.allCases) { permission in row(permission) }
                 }
-                .padding(.horizontal)
+                .frame(maxWidth: 780)
+                .padding(.horizontal, 40).padding(.vertical, 36)
+                .frame(maxWidth: .infinity)
             }
-            Divider()
-            HStack {
+            HStack(spacing: 12) {
                 Text(summary).font(.callout).foregroundStyle(.secondary)
                 Spacer()
                 Button("Allow All", action: permissions.requestAll)
@@ -122,9 +118,13 @@ struct KaiPermissionsView: View {
                     appState.activeSidebar = "Chat"
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(KaiColor.liquidBlue)
             }
-            .padding()
+            .padding(.horizontal, 40).padding(.vertical, 14)
+            .background(Color.black.opacity(0.35))
+            .overlay(alignment: .top) { Divider().overlay(Color.white.opacity(0.08)) }
         }
+        .background(KaiAmbientBackground())
         .task { await permissions.refresh() }
         .onReceive(refreshTimer) { _ in Task { await permissions.refresh() } }
     }
@@ -136,16 +136,23 @@ struct KaiPermissionsView: View {
     }
 
     private func row(_ permission: KaiPermission) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: permission.iconName).font(.title3).foregroundStyle(.purple).frame(width: 28)
-            VStack(alignment: .leading, spacing: 2) {
+        let on = KaiPermissionPlan.rowAction(for: permissions.statuses[permission] ?? .notRequested) == .none
+        return HStack(alignment: .center, spacing: 14) {
+            Image(systemName: permission.iconName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(on ? KaiColor.cyan : KaiColor.magenta)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill((on ? KaiColor.cyan : KaiColor.magenta).opacity(0.15)))
+            VStack(alignment: .leading, spacing: 3) {
                 Text(permission.title).fontWeight(.semibold)
-                Text(permission.reason).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(permission.reason).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 12)
             control(permission)
         }
-        .padding(.vertical, 10)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .kaiLiquidGlass(on ? KaiColor.cyan : KaiColor.magenta, radius: 18, glow: on ? 0.08 : 0.2)
     }
 
     @ViewBuilder
@@ -156,12 +163,12 @@ struct KaiPermissionsView: View {
         } else {
             switch KaiPermissionPlan.rowAction(for: status) {
             case .none:
-                Label("On", systemImage: "checkmark.circle.fill").foregroundStyle(.green).font(.callout)
+                Label("On", systemImage: "checkmark.circle.fill").foregroundStyle(KaiColor.cyan).font(.callout)
             case .request:
                 Button("Allow") { permissions.request(permission) }.disabled(permissions.requesting != nil)
             case .openSettings:
                 HStack(spacing: 6) {
-                    Text("Off").font(.callout).foregroundStyle(.orange)
+                    Text("Off").font(.callout).foregroundStyle(KaiColor.magenta)
                     Button("Open Settings") { permissions.openSettings(for: permission) }
                 }
             case .restart:

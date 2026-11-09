@@ -25,7 +25,8 @@ enum KaiAppIcon {
         /// The picture for this style, or nil to use the app file's own icon.
         @MainActor var image: NSImage? {
             switch self {
-            case .glass: return nil
+            // The glass K is the app's own icon. Setting it explicitly beats macOS's cache of an older icon.
+            case .glass: return NSImage(named: "AppIcon")
             case .neon: return NSImage(named: "KaiIconNeon")
             case .arch: return KaiAppIcon.archTile()
             }

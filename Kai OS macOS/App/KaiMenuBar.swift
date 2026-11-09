@@ -11,6 +11,39 @@ import KaiLocalAI
 import KaiShared
 import SwiftUI
 
+/// The menu bar icon: the Kai K, with a small colored dot when Kai is working, needs you, or the AI is offline.
+@MainActor
+enum KaiMenuBarIcon {
+    private static var cache: [String: NSImage] = [:]
+
+    static func image(for level: KaiMenuStatus.Level) -> NSImage {
+        let key = "\(level)"
+        if let cached = cache[key] { return cached }
+        let dot: Color? = {
+            switch level {
+            case .idle: return nil
+            case .working: return KaiColor.liquidBlue
+            case .needsYou: return .orange
+            case .attention: return .red
+            }
+        }()
+        let art = ZStack(alignment: .bottomTrailing) {
+            KaiLogoArt(size: 18, glow: 0)
+            if let dot {
+                Circle().fill(dot).frame(width: 7, height: 7)
+                    .overlay(Circle().stroke(Color.black.opacity(0.6), lineWidth: 1))
+            }
+        }
+        .frame(width: 20, height: 18)
+        let renderer = ImageRenderer(content: art)
+        renderer.scale = 2
+        let image = renderer.nsImage ?? NSImage(systemSymbolName: "sparkle", accessibilityDescription: "Kai OS") ?? NSImage()
+        image.isTemplate = false
+        cache[key] = image
+        return image
+    }
+}
+
 struct KaiMenuBarLabel: View {
     @ObservedObject var appState: AppState
     @ObservedObject private var desk = KaiDeskController.shared
@@ -19,7 +52,7 @@ struct KaiMenuBarLabel: View {
 
     var body: some View {
         let summary = status.summary(appState: appState, desk: desk, updates: updates)
-        Image(systemName: summary.symbol)
+        Image(nsImage: KaiMenuBarIcon.image(for: summary.level))
             .help("Kai OS: \(summary.title)")
     }
 }

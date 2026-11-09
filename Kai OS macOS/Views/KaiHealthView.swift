@@ -44,31 +44,47 @@ struct KaiHealthView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("Health").font(KaiFont.title3)
-                Spacer()
-                Button(checking ? "Checking…" : "Check again") { Task { await check() } }
-                    .disabled(checking)
-            }
-            .padding(16)
-            Divider()
-            List(items) { item in
-                HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: icon(item.status))
-                        .foregroundStyle(color(item.status))
-                        .frame(width: 20)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title).font(KaiFont.bodyStrong)
-                        Text(item.detail).font(KaiFont.caption).foregroundStyle(.secondary)
-                        if item.id == "ollama" && ollamaModels == nil { ollamaActions }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Health").font(.system(size: 30, weight: .semibold))
+                        Text("What is working, and what needs attention.").font(.callout).foregroundStyle(.secondary)
                     }
+                    Spacer()
+                    Button(checking ? "Checking…" : "Check again") { Task { await check() } }
+                        .disabled(checking)
+                        .padding(.top, 6)
                 }
-                .padding(.vertical, 4)
+                Divider().overlay(Color.white.opacity(0.08)).padding(.bottom, 4)
+
+                ForEach(items) { item in card(item) }
             }
-            .listStyle(.inset)
+            .frame(maxWidth: 780)
+            .padding(.horizontal, 40).padding(.vertical, 36)
+            .frame(maxWidth: .infinity)
         }
+        .background(KaiAmbientBackground())
         .task { await check() }
+    }
+
+    private func card(_ item: KaiHealthItem) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            Image(systemName: icon(item.status))
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(color(item.status))
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(color(item.status).opacity(0.15)))
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title).fontWeight(.semibold)
+                Text(item.detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if item.id == "ollama" && ollamaModels == nil { ollamaActions }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .kaiLiquidGlass(color(item.status), radius: 18, glow: item.status == .ok ? 0.1 : 0.22)
     }
 
     /// Ollama cannot be reached: offer to start it, or to install it when it is not on this Mac.
@@ -126,9 +142,9 @@ struct KaiHealthView: View {
 
     private func color(_ status: KaiHealthItem.Status) -> Color {
         switch status {
-        case .ok: return .green
-        case .attention: return .orange
-        case .off: return .secondary
+        case .ok: return KaiColor.cyan
+        case .attention: return KaiColor.magenta
+        case .off: return Color.white.opacity(0.45)
         }
     }
 }
