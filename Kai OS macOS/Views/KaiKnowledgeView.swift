@@ -324,7 +324,7 @@ struct KaiKnowledgeView: View {
     private func load() async {
         loading = true
         let result: (docs: [KaiKnowledgeDocument], graph: KaiKnowledgeGraph)? = await Task.detached {
-            guard let store = await appState.openKnowledgeStore(), let docs = try? store.documents(limit: 300) else { return nil }
+            guard let store = await appState.openKnowledgeStore(), let docs = try? store.balancedDocuments(perSource: 60) else { return nil }
             return (docs, KaiKnowledgeGraph.build(documents: docs))
         }.value
         documents = result?.docs ?? []

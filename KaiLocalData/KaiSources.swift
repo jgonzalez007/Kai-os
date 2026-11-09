@@ -323,7 +323,8 @@ public enum KaiMailSource {
     public static func messages(since: Date, limit: Int = 200, now: Date = Date()) async throws -> [KaiMailItem] {
         let age = max(Int(now.timeIntervalSince(since)), 0)
         let arguments = [String(age), String(min(max(limit, 1), 200))]
-        return items(from: try await KaiAppleScriptRecords.run(script: windowScript, app: "Mail", arguments: arguments, timeout: 90))
+        // About half a second a message on a big inbox, so the wait grows with how many were asked for.
+        return items(from: try await KaiAppleScriptRecords.run(script: windowScript, app: "Mail", arguments: arguments, timeout: TimeInterval(max(90, min(max(limit, 1), 200) * 2))))
     }
 
     /// Arguments: age in seconds of the oldest message wanted, and how many at most.
@@ -399,7 +400,7 @@ public struct KaiNoteItem: Identifiable, Equatable, Sendable {
 public enum KaiNotesSource {
     /// Each body is cut to `bodyLimit` characters to keep large notes from stalling the script.
     public static func recentNotes(limit: Int = 30, bodyLimit: Int = 2000) async throws -> [KaiNoteItem] {
-        items(from: try await KaiAppleScriptRecords.run(script: script(limit: limit, bodyLimit: bodyLimit), app: "Notes"))
+        items(from: try await KaiAppleScriptRecords.run(script: script(limit: limit, bodyLimit: bodyLimit), app: "Notes", timeout: TimeInterval(max(45, limit))))
     }
 
     static func script(limit: Int, bodyLimit: Int) -> String {

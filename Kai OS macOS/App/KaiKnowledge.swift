@@ -60,8 +60,8 @@ extension AppState {
     }
 
     /// The awaitable form, used by the button and by Night Shift. Returns what was read and what failed.
-    func indexKnowledgeNow(folder: URL? = nil, sources chosen: Set<KaiNightShiftSource>? = nil) async -> (report: KaiIndexReport, failures: [String]) {
-        guard !isIndexingKnowledge, let store = openKnowledgeStore() else { return (KaiIndexReport(), []) }
+    func indexKnowledgeNow(folder: URL? = nil, sources chosen: Set<KaiNightShiftSource>? = nil) async -> (report: KaiIndexReport, failures: [String], sourceResults: [KaiNightShiftRecord.SourceResult]) {
+        guard !isIndexingKnowledge, let store = openKnowledgeStore() else { return (KaiIndexReport(), [], []) }
         isIndexingKnowledge = true
         knowledgeState = .loading
         let folder = folder ?? knowledgeFolder
@@ -84,8 +84,31 @@ extension AppState {
         refreshKnowledgeCounts()
         isIndexingKnowledge = false
         knowledgeState = failures.isEmpty ? .connected : .failed(failures.joined(separator: "\n"))
-        return (report, failures)
+
+        // What each source gave, and why not when it gave nothing, so a quiet source is never mistaken for a working one.
+        let counts = (try? store.counts()) ?? [:]
+        func result(_ source: KaiNightShiftSource, name: String, key: String, connected: Bool, none: String) -> KaiNightShiftRecord.SourceResult? {
+            guard chosen.contains(source) else { return nil }
+            let count = counts[key] ?? 0
+            if !connected { return .init(name: name, count: count, note: "Not connected. Allow it on the Permissions page, or connect it in Preferences.") }
+            if let failure = failures.first(where: { $0.hasPrefix(name + ":") }) { return .init(name: name, count: count, note: String(failure.dropFirst(name.count + 2))) }
+            return .init(name: name, count: count, note: count == 0 ? none : nil)
+        }
+        let results = [
+            result(.files, name: "Files", key: "files", connected: true, none: "No Markdown or text files in your knowledge folder yet."),
+            result(.calendar, name: "Calendar", key: "calendar", connected: sources.calendar || !calendarWanted(chosen), none: "No events in the last 30 or next 90 days."),
+            result(.notes, name: "Notes", key: "notes", connected: sources.notes || !notesConnectedWanted(chosen), none: "Apple Notes has no notes on this Mac."),
+            result(.mail, name: "Mail", key: "mail", connected: sources.mail || !mailConnectedWanted(chosen), none: "No mail in the chosen time window."),
+            result(.slack, name: "Slack", key: "slack", connected: sources.slack || !slackWanted(chosen), none: "No Slack messages found."),
+        ].compactMap { $0 }
+        return (report, failures, results)
     }
+
+    // A source that was chosen but isn't connected has to be said so; these read the connection, not the choice.
+    private func calendarWanted(_ chosen: Set<KaiNightShiftSource>) -> Bool { chosen.contains(.calendar) && !calendarConnected }
+    private func notesConnectedWanted(_ chosen: Set<KaiNightShiftSource>) -> Bool { chosen.contains(.notes) && !notesConnected }
+    private func mailConnectedWanted(_ chosen: Set<KaiNightShiftSource>) -> Bool { chosen.contains(.mail) && !mailConnected }
+    private func slackWanted(_ chosen: Set<KaiNightShiftSource>) -> Bool { chosen.contains(.slack) && slackClient == nil }
 
     /// The assistant's view of a search: untrusted text, labelled by where it came from.
     func knowledgeTool(query: String?) -> String {

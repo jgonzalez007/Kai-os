@@ -2784,6 +2784,38 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testSourcesOfKnowledge() async throws {
+        check("the store deals out some of every source, so none is lost behind a busy one") {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("kai-balanced-\(UUID().uuidString).sqlite")
+            defer { try? FileManager.default.removeItem(at: url) }
+            let store = try KaiKnowledgeStore(url: url)
+            for i in 0..<30 { try store.upsert(KaiKnowledgeDocument(source: "slack", sourceID: "s\(i)", title: "Slack \(i)", text: "chat \(i)", modified: Date(timeIntervalSince1970: 1_800_000_000 + Double(i)), fingerprint: "s\(i)")) }
+            try store.upsert(KaiKnowledgeDocument(source: "mail", sourceID: "m1", title: "Mail", text: "hello", modified: Date(timeIntervalSince1970: 1_700_000_000), fingerprint: "m1"))
+            try store.upsert(KaiKnowledgeDocument(source: "calendar", sourceID: "c1", title: "Event", text: "meeting", modified: Date(timeIntervalSince1970: 1_700_000_000), fingerprint: "c1"))
+            let few = try store.balancedDocuments(perSource: 5)
+            let mailOnly = try store.documents(limit: 10, source: "mail")
+            return mailOnly.count == 1 && few.count == 7 && Set(few.map(\.source)) == ["slack", "mail", "calendar"] && Set(few.prefix(3).map(\.source)).count == 3
+        }
+        check("a Night Shift record keeps what each source gave, and an old record without them still loads") {
+            let record = KaiNightShiftRecord(ranAt: Date(timeIntervalSince1970: 1_800_000_000), outcome: .completed, documentsIndexed: 5, cardsPrepared: 1,
+                                             sources: [.init(name: "Mail", count: 0, note: "No mail in the chosen time window."), .init(name: "Slack", count: 5)])
+            let data = try JSONEncoder().encode(record)
+            var object = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+            object.removeValue(forKey: "sources")
+            let old = try JSONDecoder().decode(KaiNightShiftRecord.self, from: JSONSerialization.data(withJSONObject: object))
+            return try JSONDecoder().decode(KaiNightShiftRecord.self, from: data) == record && old.sources == nil
+                && record.sources?.first?.line == "Mail: 0. No mail in the chosen time window." && record.sources?.last?.line == "Slack: 5"
+        }
+        check("a calendar document carries who the event is with, and its notes") {
+            let event = KaiCalendarItem(id: "e", title: "Planning", start: Date(timeIntervalSince1970: 1_800_000_000), end: Date(timeIntervalSince1970: 1_800_003_600),
+                                        isAllDay: false, location: "Zoom", calendarName: "Work", notes: "Bring the roadmap",
+                                        attendees: [.init(name: "Ana Torres", response: .accepted, isOrganizer: true, isMe: false), .init(name: "Jose", response: .accepted, isOrganizer: false, isMe: true)],
+                                        isRecurring: true)
+            let text = KaiKnowledgeIndexer.document(for: event).text
+            return text.contains("With: Ana Torres") && !text.contains("Jose") && text.contains("Repeats") && text.contains("Bring the roadmap")
+        }
+    }
+
     func testProfile() async throws {
         func doc(_ source: String, _ id: String, _ text: String, days: Double = 0) -> KaiKnowledgeDocument {
             KaiKnowledgeDocument(source: source, sourceID: id, title: id, text: text, modified: Date(timeIntervalSince1970: 1_800_000_000 - days * 86_400), fingerprint: id)
@@ -2793,6 +2825,12 @@ final class KaiChecksTests: XCTestCase {
         let note = doc("notes", "n1", "Buy milk")
         check("the user's own notes come before everything else in what the model reads") {
             KaiProfilePrompt.selection(from: [mail, note, own]).first == own
+        }
+        check("every source gets a turn, so Slack can't crowd out the calendar, the mail and the notes") {
+            var docs = (0..<60).map { doc("slack", "s\($0)", String(repeating: "chat ", count: 180), days: Double($0) / 100) }
+            docs += [doc("calendar", "c1", "Weekly sync with Ana"), doc("mail", "m1", "Contract from Ana"), doc("notes", "n1", "Trip ideas")]
+            let chosen = Set(KaiProfilePrompt.selection(from: docs).map(\.source))
+            return chosen.isSuperset(of: ["calendar", "mail", "notes", "slack"])
         }
         check("the model reads no more than the budget") {
             let big = (0..<80).map { doc("mail", "m\($0)", String(repeating: "word ", count: 400)) }

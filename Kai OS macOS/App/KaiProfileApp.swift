@@ -19,7 +19,7 @@ extension AppState {
         isBuildingProfile = true
         profileMessage = nil
         defer { isBuildingProfile = false }
-        guard let store = openKnowledgeStore(), let documents = try? store.documents(limit: 300, maxText: 4_000), !documents.isEmpty else {
+        guard let store = openKnowledgeStore(), let documents = try? store.balancedDocuments(perSource: 80, maxText: 4_000), !documents.isEmpty else {
             profileMessage = "Nothing to learn from yet. Add a note on the Knowledge setup page, or index your sources."
             return false
         }
@@ -38,8 +38,10 @@ extension AppState {
                 profileMessage = "The model's answer wasn't usable, so the old portrait stays. Try again, or pick a larger model."
                 return false
             }
-            let built = KaiProfile(markdown: markdown, updatedAt: Date(), documentCount: KaiProfilePrompt.selection(from: documents).count,
-                                   edited: profile?.edited ?? false)
+            let used = KaiProfilePrompt.selection(from: documents)
+            let built = KaiProfile(markdown: markdown, updatedAt: Date(), documentCount: used.count,
+                                   edited: profile?.edited ?? false,
+                                   sources: Dictionary(grouping: used, by: \.source).mapValues(\.count))
             try KaiProfileStore.standard.save(built)
             profile = built
             return true

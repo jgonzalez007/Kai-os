@@ -148,10 +148,10 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
     }
 
     /// Documents for browsing and the graph, newest first, each with its text joined from the stored chunks.
-    public func documents(limit: Int = 300, maxText: Int = 4_000) throws -> [KaiKnowledgeDocument] {
+    public func documents(limit: Int = 300, maxText: Int = 4_000, source: String? = nil) throws -> [KaiKnowledgeDocument] {
         lock.lock(); defer { lock.unlock() }
-        let heads = try rows("SELECT id, source, source_id, title, modified, fingerprint FROM documents ORDER BY COALESCE(modified, 0) DESC, id DESC LIMIT ?",
-                             [max(limit, 1)]) { row in
+        let heads = try rows("SELECT id, source, source_id, title, modified, fingerprint FROM documents " + (source == nil ? "" : "WHERE source = ? ") + "ORDER BY COALESCE(modified, 0) DESC, id DESC LIMIT ?",
+                             (source.map { [$0] } ?? []) + [max(limit, 1)]) { row in
             (id: row.int(0), source: row.text(1), sourceID: row.text(2), title: row.text(3),
              modified: row.isNull(4) ? nil : Date(timeIntervalSince1970: row.double(4)), fingerprint: row.text(5))
         }
@@ -160,6 +160,18 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
             return KaiKnowledgeDocument(source: head.source, sourceID: head.sourceID, title: head.title,
                                         text: String(parts.joined(separator: "\n").prefix(maxText)), modified: head.modified, fingerprint: head.fingerprint)
         }
+    }
+
+    /// Some of every source, newest first within each, dealt out one source after another. Newest-first over everything
+    /// would be all Slack on a busy workspace, and the graph and the portrait would never see mail, calendar or notes.
+    public func balancedDocuments(perSource: Int = 60, maxText: Int = 4_000) throws -> [KaiKnowledgeDocument] {
+        let names = try counts().keys.sorted()
+        let lists = try names.map { try documents(limit: perSource, maxText: maxText, source: $0) }
+        var out: [KaiKnowledgeDocument] = []
+        for index in 0..<(lists.map(\.count).max() ?? 0) {
+            for list in lists where index < list.count { out.append(list[index]) }
+        }
+        return out
     }
 
     /// Best chunk per document, most relevant first. Every word must match; if nothing does,

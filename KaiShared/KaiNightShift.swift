@@ -80,16 +80,32 @@ public struct KaiNightShiftRecord: Codable, Equatable, Sendable {
         case failed(String)
     }
 
+    /// What one source gave: how many of its documents are in the knowledge base now, and why not, if it gave none.
+    public struct SourceResult: Codable, Equatable, Sendable {
+        public var name: String
+        public var count: Int
+        public var note: String?
+
+        public init(name: String, count: Int, note: String? = nil) {
+            self.name = name; self.count = count; self.note = note
+        }
+
+        public var line: String { note.map { "\(name): \(count). \($0)" } ?? "\(name): \(count)" }
+    }
+
     public var ranAt: Date
     public var outcome: Outcome
     public var documentsIndexed: Int
     public var cardsPrepared: Int
+    /// Older records have none.
+    public var sources: [SourceResult]?
 
-    public init(ranAt: Date, outcome: Outcome, documentsIndexed: Int = 0, cardsPrepared: Int = 0) {
+    public init(ranAt: Date, outcome: Outcome, documentsIndexed: Int = 0, cardsPrepared: Int = 0, sources: [SourceResult]? = nil) {
         self.ranAt = ranAt
         self.outcome = outcome
         self.documentsIndexed = documentsIndexed
         self.cardsPrepared = cardsPrepared
+        self.sources = sources
     }
 
     public var summary: String {

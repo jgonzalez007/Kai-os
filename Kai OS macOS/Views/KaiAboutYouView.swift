@@ -89,7 +89,8 @@ struct KaiAboutYouView: View {
     private var subtitle: String {
         guard let profile = appState.profile else { return "Not written yet" }
         let when = profile.updatedAt.formatted(date: .abbreviated, time: .shortened)
-        return "From \(profile.documentCount) documents · updated \(when)" + (profile.edited ? " · includes your corrections" : "")
+        let parts = (profile.sources ?? [:]).sorted { $0.key < $1.key }.map { "\(KaiKnowledgeView.label(for: $0.key)) \($0.value)" }.joined(separator: ", ")
+        return "From \(profile.documentCount) documents" + (parts.isEmpty ? "" : " (\(parts))") + " · updated \(when)" + (profile.edited ? " · includes your corrections" : "")
     }
 
     private var empty: some View {

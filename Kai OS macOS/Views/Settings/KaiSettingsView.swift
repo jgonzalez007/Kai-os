@@ -744,6 +744,17 @@ struct KaiSettingsView: View {
             if let record = appState.nightShiftRecord {
                 Text(record.ranAt.formatted(date: .complete, time: .shortened)).fontWeight(.semibold)
                 Text(record.summary).font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                if let sources = record.sources, !sources.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
+                            HStack(alignment: .top, spacing: 6) {
+                                Image(systemName: source.note == nil ? "checkmark.circle.fill" : "exclamationmark.circle")
+                                    .foregroundStyle(source.note == nil ? KaiColor.cyan : KaiColor.warning).font(.caption)
+                                Text(source.line).font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                            }
+                        }
+                    }
+                }
                 HStack(spacing: 10) {
                     Button("See the cards") { appState.activeSidebar = "ForYou" }
                         .buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small)

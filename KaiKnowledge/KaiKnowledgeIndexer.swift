@@ -59,6 +59,10 @@ public enum KaiKnowledgeIndexer {
         if !event.isAllDay { lines.append("Until: \(event.end.formatted(date: .omitted, time: .shortened))") }
         if !event.location.isEmpty { lines.append("Where: \(event.location)") }
         if !event.calendarName.isEmpty { lines.append("Calendar: \(event.calendarName)") }
+        let people = event.attendees.filter { !$0.isMe }.map(\.name).prefix(12)
+        if !people.isEmpty { lines.append("With: \(people.joined(separator: ", "))") }
+        if event.isRecurring { lines.append("Repeats") }
+        if !event.notes.isEmpty { lines.append("Notes: \(String(event.notes.prefix(600)))") }
         let text = lines.joined(separator: "\n\n")
         return KaiKnowledgeDocument(source: calendarSource, sourceID: event.id, title: event.title, text: text,
                                     modified: event.start, fingerprint: hash(text))

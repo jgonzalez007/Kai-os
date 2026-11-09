@@ -74,13 +74,13 @@ enum KaiNightShiftRunner {
             let deadline = Date().addingTimeInterval(15 * 60)
             while briefing.isGenerating, Date() < deadline { try? await Task.sleep(for: .milliseconds(500)) }
             if let message = briefing.errorMessage {
-                return KaiNightShiftRecord(ranAt: now, outcome: .failed(message), documentsIndexed: indexed, cardsPrepared: 0)
+                return KaiNightShiftRecord(ranAt: now, outcome: .failed(message), documentsIndexed: indexed, cardsPrepared: 0, sources: result.sourceResults)
             }
         }
         if !result.failures.isEmpty, result.report.total == 0 {
-            return KaiNightShiftRecord(ranAt: now, outcome: .failed(result.failures.joined(separator: " ")), documentsIndexed: indexed, cardsPrepared: 0)
+            return KaiNightShiftRecord(ranAt: now, outcome: .failed(result.failures.joined(separator: " ")), documentsIndexed: indexed, cardsPrepared: 0, sources: result.sourceResults)
         }
-        return KaiNightShiftRecord(ranAt: now, outcome: .completed, documentsIndexed: indexed, cardsPrepared: briefing.activeCards.count)
+        return KaiNightShiftRecord(ranAt: now, outcome: .completed, documentsIndexed: indexed, cardsPrepared: briefing.activeCards.count, sources: result.sourceResults)
     }
 }
 
