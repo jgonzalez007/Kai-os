@@ -22,6 +22,8 @@ struct KaiSettingsView: View {
     @AppStorage(KaiNotchPreferences.menuBarKey) private var menuBar = true
     @AppStorage(KaiNotchPreferences.clickKey) private var clickOpens = true
     @AppStorage(KaiWebPreferences.key) private var webLookups = true
+    @State private var braveDraft = ""
+    @State private var braveSaved = (KaiKeychain.cachedApiKey(for: "brave") ?? nil) != nil
     @AppStorage(KaiSharedKey.defaultsKey) private var sharedKey = KaiSharedKey.default.rawValue
     @AppStorage(KaiInstructions.defaultsKey) private var instructions = ""
     @AppStorage(KaiAgentEffort.defaultsKey) private var effort = KaiAgentEffort.default.rawValue
@@ -224,9 +226,36 @@ struct KaiSettingsView: View {
                 settingsCard {
                     SectionHeader(title: "Web lookups")
                     Toggle("Let Kai look things up on the web", isOn: $webLookups)
+                    HStack(spacing: 6) {
+                        Image(systemName: braveSaved ? "checkmark.seal.fill" : "magnifyingglass")
+                            .foregroundStyle(braveSaved ? KaiColor.cyan : KaiColor.textTertiary)
+                        Text(braveSaved ? "Searching with Brave Search (your key)" : "Searching with DuckDuckGo (no key)")
+                            .font(KaiFont.caption)
+                    }
+                    if braveSaved {
+                        Button("Remove the Brave key") {
+                            KaiKeychain.deleteApiKey(for: AppState.braveKeychainName)
+                            braveSaved = false
+                        }
+                        .controlSize(.small)
+                    } else {
+                        HStack {
+                            SecureField("Brave Search API key (optional)", text: $braveDraft).kaiInput()
+                            Button("Save") {
+                                let key = braveDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !key.isEmpty else { return }
+                                braveSaved = KaiKeychain.setApiKey(key, for: AppState.braveKeychainName)
+                                braveDraft = ""
+                            }
+                            .controlSize(.small)
+                        }
+                    }
+                    Text("DuckDuckGo works without a key, but on a shared or office network it can ask for a human check and refuse searches. A free key from brave.com/search/api (2,000 searches a month) avoids that. The key is kept in your Keychain and sent only to Brave.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                     Text("Kai can search the web and read a page when you ask about something current. Only the search words go to DuckDuckGo, and a page is fetched only if it came from a search result or you wrote the link. Kai never opens addresses on this Mac or your local network, sends no cookies, and treats what it reads as information, not instructions. Turn this off to keep every question on this Mac.")
                         .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                 }
+                .onAppear { braveSaved = (KaiKeychain.cachedApiKey(for: AppState.braveKeychainName) ?? nil) != nil }
                 }
 
                 if page == .ai {

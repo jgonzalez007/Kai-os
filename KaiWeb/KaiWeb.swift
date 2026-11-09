@@ -31,6 +31,8 @@ public enum KaiWebError: LocalizedError, Equatable, Sendable {
     case notReadable(String)
     case http(Int)
     case network(String)
+    /// The search engine wants proof of a human, which happens on shared or office networks.
+    case searchBlocked(usingKey: Bool)
 
     public var errorDescription: String? {
         switch self {
@@ -40,6 +42,10 @@ public enum KaiWebError: LocalizedError, Equatable, Sendable {
         case .notReadable(let kind): return "That link is \(kind), not a web page I can read."
         case .http(let status): return "The site answered with an error (\(status))."
         case .network(let message): return "I couldn't reach the web: \(message)"
+        case .searchBlocked(let usingKey):
+            return usingKey
+                ? "The search service did not accept the request. Check the Brave Search key in Preferences → AI Models & Accounts → Web lookups."
+                : "The search engine is asking for a human check from this network, so automatic searches are blocked for now. A free Brave Search key in Preferences → AI Models & Accounts → Web lookups fixes this."
         }
     }
 }
@@ -135,6 +141,30 @@ public enum KaiWebSearchPage {
             return KaiWebURL.validate(target)
         }
         return KaiWebURL.validate(text)
+    }
+}
+
+public extension KaiWebSearchPage {
+    /// True for the page a search engine shows instead of results when it suspects a robot.
+    static func isChallenge(status: Int, html: String) -> Bool {
+        if status == 202 || status == 403 || status == 429 { return true }
+        let lower = html.lowercased()
+        return lower.contains("anomaly-modal") || lower.contains("unusual traffic") || (lower.contains("captcha") && !lower.contains("result__a"))
+    }
+
+    /// Reads the answer of the Brave Search API: web.results with title, url and description.
+    static func parseBrave(_ data: Data, limit: Int = 6) -> [KaiWebResult] {
+        guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let web = root["web"] as? [String: Any], let list = web["results"] as? [[String: Any]] else { return [] }
+        var out: [KaiWebResult] = []
+        for item in list {
+            guard let address = item["url"] as? String, let url = KaiWebURL.validate(address),
+                  let title = (item["title"] as? String).map { KaiWebText.plain($0) }, !title.isEmpty else { continue }
+            let snippet = (item["description"] as? String).map { KaiWebText.plain($0) } ?? ""
+            out.append(KaiWebResult(title: title, url: url, snippet: String(snippet.prefix(300))))
+            if out.count == limit { break }
+        }
+        return out
     }
 }
 
@@ -266,8 +296,12 @@ public final class KaiWebSession: @unchecked Sendable {
     private let lock = NSLock()
     private var allowed = Set<String>()
 
-    public init(transport: KaiWebTransport = KaiURLSessionTransport()) {
+    /// A Brave Search API key, if the person added one. Read each time, and never from the Keychain directly.
+    private let braveKey: @Sendable () -> String?
+
+    public init(transport: KaiWebTransport = KaiURLSessionTransport(), braveKey: @escaping @Sendable () -> String? = { nil }) {
         self.transport = transport
+        self.braveKey = braveKey
     }
 
     private func key(_ url: URL) -> String { url.absoluteString.lowercased() }
@@ -281,6 +315,29 @@ public final class KaiWebSession: @unchecked Sendable {
     public func search(_ query: String) async throws -> [KaiWebResult] {
         let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty else { return [] }
+        let results: [KaiWebResult]
+        if let key = braveKey()?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
+            results = try await searchBrave(q, key: key)
+        } else {
+            results = try await searchDuckDuckGo(q)
+        }
+        results.forEach { allow($0.url) }
+        return results
+    }
+
+    private func searchBrave(_ q: String, key: String) async throws -> [KaiWebResult] {
+        var components = URLComponents(string: "https://api.search.brave.com/res/v1/web/search")!
+        components.queryItems = [URLQueryItem(name: "q", value: String(q.prefix(300))), URLQueryItem(name: "count", value: "6")]
+        var request = URLRequest(url: components.url!)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(key, forHTTPHeaderField: "X-Subscription-Token")
+        let (data, response) = try await send(request)
+        if [401, 403, 422, 429].contains(response.statusCode) { throw KaiWebError.searchBlocked(usingKey: true) }
+        guard (200..<300).contains(response.statusCode) else { throw KaiWebError.http(response.statusCode) }
+        return KaiWebSearchPage.parseBrave(data)
+    }
+
+    private func searchDuckDuckGo(_ q: String) async throws -> [KaiWebResult] {
         var request = URLRequest(url: URL(string: "https://html.duckduckgo.com/html/")!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -289,10 +346,10 @@ public final class KaiWebSession: @unchecked Sendable {
         form.queryItems = [URLQueryItem(name: "q", value: String(q.prefix(300)))]
         request.httpBody = form.percentEncodedQuery?.data(using: .utf8)
         let (data, response) = try await send(request)
+        let html = String(decoding: data, as: UTF8.self)
+        if KaiWebSearchPage.isChallenge(status: response.statusCode, html: html) { throw KaiWebError.searchBlocked(usingKey: false) }
         guard (200..<300).contains(response.statusCode) else { throw KaiWebError.http(response.statusCode) }
-        let results = KaiWebSearchPage.parse(String(decoding: data, as: UTF8.self))
-        results.forEach { allow($0.url) }
-        return results
+        return KaiWebSearchPage.parse(html)
     }
 
     /// The text of one page, with its title first.

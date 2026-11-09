@@ -2581,6 +2581,44 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testWebSearchBackends() async throws {
+        let brave = #"{"web":{"results":[{"title":"Best <strong>Airbnbs</strong> in Austin","url":"https://example.com/austin","description":"A list of the <strong>top</strong> places."},{"title":"Local","url":"http://localhost/x","description":"no"},{"title":"","url":"https://empty.example","description":"no title"}]}}"#
+        check("the Brave answer is read: titles and snippets as text, local and untitled results dropped") {
+            let r = KaiWebSearchPage.parseBrave(Data(brave.utf8))
+            return r.count == 1 && r[0].title == "Best Airbnbs in Austin" && r[0].snippet == "A list of the top places." && r[0].url.host == "example.com"
+        }
+        check("a broken Brave answer gives no results") { KaiWebSearchPage.parseBrave(Data("nope".utf8)).isEmpty }
+        check("a search engine's robot check is recognized, and real results are not mistaken for one") {
+            KaiWebSearchPage.isChallenge(status: 202, html: "")
+                && KaiWebSearchPage.isChallenge(status: 200, html: "<div class=\"anomaly-modal\">Unfortunately, bots use DuckDuckGo too</div>")
+                && !KaiWebSearchPage.isChallenge(status: 200, html: "<a class=\"result__a\" href=\"https://e.com\">x</a> captcha tips")
+        }
+        await checkAsync("a robot check from DuckDuckGo says so instead of reporting 'nothing found'") {
+            let web = FakeWeb(["https://html.duckduckgo.com/html/": (202, "text/html", "<div class=\"anomaly-modal\"></div>")])
+            do { _ = try await KaiWebSession(transport: web).search("anything"); return false }
+            catch { return (error as? KaiWebError) == .searchBlocked(usingKey: false) }
+        }
+        await checkAsync("with a Brave key the search goes to Brave with the key in a header, not in the address, and allows its results") {
+            let web = FakeWeb(["https://api.search.brave.com/res/v1/web/search?q=austin%20stays&count=6": (200, "application/json", brave)])
+            let session = KaiWebSession(transport: web, braveKey: { " secret-key " })
+            let results = try await session.search("austin stays")
+            let request = web.requests.first
+            return results.count == 1 && request?.value(forHTTPHeaderField: "X-Subscription-Token") == "secret-key"
+                && !(request?.url?.absoluteString.contains("secret-key") ?? true) && session.isAllowed(URL(string: "https://example.com/austin")!)
+                && !web.requests.contains { $0.url?.host?.contains("duckduckgo") == true }
+        }
+        await checkAsync("a rejected Brave key says to check the key") {
+            let web = FakeWeb(["https://api.search.brave.com/res/v1/web/search?q=x&count=6": (401, "application/json", "{}")])
+            do { _ = try await KaiWebSession(transport: web, braveKey: { "bad" }).search("x"); return false }
+            catch { return (error as? KaiWebError) == .searchBlocked(usingKey: true) && (error.localizedDescription).contains("Brave Search key") }
+        }
+        await checkAsync("an empty key falls back to DuckDuckGo") {
+            let web = FakeWeb(["https://html.duckduckgo.com/html/": (200, "text/html", "<a class=\"result__a\" href=\"https://e.com/p\">Page</a>")])
+            let results = try await KaiWebSession(transport: web, braveKey: { "  " }).search("x")
+            return results.count == 1 && web.requests.first?.url?.host == "html.duckduckgo.com"
+        }
+    }
+
     // MARK: Setup guide and updates
 
     func testSetupAndUpdates() async throws {
