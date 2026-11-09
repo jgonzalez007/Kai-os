@@ -8,6 +8,7 @@
 
 import KaiAgent
 import KaiDesk
+import KaiKnowledge
 import KaiWeb
 import KaiNotchCore
 import SwiftUI
@@ -359,6 +360,8 @@ struct KaiSettingsView: View {
 
                 if page == .knowledge { sourceGrid }
 
+                if page == .knowledge { manualNoteCard }
+
                 if page == .knowledge {
                 // ── Slack ──
                 settingsCard {
@@ -428,6 +431,8 @@ struct KaiSettingsView: View {
                 .onAppear { appState.refreshKnowledgeCounts() }
 
                 }
+
+                if page == .overnight { lastRunCard }
 
                 if page == .overnight {
                 // ── Night Shift ──
@@ -643,6 +648,82 @@ struct KaiSettingsView: View {
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .kaiLiquidGlass(accent, radius: 20, glow: 0.18)
+    }
+
+    // ── Something typed in by hand ──
+    @State private var manualTitle = ""
+    @State private var manualText = ""
+    @State private var manualMessage: String?
+    @State private var manualOK = true
+    @State private var manualSaving = false
+
+    private var manualNoteCard: some View {
+        settingsCard {
+            SectionHeader(title: "Add something Kai should know")
+            Text("Type a fact, a preference, a plan or a note. Kai saves it as a Markdown file in your knowledge folder (Added by me) and can find it when you ask. You can read, edit or delete the file yourself.")
+                .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+            TextField("Title (optional)", text: $manualTitle).kaiInput()
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $manualText)
+                    .scrollContentBackground(.hidden)
+                    .font(.system(size: 14))
+                    .padding(8)
+                    .frame(height: 130)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.4)))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    .onChange(of: manualText) { _, value in
+                        if value.count > KaiManualNote.maxLength { manualText = String(value.prefix(KaiManualNote.maxLength)) }
+                    }
+                if manualText.isEmpty {
+                    Text("For example: My passport expires in March 2027. Or: I prefer window seats and morning flights.")
+                        .foregroundStyle(.secondary.opacity(0.7)).padding(.horizontal, 14).padding(.vertical, 16).allowsHitTesting(false)
+                }
+            }
+            HStack {
+                Button(manualSaving ? "Adding…" : "Add to knowledge") {
+                    manualSaving = true
+                    Task {
+                        let result = await appState.addManualKnowledge(title: manualTitle, text: manualText)
+                        manualMessage = result.message
+                        manualOK = result.ok
+                        if result.ok { manualTitle = ""; manualText = "" }
+                        manualSaving = false
+                    }
+                }
+                .buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small)
+                .disabled(manualSaving || manualText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                Button("Open the folder") { appState.openKnowledgeFolder() }.controlSize(.small)
+                Spacer()
+                Text("\(manualText.count) of \(KaiManualNote.maxLength)").font(.caption).foregroundStyle(.secondary)
+            }
+            if let manualMessage {
+                Text(manualMessage).font(KaiFont.caption).foregroundStyle(manualOK ? KaiColor.cyan : KaiColor.warning)
+            }
+        }
+    }
+
+    // ── Last night's result ──
+    private var lastRunCard: some View {
+        settingsCard(accent: KaiColor.magenta) {
+            SectionHeader(title: "Last run")
+            if let record = appState.nightShiftRecord {
+                Text(record.ranAt.formatted(date: .complete, time: .shortened)).fontWeight(.semibold)
+                Text(record.summary).font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                HStack(spacing: 10) {
+                    Button("See the cards") { appState.activeSidebar = "ForYou" }
+                        .buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small)
+                    Button("Open the log") {
+                        NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Kai OS/night-shift.log"))
+                    }
+                    .controlSize(.small)
+                    Button("Open the knowledge folder") { appState.openKnowledgeFolder() }.controlSize(.small)
+                }
+            } else {
+                Text("Night Shift has not run yet.").font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+            }
+            Text("What a run leaves behind: the morning cards (open For You in the sidebar), the updated knowledge base (search it from chat, or look at the files in your knowledge folder), and this summary. The log has the details of each run.")
+                .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+        }
     }
 
     // ── Web search service ──

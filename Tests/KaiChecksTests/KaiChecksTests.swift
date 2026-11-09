@@ -2626,6 +2626,48 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testManualNotes() async throws {
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        check("a note's file name is a safe slug with a time stamp") {
+            let name = KaiManualNote.fileName(title: "Trip ideas: Austin & Dallas!", date: date, calendar: Calendar(identifier: .gregorian))
+            return name.hasSuffix("-trip-ideas-austin-dallas.md") && name.hasPrefix("20") && !name.contains("/") && !name.contains(" ")
+        }
+        check("a title that tries to leave the folder cannot") {
+            let name = KaiManualNote.fileName(title: "../../etc/passwd", date: date)
+            return !name.contains("/") && !name.contains("..") && name.hasSuffix("-etc-passwd.md")
+        }
+        check("an unnameable title still gets a name") { KaiManualNote.fileName(title: "???", date: date).hasSuffix("-note.md") }
+        check("the title is the one given, or the first line of the text, cut short") {
+            KaiManualNote.title("Plans", text: "x") == "Plans" && KaiManualNote.title("", text: "First line\nSecond") == "First line"
+                && KaiManualNote.title("", text: String(repeating: "a", count: 200)).count == KaiManualNote.maxTitle + 1
+        }
+        check("the note text loses control characters and is cut to the limit") {
+            KaiManualNote.clean("a\u{0007}b\nc") == "ab\nc" && KaiManualNote.clean(String(repeating: "x", count: 30_000)).count == KaiManualNote.maxLength
+        }
+        check("a note is Markdown with its title as the heading") {
+            KaiManualNote.markdown(title: "Plans", text: "Go west.") == "# Plans\n\nGo west.\n"
+        }
+        check("writing saves the note under Added by me, never overwrites, and refuses an empty note") {
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("kai-note-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let a = try KaiManualNote.write(title: "Plans", text: "Go west.", in: folder, date: date)
+            let b = try KaiManualNote.write(title: "Plans", text: "Go east.", in: folder, date: date)
+            var refused = false
+            do { _ = try KaiManualNote.write(title: "x", text: "   ", in: folder) } catch { refused = (error as? KaiManualNote.Failure) == .empty }
+            let textA = try String(contentsOf: a, encoding: .utf8), textB = try String(contentsOf: b, encoding: .utf8)
+            return a != b && a.deletingLastPathComponent().lastPathComponent == "Added by me"
+                && textA.contains("Go west.") && textB.contains("Go east.") && refused
+        }
+        check("a saved note is found by the knowledge search after indexing") {
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("kai-note-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: folder) }
+            try KaiManualNote.write(title: "Storage unit", text: "The red suitcase is in locker 42.", in: folder)
+            let store = try KaiKnowledgeStore(url: folder.appendingPathComponent("k.sqlite"))
+            _ = try KaiKnowledgeIndexer.indexFolder(folder, into: store)
+            return try !store.search("suitcase", limit: 3).isEmpty
+        }
+    }
+
     // MARK: Setup guide and updates
 
     func testSetupAndUpdates() async throws {

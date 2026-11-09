@@ -293,8 +293,7 @@ private struct KaiCloneCard: View {
                 if clone.waitingForYou {
                     Circle().fill(Color.orange.opacity(0.28)).blur(radius: 8).frame(width: 52, height: 52)
                 }
-                KaiSpinningLogo(spinning: !clone.waitingForYou)
-                    .font(.system(size: 26))
+                KaiLogoMark(size: 30, pulsing: !clone.waitingForYou)
             }
             .frame(width: 52, height: 44)
             Text(clone.label).font(.callout).lineLimit(1).frame(maxWidth: 76)

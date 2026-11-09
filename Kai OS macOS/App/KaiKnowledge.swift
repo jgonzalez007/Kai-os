@@ -47,6 +47,18 @@ extension AppState {
         Task { _ = await indexKnowledgeNow() }
     }
 
+    /// Saves something the person typed as a Markdown file in the knowledge folder, then indexes it so Kai can find it.
+    /// Returns a line to show, and whether it worked.
+    func addManualKnowledge(title: String, text: String) async -> (message: String, ok: Bool) {
+        do {
+            let file = try KaiManualNote.write(title: title, text: text, in: knowledgeFolder)
+            _ = await indexKnowledgeNow(sources: [.files])
+            return ("Added “\(file.deletingPathExtension().lastPathComponent)”. Kai can find it now.", true)
+        } catch {
+            return (error.localizedDescription, false)
+        }
+    }
+
     /// The awaitable form, used by the button and by Night Shift. Returns what was read and what failed.
     func indexKnowledgeNow(folder: URL? = nil, sources chosen: Set<KaiNightShiftSource>? = nil) async -> (report: KaiIndexReport, failures: [String]) {
         guard !isIndexingKnowledge, let store = openKnowledgeStore() else { return (KaiIndexReport(), []) }

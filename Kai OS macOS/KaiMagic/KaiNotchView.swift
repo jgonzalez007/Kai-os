@@ -92,8 +92,7 @@ struct KaiNotchView: View {
             }
         }()
         return HStack(spacing: 0) {
-            Image(systemName: "sparkle").font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.7))
+            KaiLogoMark(size: 15)
                 .frame(width: KaiNotchLayout.statusWingWidth)
             Spacer(minLength: 0)
             Circle().fill(color).frame(width: 7, height: 7)
@@ -125,7 +124,7 @@ struct KaiNotchView: View {
                 Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
                     .transition(motion ? .scale(scale: 0.2).combined(with: .opacity) : .identity)
             case .idle, .running:
-                KaiSpinningLogo(spinning: model.activity == .running)
+                KaiLogoMark(size: 18, pulsing: model.activity == .running)
                     .transition(motion ? .scale(scale: 0.2).combined(with: .opacity) : .identity)
             }
         }
