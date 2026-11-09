@@ -84,11 +84,13 @@ enum KaiPageSnapshots {
             ## Not sure yet
             - Which projects at work come first this quarter?
             """, updatedAt: Date(), documentCount: 42, edited: true)
+            AppState.shared.calendarConnected = true
             // Health and Permissions, as full pages.
             let others: [(String, AnyView)] = [
                 ("home", AnyView(KaiMainViewForSnapshot())),
                 ("knowledge-page", AnyView(KaiMainViewForSnapshot(page: "Knowledge"))),
                 ("knowledge-graph", AnyView(KaiMainViewForSnapshot(page: "Knowledge", graph: true))),
+                ("calendar-page", AnyView(KaiMainViewForSnapshot(page: "Calendar"))),
                 ("sidekick-page", AnyView(KaiMainViewForSnapshot(page: "Sidekick"))),
                 ("health", AnyView(KaiHealthView(briefing: AppState.shared.morningCards).environmentObject(AppState.shared))),
                 ("permissions", AnyView(KaiPermissionsView(permissions: .shared).environmentObject(AppState.shared)))

@@ -154,6 +154,23 @@ enum KaiAppleScriptRecords {
 
 // MARK: - Calendar
 
+public struct KaiCalendarColor: Equatable, Sendable {
+    public let red: Double, green: Double, blue: Double
+    public init(red: Double, green: Double, blue: Double) { self.red = red; self.green = green; self.blue = blue }
+}
+
+public struct KaiCalendarAttendee: Equatable, Sendable {
+    public enum Response: String, Sendable { case accepted, declined, maybe, noReply }
+    public let name: String
+    public let response: Response
+    public let isOrganizer: Bool
+    public let isMe: Bool
+
+    public init(name: String, response: Response, isOrganizer: Bool, isMe: Bool) {
+        self.name = name; self.response = response; self.isOrganizer = isOrganizer; self.isMe = isMe
+    }
+}
+
 public struct KaiCalendarItem: Identifiable, Equatable, Sendable {
     public let id: String
     public let title: String
@@ -162,6 +179,60 @@ public struct KaiCalendarItem: Identifiable, Equatable, Sendable {
     public let isAllDay: Bool
     public let location: String
     public let calendarName: String
+    public var calendarColor: KaiCalendarColor?
+    /// The event's notes as plain text (tags and entities removed, cut to a sensible length).
+    public var notes: String
+    public var url: URL?
+    /// A video call link found in the event's link, location or notes.
+    public var joinLink: URL?
+    public var attendees: [KaiCalendarAttendee]
+    public var isRecurring: Bool
+    public var isCancelled: Bool
+    public var isTentative: Bool
+    public var showsAsFree: Bool
+    /// How long before the start the first reminder goes off, in minutes.
+    public var reminderMinutes: Int?
+
+    public init(id: String, title: String, start: Date, end: Date, isAllDay: Bool, location: String, calendarName: String,
+                calendarColor: KaiCalendarColor? = nil, notes: String = "", url: URL? = nil, joinLink: URL? = nil,
+                attendees: [KaiCalendarAttendee] = [], isRecurring: Bool = false, isCancelled: Bool = false,
+                isTentative: Bool = false, showsAsFree: Bool = false, reminderMinutes: Int? = nil) {
+        self.id = id; self.title = title; self.start = start; self.end = end; self.isAllDay = isAllDay
+        self.location = location; self.calendarName = calendarName; self.calendarColor = calendarColor
+        self.notes = notes; self.url = url; self.joinLink = joinLink; self.attendees = attendees
+        self.isRecurring = isRecurring; self.isCancelled = isCancelled; self.isTentative = isTentative
+        self.showsAsFree = showsAsFree; self.reminderMinutes = reminderMinutes
+    }
+}
+
+/// Reading what an event holds: the video call link, and notes without markup.
+public enum KaiCalendarDetails {
+    static let callHosts = ["zoom.us", "teams.microsoft.com", "teams.live.com", "meet.google.com", "webex.com", "whereby.com", "gotomeeting.com", "bluejeans.com"]
+
+    /// The first link to a known video call service in the given texts. Only https links count.
+    public static func joinLink(in texts: [String?]) -> URL? {
+        for text in texts.compactMap({ $0 }) {
+            let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+            let range = NSRange(text.startIndex..., in: text)
+            for match in detector?.matches(in: text, options: [], range: range) ?? [] {
+                guard let url = match.url, url.scheme == "https", let host = url.host?.lowercased() else { continue }
+                if callHosts.contains(where: { host == $0 || host.hasSuffix("." + $0) }) { return url }
+            }
+        }
+        return nil
+    }
+
+    /// Calendar notes often arrive as HTML. This keeps the words, with paragraphs as line breaks.
+    public static func plainNotes(_ raw: String?, limit: Int = 4_000) -> String {
+        guard var text = raw, !text.isEmpty else { return "" }
+        text = text.replacingOccurrences(of: "<br\\s*/?>|</p>|</div>|</li>", with: "\n", options: [.regularExpression, .caseInsensitive])
+        text = text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        for (entity, character) in [("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"), ("&quot;", "\""), ("&#39;", "'")] {
+            text = text.replacingOccurrences(of: entity, with: character)
+        }
+        text = text.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+        return String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(limit))
+    }
 }
 
 public enum KaiCalendarAccess: Sendable {
@@ -189,14 +260,37 @@ public enum KaiCalendarSource {
         return store.events(matching: predicate)
             .sorted { $0.startDate < $1.startDate }
             .map { event in
-                KaiCalendarItem(
+                let color = event.calendar?.cgColor.flatMap { $0.converted(to: CGColorSpace(name: CGColorSpace.sRGB)!, intent: .defaultIntent, options: nil) }
+                let parts = color?.components ?? []
+                let attendees: [KaiCalendarAttendee] = (event.attendees ?? []).map { person in
+                    let response: KaiCalendarAttendee.Response
+                    switch person.participantStatus {
+                    case .accepted: response = .accepted
+                    case .declined: response = .declined
+                    case .tentative: response = .maybe
+                    default: response = .noReply
+                    }
+                    return KaiCalendarAttendee(name: person.name ?? "Unknown", response: response,
+                                               isOrganizer: person.participantRole == .chair, isMe: person.isCurrentUser)
+                }
+                return KaiCalendarItem(
                     id: event.eventIdentifier ?? UUID().uuidString,
                     title: event.title ?? "Untitled",
                     start: event.startDate,
                     end: event.endDate,
                     isAllDay: event.isAllDay,
                     location: event.location ?? "",
-                    calendarName: event.calendar?.title ?? ""
+                    calendarName: event.calendar?.title ?? "",
+                    calendarColor: parts.count >= 3 ? KaiCalendarColor(red: parts[0], green: parts[1], blue: parts[2]) : nil,
+                    notes: KaiCalendarDetails.plainNotes(event.notes),
+                    url: event.url,
+                    joinLink: KaiCalendarDetails.joinLink(in: [event.url?.absoluteString, event.location, event.notes]),
+                    attendees: attendees,
+                    isRecurring: event.hasRecurrenceRules,
+                    isCancelled: event.status == .canceled,
+                    isTentative: event.status == .tentative,
+                    showsAsFree: event.availability == .free,
+                    reminderMinutes: event.alarms?.first.map { Int(-$0.relativeOffset / 60) }
                 )
             }
     }

@@ -2668,6 +2668,21 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testCalendarDetails() async throws {
+        check("a video call link is found in the link, location or notes, https only, known services only") {
+            KaiCalendarDetails.joinLink(in: [nil, "Join: https://acme.zoom.us/j/123?pwd=x please"])?.host == "acme.zoom.us"
+                && KaiCalendarDetails.joinLink(in: ["https://meet.google.com/abc-defg-hij"])?.host == "meet.google.com"
+                && KaiCalendarDetails.joinLink(in: ["http://zoom.us/j/1"]) == nil
+                && KaiCalendarDetails.joinLink(in: ["https://evil.example/zoom.us"]) == nil
+                && KaiCalendarDetails.joinLink(in: ["https://notzoom.us/j/1"]) == nil
+                && KaiCalendarDetails.joinLink(in: [nil, ""]) == nil
+        }
+        check("notes lose their markup but keep paragraphs and entities") {
+            KaiCalendarDetails.plainNotes("<p>Agenda &amp; goals</p><p>One<br>Two</p>") == "Agenda & goals\nOne\nTwo"
+                && KaiCalendarDetails.plainNotes(nil) == "" && KaiCalendarDetails.plainNotes(String(repeating: "a", count: 9_000)).count == 4_000
+        }
+    }
+
     func testProfile() async throws {
         func doc(_ source: String, _ id: String, _ text: String, days: Double = 0) -> KaiKnowledgeDocument {
             KaiKnowledgeDocument(source: source, sourceID: id, title: id, text: text, modified: Date(timeIntervalSince1970: 1_800_000_000 - days * 86_400), fingerprint: id)
