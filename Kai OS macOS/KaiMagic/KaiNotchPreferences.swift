@@ -9,6 +9,7 @@ enum KaiNotchPreferences {
     static let enabledKey = "kai.notch.enabled"
     static let hoverOpenKey = "kai.notch.hoverOpen"
     static let statusKey = "kai.notch.status"
+    static let clockKey = "kai.notch.clock"
     static let hideFullScreenKey = "kai.notch.hideFullScreen"
     static let menuBarKey = "kai.menubar.enabled"
     static let peeksKey = "kai.notch.peeks"
@@ -22,6 +23,8 @@ enum KaiNotchPreferences {
     static var isEnabled: Bool { flag(enabledKey) }
     /// Hovering over the notch opens the panel after a short pause.
     static var hoverOpens: Bool { flag(hoverOpenKey, default: false) }
+    /// The sleeping notch is a little bigger and shows the time.
+    static var showsTime: Bool { flag(clockKey, default: true) }
     /// Slim strips beside the notch show Kai's status all the time.
     static var showsStatus: Bool { flag(statusKey, default: false) }
     /// Wings beside the notch for hover, activity and events. Off keeps the notch exactly its own size

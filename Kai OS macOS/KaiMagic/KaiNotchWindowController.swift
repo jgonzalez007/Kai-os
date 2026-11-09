@@ -51,6 +51,7 @@ final class KaiNotchModel: ObservableObject {
     @Published var hiddenForFullScreen = false
     /// Slim status strips stay beside the notch.
     @Published var showsStatus = KaiNotchPreferences.showsStatus { didSet { onSurfaceChange?() } }
+    @Published var showsTime = KaiNotchPreferences.showsTime { didSet { onSurfaceChange?() } }
     @Published var showsPeeks = KaiNotchPreferences.showsPeeks { didSet { onSurfaceChange?() } }
 
     var onSurfaceChange: (() -> Void)?
@@ -59,11 +60,13 @@ final class KaiNotchModel: ObservableObject {
         if isExpanded { return compact ? .bar : .expanded }
         if showsPeeks && (activity != .idle || peekText != nil) { return .peek }
         if isHovering && !hiddenForFullScreen { return .hover }
-        return showsStatus && !hiddenForFullScreen ? .status : .closed
+        if hiddenForFullScreen { return .closed }
+        if showsTime { return .clock }
+        return showsStatus ? .status : .closed
     }
 
     /// Where the shape is on screen right now (AppKit coordinates).
-    var shapeFrame: CGRect? { layout?.frame(for: surface, barExtra: barExtra) }
+    var shapeFrame: CGRect? { layout?.frame(for: surface, barExtra: barExtra, clock: showsTime) }
 }
 
 final class KaiNotchPanel: NSPanel {
@@ -366,6 +369,7 @@ final class KaiNotchWindowController: NSObject, NSWindowDelegate {
     /// Applies a changed preference without a restart.
     func preferencesChanged() {
         model.showsStatus = KaiNotchPreferences.showsStatus
+        model.showsTime = KaiNotchPreferences.showsTime
         model.showsPeeks = KaiNotchPreferences.showsPeeks
         updateFullScreen()
     }

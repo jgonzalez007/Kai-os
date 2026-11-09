@@ -109,6 +109,9 @@ enum KaiNotchSelfTest {
     }
 
     private static func run(appState: AppState, directory: URL) async {
+        // These checks measure the bare notch, so the clock is off while they run.
+        UserDefaults.standard.set(false, forKey: KaiNotchPreferences.clockKey)
+        KaiNotchWindowController.shared.preferencesChanged()
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var log: [String] = []
         var failures = 0

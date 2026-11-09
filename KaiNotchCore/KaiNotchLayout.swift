@@ -12,6 +12,8 @@ public enum KaiNotchSurface: Equatable, Sendable {
     case closed
     /// The closed notch swelling a little when the cursor is over it, like a button.
     case hover
+    /// A little wider and taller than the notch, with the time beside it, while Kai sleeps.
+    case clock
     /// Slim strips beside the notch that always show Kai's status.
     case status
     /// Black wings beside the notch that show activity.
@@ -25,6 +27,9 @@ public enum KaiNotchSurface: Equatable, Sendable {
 public struct KaiNotchLayout: Equatable, Sendable {
     public static let wingWidth: CGFloat = 72
     public static let statusWingWidth: CGFloat = 26
+    /// The sleeping notch with the time: this much wider on each side, and this much taller.
+    public static let clockWingWidth: CGFloat = 44
+    public static let clockExtraHeight: CGFloat = 4
     /// How much the notch swells while hovered.
     public static let hoverGrow = CGSize(width: 22, height: 3)
     /// Room around the biggest shape so spring overshoot and the glow are never clipped.
@@ -78,13 +83,18 @@ public struct KaiNotchLayout: Equatable, Sendable {
     }
 
     /// `barExtra` replaces the bar's default extra height, for a bar that grows to show a reply.
-    public func frame(for surface: KaiNotchSurface, barExtra: CGFloat? = nil) -> CGRect {
+    /// `clock` says the sleeping notch shows the time, so hover swells that shape and not the bare notch.
+    public func frame(for surface: KaiNotchSurface, barExtra: CGFloat? = nil, clock: Bool = false) -> CGRect {
         switch surface {
         case .hover:
-            let w = notch.width + Self.hoverGrow.width, h = notch.height + Self.hoverGrow.height
+            let base = clock ? frame(for: .clock) : notch
+            let w = base.width + Self.hoverGrow.width, h = base.height + Self.hoverGrow.height
             return CGRect(x: notch.midX - w / 2, y: screenFrame.maxY - h, width: w, height: h)
         case .closed:
             return notch
+        case .clock:
+            let w = notch.width + Self.clockWingWidth * 2, h = notch.height + Self.clockExtraHeight
+            return CGRect(x: notch.midX - w / 2, y: screenFrame.maxY - h, width: w, height: h)
         case .status:
             return notch.insetBy(dx: -Self.statusWingWidth, dy: 0)
         case .peek:

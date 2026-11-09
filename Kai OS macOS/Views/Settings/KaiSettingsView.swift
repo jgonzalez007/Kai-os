@@ -19,6 +19,7 @@ struct KaiSettingsView: View {
     @AppStorage("kai.notch.enabled") private var notchEnabled = true
     @AppStorage(KaiNotchPreferences.hoverOpenKey) private var hoverOpen = false
     @AppStorage(KaiNotchPreferences.statusKey) private var notchStatus = false
+    @AppStorage(KaiNotchPreferences.clockKey) private var notchClock = true
     @AppStorage(KaiNotchPreferences.peeksKey) private var notchPeeks = false
     @AppStorage(KaiNotchPreferences.hideFullScreenKey) private var hideFullScreen = true
     @AppStorage(KaiNotchPreferences.menuBarKey) private var menuBar = true
@@ -326,6 +327,10 @@ struct KaiSettingsView: View {
                         .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                     Toggle("Open when I hover over the notch", isOn: $hoverOpen)
                     Text("Hover for a moment and the panel opens, then closes when you move away. It stays open while you are typing, talking or answering a permission request. Clicking the notch or using the hotkey opens it and keeps it open.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                    Toggle("Show the time on the notch", isOn: $notchClock)
+                        .onChange(of: notchClock) { _, _ in KaiNotchWindowController.shared.preferencesChanged() }
+                    Text("While Kai sleeps the notch is a little bigger and shows the time, with the Kai mark on the left. Off keeps it exactly the size of the hardware notch.")
                         .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
                     Toggle("Show status beside the notch", isOn: $notchStatus)
                         .onChange(of: notchStatus) { _, _ in KaiNotchWindowController.shared.preferencesChanged() }

@@ -251,6 +251,9 @@ final class KaiChecksTests: XCTestCase {
 
         check("the closed frame matches the hardware notch") {
             macBook.hasHardwareNotch && macBook.frame(for: .closed) == CGRect(x: 668, y: 944, width: 176, height: 38)
+                && macBook.frame(for: .clock) == CGRect(x: 624, y: 940, width: 264, height: 42)
+                && macBook.frame(for: .hover, clock: true).width > macBook.frame(for: .clock).width
+                && macBook.frame(for: .hover).width == 176 + KaiNotchLayout.hoverGrow.width
         }
 
         check("a notch on a half point snaps to whole points and stays centered") {

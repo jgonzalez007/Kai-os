@@ -58,6 +58,8 @@ struct KaiNotchView: View {
                 wings.transition(.opacity)
             } else if model.surface == .status {
                 statusStrips.transition(.opacity)
+            } else if model.surface == .clock || (model.surface == .hover && model.showsTime) {
+                clockStrips.transition(.opacity)
             }
         }
         .frame(width: size.width, height: size.height)
@@ -101,6 +103,23 @@ struct KaiNotchView: View {
         }
         .frame(height: notchHeight)
         .help("Kai OS: \(summary.title)")
+    }
+
+    /// The sleeping notch: the Kai mark on the left, the time on the right.
+    private var clockStrips: some View {
+        HStack(spacing: 0) {
+            KaiLogoMark(size: 14).frame(width: KaiNotchLayout.clockWingWidth)
+            Spacer(minLength: 0)
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(context.date.formatted(.dateTime.hour(.defaultDigits(amPM: .omitted)).minute()))
+                    .font(.system(size: 12, weight: .medium, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+            .frame(width: KaiNotchLayout.clockWingWidth)
+            .padding(.trailing, 6)
+        }
+        .padding(.leading, 4)
+        .frame(height: notchHeight)
     }
 
     private var wings: some View {
