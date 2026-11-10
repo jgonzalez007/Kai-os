@@ -51,6 +51,8 @@ struct KaiKnowledgeView: View {
         }
         .padding(.horizontal, 28).padding(.bottom, 24)
         .task { if Self.startInGraph { mode = .graph }; await load() }
+        // A file or folder added in setup, or a fresh Index now, shows up here without leaving the page.
+        .onChange(of: appState.knowledgeCounts) { _, _ in Task { await load() } }
     }
 
     // MARK: Header
@@ -341,7 +343,7 @@ struct KaiKnowledgeView: View {
 
     static func color(for source: String) -> Color {
         switch source {
-        case KaiKnowledgeIndexer.folderSource: return KaiColor.cyan
+        case KaiKnowledgeIndexer.folderSource, KaiKnowledgeIndexer.extraFoldersSource: return KaiColor.cyan
         case KaiKnowledgeIndexer.notesSource: return Color(red: 1.0, green: 0.8, blue: 0.25)
         case KaiKnowledgeIndexer.calendarSource: return Color(red: 1.0, green: 0.38, blue: 0.35)
         case KaiKnowledgeIndexer.mailSource: return KaiColor.liquidBlue
