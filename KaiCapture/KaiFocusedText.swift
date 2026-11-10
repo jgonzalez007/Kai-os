@@ -1,0 +1,140 @@
+//
+//  KaiFocusedText.swift
+//  Kai Capture
+//
+//  Reads the text the user is writing in another app (the selection, or the whole field) and, only after
+//  they approve a suggestion, puts the new text in its place. It first tries Accessibility, which swaps
+//  the text without touching the clipboard, and falls back to a paste. If the text has changed since Kai
+//  read it, nothing is replaced.
+//
+
+import AppKit
+import ApplicationServices
+import Carbon.HIToolbox
+
+public enum KaiFocusedTextError: LocalizedError, Equatable, Sendable {
+    case notAllowed
+    case changed
+    case failed
+
+    public var errorDescription: String? {
+        switch self {
+        case .notAllowed: return "To replace your text, turn on Accessibility for Kai OS in the Permissions section. Until then, use Copy."
+        case .changed: return "The text changed after Kai read it, so nothing was replaced. Press Proofread again."
+        case .failed: return "Kai couldn't replace the text in that app. Use Copy and paste it yourself."
+        }
+    }
+}
+
+@MainActor
+public final class KaiFocusedText {
+    public let appName: String
+    public let original: String
+    /// True when only the selected part was read.
+    public let isSelection: Bool
+
+    private let pid: pid_t
+    private let element: AXUIElement
+
+    private init(appName: String, original: String, isSelection: Bool, pid: pid_t, element: AXUIElement) {
+        self.appName = appName
+        self.original = original
+        self.isSelection = isSelection
+        self.pid = pid
+        self.element = element
+    }
+
+    /// Reads the focused text field of the frontmost app (never Kai's own windows). Nil when there is
+    /// no Accessibility permission, no text field in focus, or nothing written in it.
+    public static func capture(maxLength: Int = 12_000) -> KaiFocusedText? {
+        guard AXIsProcessTrusted(), let app = NSWorkspace.shared.frontmostApplication,
+              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
+        let appElement = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        var focused: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
+        let element = focused as! AXUIElement
+        var role: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+        guard let roleName = role as? String, ["AXTextArea", "AXTextField", "AXComboBox", "AXWebArea"].contains(roleName) else { return nil }
+        // A password field is never read.
+        var subrole: CFTypeRef?
+        AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole)
+        if (subrole as? String) == (kAXSecureTextFieldSubrole as String) { return nil }
+
+        let selected = string(element, kAXSelectedTextAttribute)
+        let whole = string(element, kAXValueAttribute)
+        let name = app.localizedName ?? "that app"
+        if let selected, !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, selected.count <= maxLength {
+            return KaiFocusedText(appName: name, original: selected, isSelection: true, pid: app.processIdentifier, element: element)
+        }
+        if let whole, !whole.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, whole.count <= maxLength {
+            return KaiFocusedText(appName: name, original: whole, isSelection: false, pid: app.processIdentifier, element: element)
+        }
+        return nil
+    }
+
+    /// Puts `text` where the original was. Throws without changing anything if the original is no longer there.
+    public func replace(with text: String) async throws {
+        guard AXIsProcessTrusted() else { throw KaiFocusedTextError.notAllowed }
+        guard currentOriginal() == original else { throw KaiFocusedTextError.changed }
+
+        if isSelection {
+            if AXUIElementSetAttributeValue(element, kAXSelectedTextAttribute as CFString, text as CFTypeRef) == .success,
+               await confirm(text) { return }
+        } else {
+            if AXUIElementSetAttributeValue(element, kAXValueAttribute as CFString, text as CFTypeRef) == .success,
+               await confirm(text) { return }
+        }
+        try await pasteReplacing(text)
+    }
+
+    // MARK: Private
+
+    private func currentOriginal() -> String? {
+        isSelection ? Self.string(element, kAXSelectedTextAttribute) : Self.string(element, kAXValueAttribute)
+    }
+
+    /// Some apps accept the Accessibility write and ignore it. Only believe it when the text reads back.
+    private func confirm(_ text: String) async -> Bool {
+        try? await Task.sleep(for: .milliseconds(150))
+        if isSelection {
+            let now = Self.string(element, kAXSelectedTextAttribute)
+            return now == text || (Self.string(element, kAXValueAttribute)?.contains(text) ?? false)
+        }
+        return Self.string(element, kAXValueAttribute) == text
+    }
+
+    /// Brings the app and field back, selects the old text if it was the whole field, and pastes over it.
+    private func pasteReplacing(_ text: String) async throws {
+        NSRunningApplication(processIdentifier: pid)?.activate()
+        AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        try? await Task.sleep(for: .milliseconds(250))
+        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw KaiFocusedTextError.failed }
+        if !isSelection {
+            Self.post(key: kVK_ANSI_A)
+            try? await Task.sleep(for: .milliseconds(120))
+        }
+        do {
+            try await KaiPasteInserter().insert(text)
+        } catch {
+            throw KaiFocusedTextError.failed
+        }
+    }
+
+    private static func post(key: Int) {
+        let source = CGEventSource(stateID: .combinedSessionState)
+        for down in [true, false] {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(key), keyDown: down)
+            event?.flags = .maskCommand
+            event?.post(tap: .cghidEventTap)
+        }
+    }
+
+    private static func string(_ element: AXUIElement, _ attribute: String) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
+        return value as? String
+    }
+}

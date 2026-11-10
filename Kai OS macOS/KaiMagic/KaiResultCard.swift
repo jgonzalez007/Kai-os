@@ -33,7 +33,21 @@ final class KaiScreenTaskController: ObservableObject {
     /// What changed (proofread), as bullets and a tip. Empty for a summary.
     @Published private(set) var notes = ""
     @Published private(set) var isRefining = false
+    /// Proofread only: the text Kai read from the field, and where the suggestion can go once approved.
+    @Published private(set) var original = ""
+    @Published private(set) var replaceState = ReplaceState.unavailable
 
+    enum ReplaceState: Equatable {
+        /// Nothing was read from a text field, so the answer can be copied but not swapped in.
+        case unavailable
+        case ready
+        case replacing
+        case replaced
+        case failed(String)
+    }
+
+    private var focused: KaiFocusedText?
+    private weak var appState: AppState?
     private var context = KaiScreenTask.Context()
     private var model = ""
 
@@ -49,8 +63,16 @@ final class KaiScreenTaskController: ObservableObject {
         text = ""
         notes = ""
         isRefining = false
+        self.appState = appState
+        original = ""
+        replaceState = .unavailable
         // Taken now, while the app the user was in is still in front.
         context = Self.currentContext(appState: appState)
+        focused = task == .proofread ? KaiFocusedText.capture() : nil
+        if let focused {
+            original = focused.original
+            replaceState = .ready
+        }
         showPanel()
         // Let the bar finish closing so the cursor, not Kai, is what is on the screen.
         KaiNotchWindowController.shared.collapse()
@@ -125,6 +147,10 @@ final class KaiScreenTaskController: ObservableObject {
     }
 
     private func perform(_ task: KaiScreenTask, appState: AppState) async {
+        if let focused {
+            await proofreadField(focused, appState: appState)
+            return
+        }
         guard KaiScreenGrabber.hasPermission else {
             KaiScreenGrabber.requestPermission()
             phase = .failed(KaiScreenCaptureError.needsPermission.localizedDescription)
@@ -153,6 +179,63 @@ final class KaiScreenTaskController: ObservableObject {
         } catch is CancellationError {
         } catch {
             phase = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Proofreads the text read from the field the user is writing in. No screenshot, no Screen Recording.
+    private func proofreadField(_ field: KaiFocusedText, appState: AppState) async {
+        guard let model = KaiScreenTask.localModel(selected: appState.selectedModel, available: appState.chatModels) else {
+            phase = .failed("Proofread uses a model on this Mac, so your text never goes to the cloud. Start Ollama and download a model first (the Health page can help).")
+            return
+        }
+        self.model = model
+        let messages = KaiScreenTask.proofreadTextMessages(original: field.original, isSelection: field.isSelection, context: context)
+        do {
+            var answer = ""
+            for try await event in KaiOllamaClient().stream(model: model, messages: messages, tools: [], temperature: 0.2) {
+                try Task.checkCancellation()
+                guard case .text(let delta) = event else { continue }
+                answer += delta
+                apply(answer)
+            }
+            apply(answer)
+            phase = text.isEmpty ? .failed("The model returned nothing. Try again.") : .done
+        } catch is CancellationError {
+        } catch {
+            phase = .failed(error.localizedDescription)
+        }
+    }
+
+    /// Whether the suggestion is worth replacing the original with.
+    var canReplace: Bool {
+        guard phase == .done, !isRefining, replaceState == .ready || { if case .failed = replaceState { return true }; return false }() else { return false }
+        return KaiScreenTask.isChange(original: original, suggestion: text)
+    }
+
+    /// The user approved the suggestion: it goes where the original was. Logged like any other action Kai takes.
+    func replaceOriginal() {
+        guard canReplace, let focused, let appState else { return }
+        let finalText = focused.isSelection ? text : KaiScreenTask.matchingEdges(of: focused.original, text)
+        var card = KaiActionCard(action: .insertText(app: focused.appName, text: finalText))
+        _ = card.approve()
+        do { try appState.actionLog.record(event: "approved", card: card, detail: nil) } catch {
+            replaceState = .failed("The action log couldn't be written, so nothing was replaced.")
+            return
+        }
+        replaceState = .replacing
+        Task {
+            do {
+                try await focused.replace(with: finalText)
+                card.finish(.succeeded("Replaced your text in \(focused.appName)."))
+                try? appState.actionLog.record(event: "succeeded", card: card, detail: "Replaced your text.")
+                replaceState = .replaced
+                try? await Task.sleep(for: .milliseconds(1400))
+                if replaceState == .replaced { close() }
+            } catch {
+                card.finish(.failed(error.localizedDescription))
+                try? appState.actionLog.record(event: "failed", card: card, detail: error.localizedDescription)
+                replaceState = .failed(error.localizedDescription)
+            }
         }
     }
 
@@ -247,7 +330,9 @@ struct KaiResultCard: View {
             Divider().overlay(Color.white.opacity(0.1))
             content
             Divider().overlay(Color.white.opacity(0.08))
-            Text("Read from your screen on this Mac. Nothing was sent anywhere.")
+            Text(controller.replaceState == .unavailable
+                 ? "Read from your screen on this Mac. Nothing was sent anywhere."
+                 : "Read on this Mac. Nothing is replaced until you press Replace.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .padding(.horizontal, 22).padding(.vertical, 9)
         }
@@ -271,6 +356,39 @@ struct KaiResultCard: View {
         return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 
+    /// The suggestion replaces the original only when this button is pressed.
+    private var approvalBar: some View {
+        HStack(spacing: 10) {
+            switch controller.replaceState {
+            case .replaced:
+                Label("Replaced in your text", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            case .replacing:
+                ProgressView().controlSize(.small)
+                Text("Replacing…").foregroundStyle(.secondary)
+            default:
+                if KaiScreenTask.isChange(original: controller.original, suggestion: controller.text) {
+                    Button(action: controller.replaceOriginal) {
+                        Label("Replace my text", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(.horizontal, 14).padding(.vertical, 7)
+                            .background(Capsule().fill(KaiColor.liquidBlue))
+                    }
+                    .buttonStyle(.plain).disabled(!controller.canReplace)
+                    Button("Keep mine", action: controller.close).buttonStyle(.plain)
+                        .font(.system(size: 13)).foregroundStyle(.white.opacity(0.7))
+                } else {
+                    Label("Nothing to change", systemImage: "checkmark.circle").foregroundStyle(.secondary)
+                }
+                if case .failed(let message) = controller.replaceState {
+                    Text(message).font(.caption).foregroundStyle(.orange).lineLimit(2)
+                }
+            }
+            Spacer()
+        }
+        .font(.callout)
+        .padding(.horizontal, 22).padding(.vertical, 10)
+    }
+
     @ViewBuilder
     private var content: some View {
         switch controller.phase {
@@ -288,6 +406,9 @@ struct KaiResultCard: View {
                             Text(controller.task.workingText).foregroundStyle(.secondary)
                         }
                     } else {
+                        if controller.replaceState != .unavailable {
+                            Text("SUGGESTION").font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(KaiColor.cyan)
+                        }
                         Text(rendered)
                             .font(.system(size: 18))
                             .lineSpacing(5)
@@ -304,8 +425,21 @@ struct KaiResultCard: View {
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    if controller.replaceState != .unavailable, !controller.original.isEmpty, controller.phase == .done {
+                        DisclosureGroup {
+                            Text(controller.original)
+                                .font(.system(size: 14)).foregroundStyle(.white.opacity(0.65)).lineSpacing(3)
+                                .textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading).padding(.top, 6)
+                        } label: {
+                            Text("Your original").font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.7))
+                        }
+                    }
                 }
                 .padding(24)
+            }
+            if controller.phase == .done, controller.replaceState != .unavailable {
+                Divider().overlay(Color.white.opacity(0.08))
+                approvalBar
             }
             if controller.phase == .done {
                 Divider().overlay(Color.white.opacity(0.08))
