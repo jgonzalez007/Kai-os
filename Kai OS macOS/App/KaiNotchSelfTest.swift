@@ -382,7 +382,7 @@ enum KaiNotchSelfTest {
             await waitForWrite()
             report("the edited draft is what gets written", inserter.inserted == ["Thursday works better for me."], "\(inserter.inserted)")
             report("a cursor in a text area is written to, with no second Mail reply", recorder.performed.isEmpty, "\(recorder.performed.count) Mail action(s)")
-            report("a cursor write reports plain success", doubleTap.openState == .succeeded("Written into your email. Review it and send it yourself."))
+            report("a cursor write reports plain success", { if case .succeeded(let text) = doubleTap.openState { return text.hasPrefix("Written at your cursor") } else { return false } }())
             await closeAndSettle()
 
             // No Accessibility: Mail still works by script, and a cursor explains what's needed.

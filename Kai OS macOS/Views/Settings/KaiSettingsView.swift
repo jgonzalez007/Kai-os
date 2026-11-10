@@ -37,7 +37,7 @@ struct KaiSettingsView: View {
     
     /// Preferences has one page per thing to set up or check. The sidebar of the main window is only for using Kai.
     enum Page: String, CaseIterable {
-        case ai, knowledge, sidekick, overnight, notch, appearance, permissions, health, setup, updates
+        case ai, knowledge, sidekick, overnight, notch, appearance, permissions, activity, health, setup, updates
 
         var title: String {
             switch self {
@@ -48,6 +48,7 @@ struct KaiSettingsView: View {
             case .notch: return "Notch & Desk"
             case .appearance: return "Appearance"
             case .permissions: return "Permissions"
+            case .activity: return "Activity"
             case .health: return "Health"
             case .setup: return "Setup guide"
             case .updates: return "Updates & About"
@@ -61,6 +62,7 @@ struct KaiSettingsView: View {
             case .overnight: return "Let Kai get things ready while you sleep. It only prepares cards: nothing is sent without your approval."
             case .notch: return "The notch, your Shelf, clipboard history, Claude Code and the stats bar."
             case .appearance: return "The logo, the icon and the effects."
+            case .activity: return "What Kai did on this Mac after you approved it, with an Undo where one is possible."
             case .permissions, .health, .setup: return ""
             case .updates: return "Version, updates and privacy."
             }
@@ -74,6 +76,7 @@ struct KaiSettingsView: View {
             case .notch: return "rectangle.topthird.inset.filled"
             case .appearance: return "paintpalette"
             case .permissions: return "checkmark.shield"
+            case .activity: return "list.bullet.rectangle"
             case .health: return "heart.text.square"
             case .setup: return "wand.and.stars"
             case .updates: return "arrow.down.circle"
@@ -104,6 +107,7 @@ struct KaiSettingsView: View {
     private var content: some View {
         switch page {
         case .permissions: KaiPermissionsView(permissions: .shared)
+        case .activity: KaiActionHistoryView()
         case .health: KaiHealthView(briefing: appState.morningCards)
         case .setup: KaiWelcomeView()
         default: pageScroll
@@ -140,6 +144,7 @@ struct KaiSettingsView: View {
             }
             navGroup("Help") {
                 navItem(.permissions, badge: permissions.missingCount)
+                navItem(.activity)
                 navItem(.health)
                 navItem(.setup)
                 navItem(.updates, badge: updates.available == nil ? 0 : 1)
@@ -701,6 +706,9 @@ struct KaiSettingsView: View {
     @State private var manualSaving = false
 
     @State private var dropTargeted = false
+    @State private var quickPrompts = KaiQuickPrompts.stored()
+    @State private var newPromptName = ""
+    @State private var newPromptText = ""
     @AppStorage(KaiInstructions.defaultsKey) private var answerInstructions = ""
     @AppStorage(KaiNoAISlop.masterKey) private var noSlop = false
 
@@ -760,6 +768,31 @@ struct KaiSettingsView: View {
             }
             Text("Proofread also gets two buttons, Remove AI slop and Find AI slop, whether or not this is on. Based on the No AI Slop skill by Peter Yang (MIT licence).")
                 .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+
+            Divider().overlay(Color.white.opacity(0.1))
+            Text("Rewrite prompts").fontWeight(.medium)
+            Text("Select text in any app, then choose Rewrite in the notch and pick one. Kai shows its version first, and your text is only replaced after you approve.")
+                .font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+            ForEach(quickPrompts) { prompt in
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(prompt.name).fontWeight(.medium)
+                        Text(prompt.instruction).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                    Spacer()
+                    Button { quickPrompts.removeAll { $0.id == prompt.id }; KaiQuickPrompts.save(quickPrompts) } label: { Image(systemName: "xmark.circle") }.buttonStyle(.plain)
+                }
+            }
+            HStack {
+                TextField("Name", text: $newPromptName).kaiInput().frame(width: 150)
+                TextField("What it should do, such as: make it friendlier and shorter", text: $newPromptText).kaiInput()
+                Button("Add") {
+                    if quickPrompts.count < KaiQuickPrompts.maxPrompts, let made = KaiQuickPrompts.make(name: newPromptName, instruction: newPromptText) {
+                        quickPrompts.append(made); KaiQuickPrompts.save(quickPrompts); newPromptName = ""; newPromptText = ""
+                    }
+                }
+                .controlSize(.small).disabled(newPromptName.trimmingCharacters(in: .whitespaces).isEmpty || newPromptText.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
         }
     }
 

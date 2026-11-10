@@ -340,6 +340,64 @@ public struct KaiActionLog: Sendable {
     }
 }
 
+/// One action as the log tells it: what it was, when, and how it ended.
+public struct KaiActionHistoryItem: Identifiable, Equatable, Sendable {
+    public enum Outcome: Equatable, Sendable { case approved, succeeded, failed, declined, proposed }
+
+    public let id: String
+    public let kind: String
+    public let heading: String
+    public let icon: String
+    public let summary: String
+    public let time: Date
+    public let outcome: Outcome
+    public let detail: String?
+    /// The action itself, when the log could read it back (needed to offer an undo).
+    public let action: KaiProposedAction?
+
+    /// What reverses it, when something can: a mail cleanup that marked messages read or made a rule.
+    public var undo: KaiMailCleanupPlan? {
+        guard outcome == .succeeded, case .mailCleanup(let plan)? = action else { return nil }
+        return plan.undo
+    }
+}
+
+extension KaiActionLog {
+    /// The newest `limit` actions, newest first. Each action's events (proposed, approved, succeeded…) become one item
+    /// that shows how it ended. A line that can't be read is skipped.
+    public func history(limit: Int = 200) -> [KaiActionHistoryItem] {
+        guard let data = try? Data(contentsOf: url), let text = String(data: data, encoding: .utf8) else { return [] }
+        struct Line: Decodable { let id: String; let kind: String; let event: String; let time: String; let detail: String?; let action: KaiProposedAction? }
+        let decoder = JSONDecoder()
+        var order: [String] = []
+        var lines: [String: [Line]] = [:]
+        for raw in text.split(separator: "\n") {
+            guard let line = try? decoder.decode(Line.self, from: Data(raw.utf8)) else { continue }
+            if lines[line.id] == nil { order.append(line.id) }
+            lines[line.id, default: []].append(line)
+        }
+        let formatter = ISO8601DateFormatter()
+        return order.compactMap { id -> KaiActionHistoryItem? in
+            guard let events = lines[id], let last = events.last else { return nil }
+            let action = events.compactMap(\.action).last
+            let outcome: KaiActionHistoryItem.Outcome
+            switch last.event {
+            case "succeeded": outcome = .succeeded
+            case "failed": outcome = .failed
+            case "declined": outcome = .declined
+            case "approved": outcome = .approved
+            default: outcome = .proposed
+            }
+            let summary = action.map { a in a.details.prefix(2).map { "\($0.label): \($0.value)" }.joined(separator: " · ") } ?? ""
+            return KaiActionHistoryItem(id: id, kind: last.kind, heading: action?.heading ?? last.kind.replacingOccurrences(of: "_", with: " ").capitalized,
+                                        icon: action?.iconName ?? "bolt", summary: String(summary.prefix(200)),
+                                        time: formatter.date(from: last.time) ?? .distantPast, outcome: outcome, detail: events.reversed().compactMap(\.detail).first, action: action)
+        }
+        .sorted { $0.time > $1.time }
+        .prefix(limit).map { $0 }
+    }
+}
+
 // MARK: - Execution
 
 public protocol KaiActionPerforming: Sendable {

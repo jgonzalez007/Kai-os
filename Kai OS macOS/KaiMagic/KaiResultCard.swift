@@ -36,6 +36,12 @@ final class KaiScreenTaskController: ObservableObject {
     /// Proofread only: the text Kai read from the field, and where the suggestion can go once approved.
     @Published private(set) var original = ""
     @Published private(set) var replaceState = ReplaceState.unavailable
+    /// A saved prompt's name when one was run, shown instead of "Proofread".
+    @Published private(set) var titleOverride: String?
+    /// What the suggestion changed, change by change, and the ones the person chose to skip.
+    @Published private(set) var diff: KaiTextDiff?
+    @Published private(set) var skipped: Set<Int> = []
+    @Published var reviewing = false
 
     enum ReplaceState: Equatable {
         /// Nothing was read from a text field, so the answer can be copied but not swapped in.
@@ -55,7 +61,33 @@ final class KaiScreenTaskController: ObservableObject {
     private var running: Task<Void, Never>?
     private let speech = AVSpeechSynthesizer()
 
-    func run(_ task: KaiScreenTask, appState: AppState) {
+    var title: String { titleOverride ?? task.title }
+
+    /// The suggestion with the skipped changes left as the person wrote them.
+    var composedText: String {
+        guard let diff else { return text }
+        return diff.text(accepting: Set(0..<diff.changeCount).subtracting(skipped))
+    }
+
+    var acceptedCount: Int { (diff?.changeCount ?? 0) - skipped.count }
+
+    func toggleChange(_ index: Int) {
+        if skipped.contains(index) { skipped.remove(index) } else { skipped.insert(index) }
+    }
+
+    private func updateDiff() {
+        skipped = []
+        diff = replaceState == .unavailable || original.isEmpty ? nil : KaiTextDiff(original: original, suggestion: text)
+    }
+
+    /// Runs a saved prompt on the text the person selected. There is no screen fallback: it needs the text.
+    func runPrompt(_ prompt: KaiQuickPrompt, appState: AppState) {
+        begin(.proofread, appState: appState, prompt: prompt)
+    }
+
+    func run(_ task: KaiScreenTask, appState: AppState) { begin(task, appState: appState, prompt: nil) }
+
+    private func begin(_ task: KaiScreenTask, appState: AppState, prompt: KaiQuickPrompt?) {
         running?.cancel()
         stopSpeaking()
         self.task = task
@@ -66,10 +98,14 @@ final class KaiScreenTaskController: ObservableObject {
         self.appState = appState
         original = ""
         replaceState = .unavailable
+        titleOverride = prompt?.name
+        diff = nil; skipped = []; reviewing = false
         // Taken now, while the app the user was in is still in front.
         context = Self.currentContext(appState: appState, task: task)
         focused = nil
         running = Task {
+            // A menu may have just closed: give the app you were in a moment to take the keyboard back.
+            if prompt != nil { try? await Task.sleep(for: .milliseconds(180)) }
             // Read what the person is writing first, while their app still has the keyboard: the field's text,
             // or the text they selected. Kai's card takes the keyboard when it opens.
             if task == .proofread, let found = await KaiFocusedText.capture() {
@@ -81,7 +117,15 @@ final class KaiScreenTaskController: ObservableObject {
             showPanel()
             // Let the bar finish closing so the cursor, not Kai, is what is on the screen.
             KaiNotchWindowController.shared.collapse()
-            await perform(task, appState: appState)
+            if let prompt {
+                guard let focused else {
+                    phase = .failed("Select the text you want to rewrite first (or click into it), then choose “\(prompt.name)” again. Accessibility has to be on for Kai OS.")
+                    return
+                }
+                await proofreadField(focused, appState: appState, prompt: prompt)
+            } else {
+                await perform(task, appState: appState)
+            }
         }
     }
 
@@ -130,6 +174,7 @@ final class KaiScreenTaskController: ObservableObject {
                     if reportOnly { notes = KaiScreenTask.cleaned(answer) } else { text = KaiScreenTask.cleaned(answer); notes = "" }
                 }
                 if !reportOnly, text.isEmpty { text = previous }
+                if !reportOnly { updateDiff() }
             } catch is CancellationError {
             } catch {
                 text = previous
@@ -192,13 +237,14 @@ final class KaiScreenTaskController: ObservableObject {
     }
 
     /// Proofreads the text read from the field the user is writing in. No screenshot, no Screen Recording.
-    private func proofreadField(_ field: KaiFocusedText, appState: AppState) async {
+    private func proofreadField(_ field: KaiFocusedText, appState: AppState, prompt: KaiQuickPrompt? = nil) async {
         guard let model = KaiScreenTask.localModel(selected: appState.selectedModel, available: appState.chatModels) else {
             phase = .failed("Proofread uses a model on this Mac, so your text never goes to the cloud. Start Ollama and download a model first (the Health page can help).")
             return
         }
         self.model = model
-        let messages = KaiScreenTask.proofreadTextMessages(original: field.original, isSelection: field.isSelection, context: context)
+        let messages = prompt.map { KaiScreenTask.quickPromptMessages(original: field.original, prompt: $0, context: context) }
+            ?? KaiScreenTask.proofreadTextMessages(original: field.original, isSelection: field.isSelection, context: context)
         do {
             var answer = ""
             for try await event in KaiOllamaClient().stream(model: model, messages: messages, tools: [], temperature: 0.2) {
@@ -209,6 +255,7 @@ final class KaiScreenTaskController: ObservableObject {
             }
             apply(answer)
             phase = text.isEmpty ? .failed("The model returned nothing. Try again.") : .done
+            updateDiff()
         } catch is CancellationError {
         } catch {
             phase = .failed(error.localizedDescription)
@@ -218,13 +265,14 @@ final class KaiScreenTaskController: ObservableObject {
     /// Whether the suggestion is worth replacing the original with.
     var canReplace: Bool {
         guard phase == .done, !isRefining, replaceState == .ready || { if case .failed = replaceState { return true }; return false }() else { return false }
-        return KaiScreenTask.isChange(original: original, suggestion: text)
+        return KaiScreenTask.isChange(original: original, suggestion: composedText)
     }
 
     /// The user approved the suggestion: it goes where the original was. Logged like any other action Kai takes.
     func replaceOriginal() {
         guard canReplace, let focused, let appState else { return }
-        let finalText = focused.isSelection ? text : KaiScreenTask.matchingEdges(of: focused.original, text)
+        let composed = composedText
+        let finalText = focused.isSelection ? composed : KaiScreenTask.matchingEdges(of: focused.original, composed)
         var card = KaiActionCard(action: .insertText(app: focused.appName, text: finalText))
         _ = card.approve()
         do { try appState.actionLog.record(event: "approved", card: card, detail: nil) } catch {
@@ -251,7 +299,7 @@ final class KaiScreenTaskController: ObservableObject {
     /// A proofread answer is the corrected text, then a line of dashes, then what changed.
     private func apply(_ answer: String) {
         let cleaned = KaiScreenTask.cleaned(answer)
-        if task == .proofread {
+        if task == .proofread, titleOverride == nil {
             let split = KaiScreenTask.splitNotes(cleaned)
             text = split.text
             notes = split.notes
@@ -312,7 +360,7 @@ struct KaiResultCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
-                Text(controller.task.title).font(.system(size: 19, weight: .semibold))
+                Text(controller.title).font(.system(size: 19, weight: .semibold))
                 if controller.phase == .done {
                     Button(action: controller.toggleSpeaking) {
                         Label(controller.isSpeaking ? "Stop" : "Read text", systemImage: controller.isSpeaking ? "stop.fill" : "doc.text")
@@ -367,6 +415,37 @@ struct KaiResultCard: View {
         return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
     }
 
+    /// Every change on its own: tick the ones to keep, untick the ones to skip.
+    private func reviewList(_ diff: KaiTextDiff) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Tick each change you want. What you leave unticked stays as you wrote it.").font(.caption).foregroundStyle(.white.opacity(0.6))
+            ForEach(Array(diff.pieces.enumerated()), id: \.offset) { position, piece in
+                if case .change(let index, let old, let new) = piece {
+                    let on = !controller.skipped.contains(index)
+                    Button { controller.toggleChange(index) } label: {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: on ? "checkmark.square.fill" : "square").foregroundStyle(on ? KaiColor.cyan : Color.white.opacity(0.5)).font(.system(size: 16))
+                            VStack(alignment: .leading, spacing: 3) {
+                                if position > 0, case .same(let before) = diff.pieces[position - 1] {
+                                    Text("…" + before.split(separator: " ").suffix(5).joined(separator: " ")).font(.system(size: 11)).foregroundStyle(.white.opacity(0.4)).lineLimit(1)
+                                }
+                                if !old.trimmingCharacters(in: .whitespaces).isEmpty {
+                                    Text(old.trimmingCharacters(in: .whitespacesAndNewlines)).strikethrough().foregroundStyle(Color.red.opacity(0.85))
+                                }
+                                if !new.trimmingCharacters(in: .whitespaces).isEmpty {
+                                    Text(new.trimmingCharacters(in: .whitespacesAndNewlines)).foregroundStyle(Color.green.opacity(0.95))
+                                }
+                            }
+                            .font(.system(size: 15)).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(10).background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(on ? 0.08 : 0.03)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
     /// The suggestion replaces the original only when this button is pressed.
     private var approvalBar: some View {
         HStack(spacing: 10) {
@@ -378,8 +457,17 @@ struct KaiResultCard: View {
                 Text("Replacing…").foregroundStyle(.secondary)
             default:
                 if KaiScreenTask.isChange(original: controller.original, suggestion: controller.text) {
+                    if let diff = controller.diff, diff.changeCount > 1 {
+                        Button { controller.reviewing.toggle() } label: {
+                            Label(controller.reviewing ? "Back" : "Review \(diff.changeCount) changes", systemImage: controller.reviewing ? "chevron.left" : "checklist")
+                                .font(.system(size: 12, weight: .medium))
+                                .padding(.horizontal, 10).padding(.vertical, 6).background(Capsule().fill(Color.white.opacity(0.1)))
+                        }
+                        .buttonStyle(.plain)
+                    }
                     Button(action: controller.replaceOriginal) {
-                        Label("Replace my text", systemImage: "arrow.triangle.2.circlepath")
+                        Label(controller.diff.map { $0.changeCount > 1 && controller.acceptedCount < $0.changeCount ? "Replace with \(controller.acceptedCount) of \($0.changeCount) changes" : "Replace my text" } ?? "Replace my text",
+                              systemImage: "arrow.triangle.2.circlepath")
                             .font(.system(size: 13, weight: .semibold))
                             .padding(.horizontal, 14).padding(.vertical, 7)
                             .background(Capsule().fill(KaiColor.liquidBlue))
@@ -420,12 +508,16 @@ struct KaiResultCard: View {
                         if controller.replaceState != .unavailable {
                             Text("SUGGESTION").font(.system(size: 10, weight: .bold)).tracking(1).foregroundStyle(KaiColor.cyan)
                         }
+                        if controller.reviewing, let diff = controller.diff, diff.changeCount > 0 {
+                            reviewList(diff)
+                        } else {
                         Text(rendered)
                             .font(.system(size: 18))
                             .lineSpacing(5)
                             .textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .opacity(controller.isRefining ? 0.7 : 1)
+                        }
                     }
                     if !controller.notes.isEmpty {
                         Divider().overlay(Color.white.opacity(0.12)).padding(.vertical, 4)

@@ -335,7 +335,7 @@ final class KaiDoubleTapController: ObservableObject {
             try? await Task.sleep(for: .milliseconds(200))
             do {
                 try await inserter.insert(text)
-                finishWrite(&card, .succeeded("Written into your email. Review it and send it yourself."))
+                finishWrite(&card, .succeeded("Written at your cursor in \(frontmost?.localizedName ?? "that app"). Review it and send it yourself."))
             } catch {
                 finishWrite(&card, .failed(error.localizedDescription))
             }

@@ -1,5 +1,7 @@
 # Kai OS — Notarization Guide
 
+`scripts/notarize.sh` does the steps below for you once the two prerequisites exist. Run `scripts/notarize.sh check` first: it says what is missing and changes nothing. The steps below are the same thing by hand.
+
 ## Prerequisites
 
 1. **Apple Developer Account** ($99/year)

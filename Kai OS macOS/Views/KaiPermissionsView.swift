@@ -18,6 +18,8 @@ final class KaiPermissionsModel: ObservableObject {
     @Published private(set) var statuses: [KaiPermission: KaiPermissionStatus] = [:]
     @Published private(set) var isRequestingAll = false
     @Published private(set) var requesting: KaiPermission?
+    @Published private(set) var testing: KaiPermission?
+    @Published private(set) var testResults: [KaiPermission: KaiPermissionTestResult] = [:]
 
     /// Replaced by the self-test, so testing never raises real prompts.
     var provider: any KaiPermissionProviding = KaiSystemPermissionProvider()
@@ -45,6 +47,17 @@ final class KaiPermissionsModel: ObservableObject {
                 statuses[permission] = status
                 if status == .granted && !wasGranted { onGranted?(permission) }
             }
+        }
+    }
+
+    /// Does the smallest real thing that needs this permission and shows what happened.
+    func test(_ permission: KaiPermission) {
+        guard testing == nil else { return }
+        testing = permission
+        testResults[permission] = nil
+        Task {
+            testResults[permission] = await KaiPermissionTester.test(permission)
+            testing = nil
         }
     }
 
@@ -177,6 +190,12 @@ struct KaiPermissionsView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(permission.title).fontWeight(.semibold)
                 Text(permission.reason).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                if permissions.testing == permission {
+                    HStack(spacing: 6) { ProgressView().controlSize(.mini); Text("Testing…").font(.caption).foregroundStyle(.secondary) }
+                } else if let result = permissions.testResults[permission] {
+                    Label(result.message, systemImage: result.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(result.ok ? KaiColor.cyan : KaiColor.warning).fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 12)
             control(permission)
@@ -190,6 +209,11 @@ struct KaiPermissionsView: View {
     private func control(_ permission: KaiPermission) -> some View {
         HStack(spacing: 8) {
             status(permission)
+            if permissions.requesting != permission {
+                Button { permissions.test(permission) } label: { Label("Test", systemImage: "checkmark.seal") }
+                    .controlSize(.small).disabled(permissions.testing != nil)
+                    .help("Does one small real thing that needs this permission, and says whether it worked.")
+            }
             if permission.tccService != nil, permissions.requesting != permission {
                 Button { permissions.reset([permission]) } label: { Label("Reset", systemImage: "arrow.counterclockwise") }
                     .controlSize(.small)
