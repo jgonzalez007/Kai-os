@@ -34,9 +34,10 @@ public final class KaiFocusedText {
     public let isSelection: Bool
 
     private let pid: pid_t
-    private let element: AXUIElement
+    /// Nil when the text came from copying a selection (web editors, Slack, Chrome), which can only be pasted back over.
+    private let element: AXUIElement?
 
-    private init(appName: String, original: String, isSelection: Bool, pid: pid_t, element: AXUIElement) {
+    private init(appName: String, original: String, isSelection: Bool, pid: pid_t, element: AXUIElement?) {
         self.appName = appName
         self.original = original
         self.isSelection = isSelection
@@ -46,7 +47,35 @@ public final class KaiFocusedText {
 
     /// Reads the focused text field of the frontmost app (never Kai's own windows). Nil when there is
     /// no Accessibility permission, no text field in focus, or nothing written in it.
-    public static func capture(maxLength: Int = 12_000) -> KaiFocusedText? {
+    public static func capture(maxLength: Int = 12_000) async -> KaiFocusedText? {
+        if let found = captureFromField(maxLength: maxLength) { return found }
+        return await captureBySelection(maxLength: maxLength)
+    }
+
+    /// Many apps (Chrome, Slack, Teams, Notion) don't give out the text of a field through Accessibility. If the
+    /// person selected text there, it is read the way they would: copy. The clipboard is put back right after.
+    private static func captureBySelection(maxLength: Int) async -> KaiFocusedText? {
+        guard AXIsProcessTrusted(), let app = NSWorkspace.shared.frontmostApplication,
+              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
+        let board = NSPasteboard.general
+        let saved = KaiPasteboardSnapshot(board)
+        let before = board.changeCount
+        let source = CGEventSource(stateID: .combinedSessionState)
+        for down in [true, false] {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: CGKeyCode(kVK_ANSI_C), keyDown: down)
+            event?.flags = .maskCommand
+            event?.post(tap: .cghidEventTap)
+        }
+        try? await Task.sleep(for: .milliseconds(220))
+        // Nothing selected means nothing was copied, and the clipboard is untouched.
+        guard board.changeCount != before else { return nil }
+        let copied = board.string(forType: .string)
+        saved.restore(to: board)
+        guard let copied, !copied.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, copied.count <= maxLength else { return nil }
+        return KaiFocusedText(appName: app.localizedName ?? "that app", original: copied, isSelection: true, pid: app.processIdentifier, element: nil)
+    }
+
+    private static func captureFromField(maxLength: Int) -> KaiFocusedText? {
         guard AXIsProcessTrusted(), let app = NSWorkspace.shared.frontmostApplication,
               app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
@@ -78,6 +107,11 @@ public final class KaiFocusedText {
     /// Puts `text` where the original was. Throws without changing anything if the original is no longer there.
     public func replace(with text: String) async throws {
         guard AXIsProcessTrusted() else { throw KaiFocusedTextError.notAllowed }
+        guard let element else {
+            // Read by copying: it can only be pasted back over the selection, which the app still holds.
+            try await pasteReplacing(text)
+            return
+        }
         guard currentOriginal() == original else { throw KaiFocusedTextError.changed }
 
         if isSelection {
@@ -93,11 +127,13 @@ public final class KaiFocusedText {
     // MARK: Private
 
     private func currentOriginal() -> String? {
-        isSelection ? Self.string(element, kAXSelectedTextAttribute) : Self.string(element, kAXValueAttribute)
+        guard let element else { return nil }
+        return isSelection ? Self.string(element, kAXSelectedTextAttribute) : Self.string(element, kAXValueAttribute)
     }
 
     /// Some apps accept the Accessibility write and ignore it. Only believe it when the text reads back.
     private func confirm(_ text: String) async -> Bool {
+        guard let element else { return false }
         try? await Task.sleep(for: .milliseconds(150))
         if isSelection {
             let now = Self.string(element, kAXSelectedTextAttribute)
@@ -109,7 +145,7 @@ public final class KaiFocusedText {
     /// Brings the app and field back, selects the old text if it was the whole field, and pastes over it.
     private func pasteReplacing(_ text: String) async throws {
         NSRunningApplication(processIdentifier: pid)?.activate()
-        AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue)
+        if let element { AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue) }
         try? await Task.sleep(for: .milliseconds(250))
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw KaiFocusedTextError.failed }
         if !isSelection {

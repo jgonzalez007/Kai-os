@@ -68,15 +68,21 @@ final class KaiScreenTaskController: ObservableObject {
         replaceState = .unavailable
         // Taken now, while the app the user was in is still in front.
         context = Self.currentContext(appState: appState, task: task)
-        focused = task == .proofread ? KaiFocusedText.capture() : nil
-        if let focused {
-            original = focused.original
-            replaceState = .ready
+        focused = nil
+        running = Task {
+            // Read what the person is writing first, while their app still has the keyboard: the field's text,
+            // or the text they selected. Kai's card takes the keyboard when it opens.
+            if task == .proofread, let found = await KaiFocusedText.capture() {
+                focused = found
+                original = found.original
+                replaceState = .ready
+            }
+            if Task.isCancelled { return }
+            showPanel()
+            // Let the bar finish closing so the cursor, not Kai, is what is on the screen.
+            KaiNotchWindowController.shared.collapse()
+            await perform(task, appState: appState)
         }
-        showPanel()
-        // Let the bar finish closing so the cursor, not Kai, is what is on the screen.
-        KaiNotchWindowController.shared.collapse()
-        running = Task { await perform(task, appState: appState) }
     }
 
     func close() {
@@ -334,7 +340,9 @@ struct KaiResultCard: View {
             content
             Divider().overlay(Color.white.opacity(0.08))
             Text(controller.replaceState == .unavailable
-                 ? "Read from your screen on this Mac. Nothing was sent anywhere."
+                 ? (controller.task == .proofread
+                    ? "Read from your screen on this Mac. To replace your text from here, select it (or click into it) first, then press Proofread."
+                    : "Read from your screen on this Mac. Nothing was sent anywhere.")
                  : "Read on this Mac. Nothing is replaced until you press Replace.")
                 .font(.caption2).foregroundStyle(.secondary)
                 .padding(.horizontal, 22).padding(.vertical, 9)
