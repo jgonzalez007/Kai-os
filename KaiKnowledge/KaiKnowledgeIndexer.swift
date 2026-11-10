@@ -34,6 +34,8 @@ public enum KaiKnowledgeIndexer {
     public static let folderSource = "files"
     /// Folders the person added from anywhere on the Mac. Each file's ID is "<folder id>/<path inside it>".
     public static let extraFoldersSource = "folder"
+    /// Folders the person marked as reference material: searched, never used to describe them.
+    public static let referenceSource = "reference"
     public static let notesSource = "notes"
     public static let calendarSource = "calendar"
     public static let mailSource = "mail"
@@ -95,30 +97,36 @@ public enum KaiKnowledgeIndexer {
 
     /// The folders the person added. A folder that is switched off or removed from the list is forgotten; a folder that
     /// is just not there right now (an unplugged drive) keeps what was read, until it comes back.
-    public static func indexFolders(_ folders: [KaiKnowledgeFolder], into store: KaiKnowledgeStore) throws -> (report: KaiIndexReport, results: [String: KaiFolderResult]) {
-        var seen = Set<String>()
+    /// `progress` is told, from time to time, which folder is being read and how many files so far.
+    public static func indexFolders(_ folders: [KaiKnowledgeFolder], into store: KaiKnowledgeStore,
+                                    progress: (@Sendable (String) -> Void)? = nil) throws -> (report: KaiIndexReport, results: [String: KaiFolderResult]) {
+        var seen: [String: Set<String>] = [extraFoldersSource: [], referenceSource: []]
+        var missing: Set<String> = []
         var report = KaiIndexReport()
         var results: [String: KaiFolderResult] = [:]
-        var someMissing = false
         for folder in folders where folder.enabled {
             var isDirectory: ObjCBool = false
             guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue else {
                 results[folder.id] = KaiFolderResult(available: false)
-                someMissing = true
+                missing.insert(folder.source)
                 continue
             }
             var folderReport = KaiIndexReport()
-            let indexed = try scan(folder.url, source: extraFoldersSource, idPrefix: folder.id + "/", extraSkips: folder.skipNames,
-                                 store: store, seen: &seen, report: &folderReport)
+            var ids = seen[folder.source] ?? []
+            let indexed = try scan(folder.url, source: folder.source, idPrefix: folder.id + "/", extraSkips: folder.skipNames,
+                                   store: store, seen: &ids, report: &folderReport, progress: progress.map { send in { send("\(folder.name): \($0) files") } })
+            seen[folder.source] = ids
             report.merge(folderReport)
             results[folder.id] = KaiFolderResult(indexed: indexed, skipped: folderReport.skipped)
         }
-        if !someMissing { report.removed = try store.removeMissing(source: extraFoldersSource, keeping: seen) }
+        for source in [extraFoldersSource, referenceSource] where !missing.contains(source) {
+            report.removed += try store.removeMissing(source: source, keeping: seen[source] ?? [])
+        }
         return (report, results)
     }
 
     private static func scan(_ folder: URL, source: String, idPrefix: String, extraSkips: [String], store: KaiKnowledgeStore,
-                             seen: inout Set<String>, report: inout KaiIndexReport) throws -> Int {
+                             seen: inout Set<String>, report: inout KaiIndexReport, progress: ((Int) -> Void)? = nil) throws -> Int {
         let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
         guard let walker = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: keys,
                                                           options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return 0 }
@@ -134,6 +142,7 @@ public enum KaiKnowledgeIndexer {
             let ext = url.pathExtension.lowercased()
             guard values.isRegularFile == true, KaiFileReader.supports(ext) else { continue }
             visited += 1
+            if visited % 20 == 0 { progress?(visited) }
             if visited > KaiKnowledgeFolders.maxFilesPerFolder { report.skipped += 1; continue }
             guard let size = values.fileSize else { continue }
             if KaiKnowledgeFolders.looksSecret(fileName: url.lastPathComponent) || size > KaiFileReader.maxBytes(for: ext) {

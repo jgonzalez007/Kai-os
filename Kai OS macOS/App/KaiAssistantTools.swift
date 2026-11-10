@@ -138,7 +138,7 @@ extension AppState {
             case "read_slack_screen":
                 output = await readSlackScreenTool()
             case "search_knowledge":
-                output = knowledgeTool(query: call.arguments["query"]?.stringValue)
+                output = await knowledgeToolAsync(query: call.arguments["query"]?.stringValue)
             case "search_notes":
                 output = try await notesTool(query: call.arguments["query"]?.stringValue)
             case "propose_calendar_event":

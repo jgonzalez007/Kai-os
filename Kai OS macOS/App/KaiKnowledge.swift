@@ -9,10 +9,11 @@
 import AppKit
 import Foundation
 import KaiKnowledge
+import KaiLocalAI
 import KaiShared
 
 extension AppState {
-    static let knowledgeSourceNames = ["files": "Files", "folder": "Folders", "notes": "Notes", "calendar": "Calendar", "mail": "Mail", "slack": "Slack"]
+    static let knowledgeSourceNames = ["files": "Files", "folder": "Folders", "reference": "Reference", "notes": "Notes", "calendar": "Calendar", "mail": "Mail", "slack": "Slack"]
 
     var knowledgeFolder: URL { KaiKnowledgeIndexer.defaultFolder() }
 
@@ -57,6 +58,14 @@ extension AppState {
     func removeKnowledgeFolder(_ id: String) {
         knowledgeFolders.removeAll { $0.id == id }
         knowledgeFolderResults[id] = nil
+        saveKnowledgeFolders()
+        indexKnowledge()
+    }
+
+    /// Changes how far a folder is trusted. Its documents are filed again under the new trust.
+    func setKnowledgeFolder(_ id: String, trust: KaiKnowledgeFolder.Trust) {
+        guard let index = knowledgeFolders.firstIndex(where: { $0.id == id }), knowledgeFolders[index].trust != trust else { return }
+        knowledgeFolders[index].trust = trust
         saveKnowledgeFolders()
         indexKnowledge()
     }
@@ -137,7 +146,7 @@ extension AppState {
                 // Reading PDFs and pictures takes a while, so it never runs on the main thread.
                 let outcome = try await Task.detached(priority: .utility) { () -> (KaiIndexReport, [String: KaiFolderResult]) in
                     var report = try KaiKnowledgeIndexer.indexFolder(folder, into: store)
-                    let extra = try KaiKnowledgeIndexer.indexFolders(folders, into: store)
+                    let extra = try KaiKnowledgeIndexer.indexFolders(folders, into: store) { text in Task { @MainActor in self.knowledgeProgress = text } }
                     report.merge(extra.report)
                     return (report, extra.results)
                 }.value
@@ -152,6 +161,8 @@ extension AppState {
         if sources.slack { await attempt("Slack") { try await indexSlack(into: store) } }
         refreshKnowledgeCounts()
         isIndexingKnowledge = false
+        knowledgeProgress = nil
+        if meaningWanted { embedPendingKnowledge() }
         knowledgeState = failures.isEmpty ? .connected : .failed(failures.joined(separator: "\n"))
 
         // What each source gave, and why not when it gave nothing, so a quiet source is never mistaken for a working one.
@@ -179,14 +190,29 @@ extension AppState {
     private func mailConnectedWanted(_ chosen: Set<KaiNightShiftSource>) -> Bool { chosen.contains(.mail) && !mailConnected }
     private func slackWanted(_ chosen: Set<KaiNightShiftSource>) -> Bool { chosen.contains(.slack) && slackClient == nil }
 
-    /// The assistant's view of a search: untrusted text, labelled by where it came from.
+    /// The assistant's view of a search: untrusted text, labelled by where it came from. Words only.
     func knowledgeTool(query: String?) -> String {
         guard let query, !query.trimmingCharacters(in: .whitespaces).isEmpty else { return "Give a few words to search for." }
         guard let store = openKnowledgeStore() else { return "The knowledge base could not be opened." }
         guard ((try? store.count()) ?? 0) > 0 else {
             return "The knowledge base is empty. Tell the user to click Index now under Knowledge base in Settings."
         }
-        guard let hits = try? store.search(query, limit: 8), !hits.isEmpty else {
+        return knowledgeAnswer(hits: (try? store.search(query, limit: 8)) ?? [], query: query)
+    }
+
+    /// The same, by words and by meaning when search by meaning is on.
+    func knowledgeToolAsync(query: String?) async -> String {
+        guard let query, !query.trimmingCharacters(in: .whitespaces).isEmpty else { return "Give a few words to search for." }
+        guard let store = openKnowledgeStore() else { return "The knowledge base could not be opened." }
+        guard ((try? store.count()) ?? 0) > 0 else {
+            return "The knowledge base is empty. Tell the user to click Index now under Knowledge base in Settings."
+        }
+        return knowledgeAnswer(hits: await searchKnowledge(query, limit: 8), query: query)
+    }
+
+    private func knowledgeAnswer(hits: [KaiKnowledgeHit], query: String) -> String {
+        guard !hits.isEmpty else {
+            recordKnowledgeGap(query)
             return "Nothing in the knowledge base matched. Say that you could not find it in the user's files and notes. Do not guess or make it up."
         }
         let folders = knowledgeFolders
@@ -197,5 +223,93 @@ extension AppState {
             return "[\(source)] \(hit.title)\(date)" + (place.isEmpty ? "" : "\nFile: \(place)") + "\n\(hit.snippet)"
         }.joined(separator: "\n\n")
         return found + "\n\nWhen you use any of this, say which source it came from (its title or file). If it does not answer the question, say you could not find it instead of guessing."
+    }
+
+    // MARK: What Kai couldn't answer
+
+    func recordKnowledgeGap(_ query: String) {
+        knowledgeGaps = KaiKnowledgeGapStore.recording(query, in: knowledgeGaps)
+        try? KaiKnowledgeGapStore.standard.save(knowledgeGaps)
+    }
+
+    func clearKnowledgeGaps(_ id: String? = nil) {
+        knowledgeGaps = id == nil ? [] : knowledgeGaps.filter { $0.id != id }
+        try? KaiKnowledgeGapStore.standard.save(knowledgeGaps)
+    }
+
+    // MARK: Search by meaning
+
+    static let meaningKey = "kai.knowledge.meaning"
+    var meaningWanted: Bool { UserDefaults.standard.bool(forKey: Self.meaningKey) }
+
+    /// Words and meaning together when the embedding model is there and the person turned it on; words alone otherwise.
+    func searchKnowledge(_ query: String, limit: Int = 8) async -> [KaiKnowledgeHit] {
+        guard let store = openKnowledgeStore() else { return [] }
+        var vector: [Float]?
+        if meaningWanted, (try? store.embeddingProgress(model: KaiOllamaClient.embeddingModel).embedded) ?? 0 > 0 {
+            vector = try? await KaiOllamaClient().embed(inputs: [query], isQuery: true).first
+        }
+        return (try? store.search(query, queryVector: vector, model: vector == nil ? nil : KaiOllamaClient.embeddingModel, limit: limit)) ?? []
+    }
+
+    /// Checks whether the model is installed and how many chunks have a vector.
+    func refreshMeaningState() async {
+        guard meaningWanted else { meaningState = .off; return }
+        guard await KaiOllamaClient().hasModel(KaiOllamaClient.embeddingModel) else { meaningState = .off; return }
+        if case .downloading = meaningState { return }
+        if let store = openKnowledgeStore(), let progress = try? store.embeddingProgress(model: KaiOllamaClient.embeddingModel) {
+            meaningState = progress.embedded >= progress.total ? .ready(chunks: progress.total) : .reading(embedded: progress.embedded, total: progress.total)
+        }
+    }
+
+    /// The person pressed the button: download the small model if it is missing, then read everything with it.
+    func enableMeaningSearch() {
+        UserDefaults.standard.set(true, forKey: Self.meaningKey)
+        Task {
+            let client = KaiOllamaClient()
+            if !(await client.hasModel(KaiOllamaClient.embeddingModel)) {
+                meaningState = .downloading(0)
+                do {
+                    for try await progress in client.pull(model: KaiOllamaClient.embeddingModel) { meaningState = .downloading(progress.fraction ?? 0) }
+                } catch {
+                    meaningState = .failed(error.localizedDescription)
+                    return
+                }
+            }
+            embedPendingKnowledge()
+        }
+    }
+
+    func disableMeaningSearch() {
+        UserDefaults.standard.set(false, forKey: Self.meaningKey)
+        meaningState = .off
+    }
+
+    private static var isEmbedding = false
+
+    /// Gives every chunk without a vector one, a few at a time. Words keep working while this runs.
+    func embedPendingKnowledge() {
+        guard !Self.isEmbedding, let store = openKnowledgeStore() else { return }
+        Self.isEmbedding = true
+        Task {
+            defer { Self.isEmbedding = false }
+            let model = KaiOllamaClient.embeddingModel
+            let client = KaiOllamaClient()
+            do {
+                while true {
+                    let batch = try store.chunksNeedingEmbedding(model: model, limit: 16)
+                    if batch.isEmpty { break }
+                    let vectors = try await client.embed(model: model, inputs: batch.map { String($0.text.prefix(2_000)) })
+                    try store.saveEmbeddings(zip(batch, vectors).map { (id: $0.0.id, vector: $0.1) }, model: model)
+                    let p = try store.embeddingProgress(model: model)
+                    meaningState = .reading(embedded: p.embedded, total: p.total)
+                    try Task.checkCancellation()
+                }
+                let p = try store.embeddingProgress(model: model)
+                meaningState = .ready(chunks: p.total)
+            } catch {
+                meaningState = .failed(error.localizedDescription)
+            }
+        }
     }
 }

@@ -90,6 +90,11 @@ struct MailMessage: Identifiable {
         self.sender = sender.isEmpty ? from : sender; self.account = account; self.mailbox = mailbox; self.position = position
     }
 
+    var markedUnread: MailMessage {
+        MailMessage(id: id, from: from, subject: subject, preview: preview, date: date, isRead: false, folder: folder, starred: starred,
+                    sender: sender, account: account, mailbox: mailbox, position: position)
+    }
+
     /// The same message, shown as read.
     var markedRead: MailMessage {
         MailMessage(id: id, from: from, subject: subject, preview: preview, date: date, isRead: true, folder: folder, starred: starred,
@@ -197,6 +202,15 @@ final class AppState: ObservableObject {
     @Published var knowledgeFolders: [KaiKnowledgeFolder] = KaiKnowledgeFolderList.standard.load()
     @Published var knowledgeFolderResults: [String: KaiFolderResult] = [:]
     @Published var knowledgeAddMessage: String?
+    /// When the mail list was last read, and whether what is showing is the saved copy from an earlier time.
+    @Published var mailUpdatedAt: Date?
+    @Published var mailShowingCache = false
+    /// What the indexer is reading right now, such as "Projects: 120 files".
+    @Published var knowledgeProgress: String?
+    /// Questions Kai searched for and found nothing about.
+    @Published var knowledgeGaps: [KaiKnowledgeGap] = KaiKnowledgeGapStore.standard.load()
+    /// Search by meaning: needs a small local embedding model, which the person downloads on purpose.
+    @Published var meaningState: KaiMeaningState = .off
     @Published var knowledgeState = KaiSourceState.disconnected
     @Published var isIndexingKnowledge = false
     /// What Kai knows about the person, written by the local model from the knowledge base.
@@ -281,6 +295,13 @@ final class AppState: ObservableObject {
     }
 
     func refreshMail() {
+        // The last list first, so the page isn't empty while Mail answers.
+        if mailMessages.isEmpty, let cached = KaiMailListCache.standard.load() {
+            mailMessages = cached.items.enumerated().map { Self.mailMessage(from: $1, position: $0 + 1) }
+            unreadCount = cached.items.filter { !$0.isRead }.count
+            mailUpdatedAt = cached.savedAt
+            mailShowingCache = true
+        }
         mailState = .loading
         Task { await loadMail(connecting: false) }
     }
@@ -291,12 +312,21 @@ final class AppState: ObservableObject {
         unreadCount = mailMessages.filter { !$0.isRead }.count
     }
 
+    /// After an undo: the messages show as unread again.
+    func applyMailUnread(ids: Set<String>) {
+        mailMessages = mailMessages.map { ids.contains($0.id) ? $0.markedUnread : $0 }
+        unreadCount = mailMessages.filter { !$0.isRead }.count
+    }
+
     func disconnectMail() {
         UserDefaults.standard.set(false, forKey: Self.mailConnectedKey)
         mailConnected = false
         mailState = .disconnected
         mailMessages = []
         unreadCount = 0
+        KaiMailListCache.standard.delete()
+        mailShowingCache = false
+        mailUpdatedAt = nil
     }
 
     /// Granting access on the Permissions screen is the user's consent, so there's no second step.
@@ -334,13 +364,18 @@ final class AppState: ObservableObject {
         notes = []
     }
 
+    private static func mailMessage(from item: KaiMailItem, position: Int) -> MailMessage {
+        MailMessage(id: item.id, from: displayName(fromSender: item.sender), subject: item.subject, preview: "", date: item.date, isRead: item.isRead, starred: item.isFlagged,
+                    sender: item.sender, account: item.account, mailbox: item.mailbox, position: position)
+    }
+
     private func loadMail(connecting: Bool) async {
         do {
             let items = try await KaiMailSource.recentMessages(limit: 30)
-            mailMessages = items.enumerated().map { index, item in
-                MailMessage(id: item.id, from: Self.displayName(fromSender: item.sender), subject: item.subject, preview: "", date: item.date, isRead: item.isRead, starred: item.isFlagged,
-                            sender: item.sender, account: item.account, mailbox: item.mailbox, position: index + 1)
-            }
+            mailMessages = items.enumerated().map { Self.mailMessage(from: $1, position: $0 + 1) }
+            try? KaiMailListCache.standard.save(items)
+            mailUpdatedAt = Date()
+            mailShowingCache = false
             unreadCount = items.filter { !$0.isRead }.count
             starredCount = items.filter(\.isFlagged).count
             mailConnected = true
@@ -859,3 +894,13 @@ struct Previews: PreviewProvider {
     }
 }
 #endif
+
+
+/// Where search by meaning stands.
+enum KaiMeaningState: Equatable {
+    case off
+    case downloading(Double)
+    case reading(embedded: Int, total: Int)
+    case ready(chunks: Int)
+    case failed(String)
+}

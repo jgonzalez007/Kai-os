@@ -99,6 +99,42 @@ public struct KaiOllamaClient: KaiChatClient {
         }
     }
 
+    // MARK: Embeddings
+
+    /// A small model that turns text into numbers, so Kai can search by meaning. About 274 MB, downloaded once.
+    public static let embeddingModel = "nomic-embed-text"
+
+    /// The vectors for these texts, in order. The model expects a prefix saying what the text is for.
+    public func embed(model: String = KaiOllamaClient.embeddingModel, inputs: [String], isQuery: Bool = false) async throws -> [[Float]] {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/embed"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 120
+        let prefix = isQuery ? "search_query: " : "search_document: "
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["model": model, "input": inputs.map { prefix + $0 }, "keep_alive": "5m"])
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let status = (response as? HTTPURLResponse)?.statusCode, status != 200 {
+                throw KaiOllamaError.http(status: status, message: String(decoding: data, as: UTF8.self))
+            }
+            let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let vectors = (object?["embeddings"] as? [[Double]])?.map { $0.map(Float.init) }
+            guard let vectors, vectors.count == inputs.count else { throw KaiOllamaError.http(status: 200, message: "The embedding model gave an unexpected answer.") }
+            return vectors
+        } catch let error as URLError {
+            throw mapped(error)
+        }
+    }
+
+    /// True when Ollama has the model, with any tag.
+    public func hasModel(_ name: String) async -> Bool {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/tags"))
+        request.timeoutInterval = 5
+        guard let (data, _) = try? await URLSession.shared.data(for: request),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let models = object["models"] as? [[String: Any]] else { return false }
+        return models.contains { let n = ($0["name"] as? String) ?? ""; return n == name || n.hasPrefix(name + ":") }
+    }
+
     /// How long a model stays loaded after it answers, so the next question doesn't wait for it to load again.
     public static let keepLoaded = "30m"
 

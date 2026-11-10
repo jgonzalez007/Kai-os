@@ -8,6 +8,7 @@
 //
 
 import AppKit
+import KaiActions
 import KaiLocalData
 import SwiftUI
 
@@ -28,6 +29,9 @@ struct KaiCalendarView: View {
 
     private var selected: KaiCalendarItem? { items.first { $0.id == selectedID } }
     private var visible: [KaiCalendarItem] { items.filter { !hiddenCalendars.contains($0.calendarName) } }
+    /// Events that overlap another, found from what is shown.
+    private var conflictMap: [String: [KaiCalendarItem]] { KaiCalendarPlanner.conflicts(in: visible) }
+    @State private var findingTime = false
 
     var body: some View {
         Group {
@@ -47,7 +51,7 @@ struct KaiCalendarView: View {
                 KaiConnectCard(
                     title: "Calendar",
                     icon: "calendar",
-                    explanation: "Kai OS reads your events from Apple Calendar. It can't change them, and nothing leaves this Mac.",
+                    explanation: "Kai OS reads your events from Apple Calendar. It only adds an event after you approve it, and nothing leaves this Mac.",
                     state: appState.calendarState,
                     connect: appState.connectCalendar
                 )
@@ -56,6 +60,7 @@ struct KaiCalendarView: View {
         .onAppear { if appState.calendarConnected { reload() } }
         .onChange(of: appState.calendarConnected) { _, connected in if connected { reload() } }
         .onChange(of: month) { _, _ in reload() }
+        .sheet(isPresented: $findingTime) { KaiFindTimeSheet().environmentObject(appState) }
     }
 
     // MARK: Data
@@ -107,6 +112,8 @@ struct KaiCalendarView: View {
             Button { step(1) } label: { Image(systemName: "chevron.right") }.buttonStyle(.plain).padding(.horizontal, 4)
             Picker("", selection: $mode) { ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
                 .pickerStyle(.segmented).labelsHidden().frame(width: 160)
+            Button { findingTime = true } label: { Label("Find a time", systemImage: "clock.badge.questionmark") }
+                .controlSize(.small).help("Find a free stretch in your week, then add it with your approval")
             Button { appState.refreshCalendar(); reload() } label: { Image(systemName: "arrow.clockwise") }
                 .buttonStyle(.plain).help("Read the calendar again")
         }
@@ -376,6 +383,12 @@ struct KaiCalendarView: View {
             .background(RoundedRectangle(cornerRadius: 8).fill(tint.opacity(isSelected ? 0.45 : 0.25)))
             .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(isSelected ? Color.white.opacity(0.8) : tint.opacity(0.4), lineWidth: isSelected ? 1.4 : 0.8))
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(alignment: .topTrailing) {
+                if conflictMap[event.id] != nil {
+                    Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(KaiColor.warning).padding(4)
+                        .help("Overlaps another event")
+                }
+            }
             .opacity(event.isCancelled ? 0.5 : 1)
         }
         .buttonStyle(.plain)
@@ -434,6 +447,10 @@ struct KaiCalendarView: View {
                         if event.attendees.count > 1 { Label("\(event.attendees.count)", systemImage: "person.2") }
                     }
                     .font(.caption).foregroundStyle(.secondary).labelStyle(.titleAndIcon)
+                    if let clash = conflictMap[event.id]?.first {
+                        Label("Overlaps “\(clash.title)”" + ((conflictMap[event.id]?.count ?? 0) > 1 ? " and \((conflictMap[event.id]?.count ?? 1) - 1) more" : ""), systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption).foregroundStyle(KaiColor.warning).lineLimit(1)
+                    }
                 }
                 Spacer(minLength: 0)
                 if let when = relative(event) {
@@ -492,6 +509,19 @@ struct KaiCalendarView: View {
 
                 fact("clock", event.start.formatted(.dateTime.weekday(.wide).month(.wide).day()) +
                      (event.isAllDay ? "\nAll day" : "\n\(timeRange(event)) · \(durationText(event))"))
+
+                if let clashes = conflictMap[event.id] {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label("This overlaps \(clashes.count == 1 ? "another event" : "\(clashes.count) other events")", systemImage: "exclamationmark.triangle.fill")
+                            .font(.callout.weight(.semibold)).foregroundStyle(KaiColor.warning)
+                        ForEach(clashes) { other in
+                            Button { selectedID = other.id } label: {
+                                Text("\(timeRange(other))  \(other.title)").font(.caption).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                            }.buttonStyle(.plain).foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(10).background(RoundedRectangle(cornerRadius: 10).fill(KaiColor.warning.opacity(0.12)))
+                }
 
                 if let link = event.joinLink {
                     Button { NSWorkspace.shared.open(link) } label: {
@@ -639,3 +669,122 @@ extension KaiCalendarView {
     }
 }
 #endif
+
+
+/// Finds free stretches in the next days and adds one to the calendar once the person approves it.
+struct KaiFindTimeSheet: View {
+    @EnvironmentObject var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+
+    @AppStorage("kai.calendar.findMinutes") private var minutes = 30
+    @AppStorage("kai.calendar.findDays") private var days = 7
+    @AppStorage("kai.calendar.workStart") private var startHour = 9
+    @AppStorage("kai.calendar.workEnd") private var endHour = 17
+    @State private var events: [KaiCalendarItem] = []
+    @State private var loaded = false
+    @State private var chosen: DateInterval?
+    @State private var title = ""
+    @State private var location = ""
+    @State private var busy = false
+    @State private var result: (text: String, ok: Bool)?
+
+    private var slots: [DateInterval] {
+        KaiCalendarPlanner.freeSlots(events: events, from: Date(), days: days, minutes: minutes,
+                                     window: .init(startHour: startHour, endHour: endHour), buffer: 0, limit: 8)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Find a time").font(.title2.weight(.semibold))
+                Spacer()
+                Button("Done") { dismiss() }.controlSize(.small)
+            }
+            HStack(spacing: 12) {
+                Picker("Length", selection: $minutes) { ForEach([15, 30, 45, 60, 90, 120], id: \.self) { Text("\($0) min").tag($0) } }.frame(width: 150)
+                Picker("Within", selection: $days) { ForEach([3, 7, 14], id: \.self) { Text("\($0) days").tag($0) } }.frame(width: 150)
+                Stepper("From \(startHour):00", value: $startHour, in: 0...22)
+                Stepper("To \(endHour):00", value: $endHour, in: 1...24)
+            }
+            .controlSize(.small)
+            Text("Weekends are skipped. Overlaps, cancelled and “free” events are taken into account the way Calendar shows them. Nothing is added until you approve it below.")
+                .font(.caption).foregroundStyle(.secondary)
+            Divider()
+            if !loaded {
+                HStack { ProgressView().controlSize(.small); Text("Reading your calendar…").foregroundStyle(.secondary) }
+            } else if slots.isEmpty {
+                Text("No free stretch of \(minutes) minutes in the next \(days) days between \(startHour):00 and \(endHour):00. Try a shorter length, more days or longer hours.").foregroundStyle(.secondary)
+            } else {
+                ForEach(slots, id: \.start) { slot in
+                    Button { chosen = slot; result = nil } label: {
+                        HStack {
+                            Text(slot.start.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())).fontWeight(.medium)
+                            Text("\(slot.start.formatted(date: .omitted, time: .shortened)) – \(slot.end.formatted(date: .omitted, time: .shortened))").foregroundStyle(.secondary)
+                            Spacer()
+                            if chosen == slot { Image(systemName: "checkmark.circle.fill").foregroundStyle(KaiColor.cyan) }
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(chosen == slot ? 0.14 : 0.06)))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if let chosen {
+                Divider()
+                Text("Add to Calendar").font(.headline)
+                TextField("Title", text: $title).kaiInput()
+                TextField("Where (optional)", text: $location).kaiInput()
+                HStack {
+                    Text("\(chosen.start.formatted(date: .abbreviated, time: .shortened)) for \(minutes) minutes").font(.callout).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(busy ? "Adding…" : "Approve and add") { add(chosen) }
+                        .buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small)
+                        .disabled(busy || title.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            if let result { Text(result.text).font(.callout).foregroundStyle(result.ok ? KaiColor.cyan : KaiColor.warning) }
+            Spacer(minLength: 0)
+        }
+        .padding(22).frame(width: 640, height: 560)
+        .task { await load() }
+        .onChange(of: days) { _, _ in Task { await load() } }
+    }
+
+    private func load() async {
+        let end = Calendar.current.date(byAdding: .day, value: days + 1, to: Date()) ?? Date()
+        let found = await Task.detached { KaiCalendarSource.events(from: Calendar.current.startOfDay(for: Date()), to: end) }.value
+        events = found
+        loaded = true
+        if let chosen, !slots.contains(chosen) { self.chosen = nil }
+    }
+
+    /// Pressing the button is the approval. It is written to the action log, like any other action.
+    private func add(_ slot: DateInterval) {
+        let proposed = KaiProposedAction.calendarEvent(title: String(title.trimmingCharacters(in: .whitespaces).prefix(200)), start: slot.start, minutes: minutes,
+                                                       location: String(location.trimmingCharacters(in: .whitespaces).prefix(200)))
+        var card = KaiActionCard(action: proposed)
+        guard card.approve() else { return }
+        guard (try? appState.actionLog.record(event: "approved", card: card, detail: "calendar page, find a time")) != nil else {
+            result = ("The action log couldn't be written, so nothing was added.", false)
+            return
+        }
+        busy = true
+        let executor = appState.actionExecutor
+        Task {
+            defer { busy = false }
+            do {
+                let detail = try await executor.perform(card.action)
+                card.finish(.succeeded(detail))
+                try? appState.actionLog.record(event: "succeeded", card: card, detail: detail)
+                result = (detail, true)
+                chosen = nil; title = ""; location = ""
+                appState.refreshCalendar()
+                await load()
+            } catch {
+                card.finish(.failed(error.localizedDescription))
+                try? appState.actionLog.record(event: "failed", card: card, detail: error.localizedDescription)
+                result = (error.localizedDescription, false)
+            }
+        }
+    }
+}

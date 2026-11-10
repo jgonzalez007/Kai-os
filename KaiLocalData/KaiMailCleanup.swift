@@ -36,6 +36,18 @@ public struct KaiMailGroup: Identifiable, Equatable, Sendable {
     public let messages: [KaiMailCleanupInput]
 
     public var unread: Int { messages.filter { !$0.isRead }.count }
+    /// A reason to do something about this sender, or nil. Never acts on its own: it only points at a button.
+    public var suggestion: String? {
+        guard !isMuted else { return nil }
+        if isAutomated, unread >= 3 {
+            return "\(unread) unread from an automated sender. A rule can mark this mail read as it arrives."
+        }
+        if !isAutomated, messages.count >= 5, unread == messages.count {
+            return "\(messages.count) messages and none opened. Mute this sender to keep it out of your Needs you list."
+        }
+        return nil
+    }
+
     /// Flagged messages are left alone: the person marked them as important.
     public var changeable: [KaiMailCleanupInput] { messages.filter { !$0.isFlagged } }
 }
@@ -118,6 +130,10 @@ public struct KaiMailCleanupPlan: Codable, Equatable, Sendable {
         case rule
         /// A rule in Apple Mail that moves future mail from the sender to a folder of the same account.
         case moveRule(to: String)
+        /// Undo of `markRead`: the same messages are marked unread again.
+        case markUnread
+        /// Undo of a rule: removes the rule of this name, which Kai made and named "Kai: …".
+        case removeRule(named: String)
     }
 
     public struct Item: Codable, Equatable, Sendable {
@@ -144,6 +160,18 @@ public struct KaiMailCleanupPlan: Codable, Equatable, Sendable {
         case .move(let folder): return "Move \(items.count) \(noun) from \(senderName) to “\(folder)”"
         case .rule: return "Make a rule in Mail: mail from \(senderKey) is marked as read when it arrives"
         case .moveRule(let folder): return "Make a rule in Mail: mail from \(senderKey) always goes to “\(folder)”"
+        case .markUnread: return "Mark \(items.count) \(noun) from \(senderName) as unread again"
+        case .removeRule: return "Remove the Mail rule for \(senderKey)"
+        }
+    }
+
+    /// What reverses this change, or nil when it can't be reversed: a move leaves no record of where the message was.
+    public var undo: KaiMailCleanupPlan? {
+        switch operation {
+        case .markRead: return KaiMailCleanupPlan(operation: .markUnread, senderKey: senderKey, senderName: senderName, items: items)
+        case .rule: return KaiMailCleanupPlan(operation: .removeRule(named: KaiMailCleanup.ruleName(for: senderKey)), senderKey: senderKey, senderName: senderName, items: [])
+        case .moveRule(let folder): return KaiMailCleanupPlan(operation: .removeRule(named: KaiMailCleanup.moveRuleName(for: senderKey, folder: folder)), senderKey: senderKey, senderName: senderName, items: [])
+        case .move, .markUnread, .removeRule: return nil
         }
     }
 }
@@ -183,6 +211,9 @@ public enum KaiMailCleanupRunner {
                     if op is "read" then
                         set read status of c to true
                         set changed to changed + 1
+                    else if op is "unread" then
+                        set read status of c to false
+                        set changed to changed + 1
                     else
                         try
                             set acct to account of (mailbox of c)
@@ -194,6 +225,20 @@ public enum KaiMailCleanupRunner {
             end repeat
         end tell
         return changed as string
+    end run
+    """
+
+    /// Argument: the rule's name. Removes only a rule whose name starts with "Kai: ", so no other rule can be touched.
+    static let removeRuleScript = """
+    on run argv
+        set ruleName to item 1 of argv
+        tell application "Mail"
+            if ruleName does not start with "Kai: " then return "refused"
+            set found to (rules whose name is ruleName)
+            if (count of found) is 0 then return "none"
+            delete (item 1 of found)
+        end tell
+        return "removed"
     end run
     """
 
@@ -272,16 +317,20 @@ public enum KaiMailCleanupRunner {
             guard let sample = plan.items.first else { throw KaiSourceError.invalid("Kai needs one message from this sender to find its account.") }
             let result = try await run([moveRuleScript, KaiMailCleanup.moveRuleName(for: plan.senderKey, folder: folder), plan.senderKey, folder, String(sample.position)], timeout: 60)
             return result == "exists" ? "Mail already has this rule." : "Made a rule in Mail: mail from \(plan.senderKey) now goes to “\(folder)”. You can see or remove it in Mail → Settings → Rules."
-        case .markRead, .move:
+        case .removeRule(let name):
+            let result = try await run([removeRuleScript, name], timeout: 45)
+            return result == "removed" ? "Removed the Mail rule." : "That rule was already gone."
+        case .markRead, .move, .markUnread:
             guard !plan.items.isEmpty else { return "There was nothing to change." }
             // Highest position first, so changing one message doesn't move the ones still to come.
             let pairs = plan.items.sorted { $0.position > $1.position }.map { "\($0.id):\($0.position)" }
             var destination = ""
             var op = "read"
             if case .move(let folder) = plan.operation { op = "move"; destination = folder }
+            if case .markUnread = plan.operation { op = "unread" }
             let result = try await run([changeScript, op, destination] + pairs, timeout: 240)
             let changed = Int(result) ?? 0
-            let what = op == "read" ? "marked read" : "moved to “\(destination)”"
+            let what = op == "read" ? "marked read" : op == "unread" ? "marked unread" : "moved to “\(destination)”"
             if changed == plan.items.count { return "\(changed) \(changed == 1 ? "message" : "messages") \(what)." }
             return "\(changed) of \(plan.items.count) messages \(what). The rest are no longer among the newest 80 in the inbox."
         }

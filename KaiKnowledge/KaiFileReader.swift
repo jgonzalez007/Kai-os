@@ -22,9 +22,11 @@ public enum KaiFileReader {
     public static let documentExtensions: Set<String> = ["rtf", "doc", "docx", "odt"]
     public static let pdfExtensions: Set<String> = ["pdf"]
     public static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "tif", "tiff"]
+    /// Excel workbooks and PowerPoint decks: zip files of XML, read for their text and cell values.
+    public static let officeExtensions: Set<String> = ["xlsx", "pptx"]
 
     public static var supportedExtensions: Set<String> {
-        plainExtensions.union(markupExtensions).union(documentExtensions).union(pdfExtensions).union(imageExtensions)
+        plainExtensions.union(markupExtensions).union(documentExtensions).union(pdfExtensions).union(imageExtensions).union(officeExtensions)
     }
 
     public static func supports(_ fileExtension: String) -> Bool { supportedExtensions.contains(fileExtension.lowercased()) }
@@ -56,6 +58,10 @@ public enum KaiFileReader {
             text = pdf(url)
         } else if imageExtensions.contains(ext) {
             text = image(url)
+        } else if ext == "xlsx" {
+            text = KaiOfficeReader.workbook(url)
+        } else if ext == "pptx" {
+            text = KaiOfficeReader.slides(url)
         } else {
             text = nil
         }
@@ -142,5 +148,139 @@ public enum KaiFileReader {
             .replacingOccurrences(of: "[ \\t]+\\n", with: "\n", options: .regularExpression)
             .replacingOccurrences(of: "\\n{3,}", with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+
+/// Excel and PowerPoint files are zip archives of XML. They are opened with the system's unzip, one entry at a time and
+/// with a size limit, never extracted to disk, and only their text is kept.
+enum KaiOfficeReader {
+    static func entries(_ url: URL) -> [String] {
+        guard let data = run(["-Z1", url.path]) else { return [] }
+        return String(decoding: data, as: UTF8.self).components(separatedBy: "\n").filter { !$0.isEmpty }
+    }
+
+    static func entry(_ url: URL, _ name: String) -> Data? { run(["-p", url.path, name]) }
+
+    private static func run(_ arguments: [String], limit: Int = 12_000_000) -> Data? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        var data = Data()
+        while true {
+            let chunk = pipe.fileHandleForReading.availableData
+            if chunk.isEmpty { break }
+            data.append(chunk)
+            if data.count > limit { process.terminate(); return nil }
+        }
+        process.waitUntilExit()
+        return process.terminationStatus == 0 ? data : nil
+    }
+
+    /// Part names in natural order: slide2 before slide10.
+    static func numbered(_ names: [String], prefix: String) -> [String] {
+        names.filter { $0.hasPrefix(prefix) && $0.hasSuffix(".xml") }
+            .sorted { $0.compare($1, options: .numeric) == .orderedAscending }
+    }
+
+    static func workbook(_ url: URL) -> String? {
+        let names = entries(url)
+        let strings = entry(url, "xl/sharedStrings.xml").map { parseStrings($0) } ?? []
+        var sheets: [String] = []
+        for (index, name) in numbered(names, prefix: "xl/worksheets/sheet").prefix(4).enumerated() {
+            guard let data = entry(url, name) else { continue }
+            let rows = parseSheet(data, strings: strings)
+            if !rows.isEmpty { sheets.append("Sheet \(index + 1)\n" + rows.joined(separator: "\n")) }
+        }
+        return sheets.isEmpty ? nil : sheets.joined(separator: "\n\n")
+    }
+
+    static func slides(_ url: URL) -> String? {
+        let names = numbered(entries(url), prefix: "ppt/slides/slide")
+        var out: [String] = []
+        for (index, name) in names.enumerated() {
+            guard let data = entry(url, name) else { continue }
+            let collector = TextCollector(tag: "a:t", paragraph: "a:p")
+            let parser = XMLParser(data: data); parser.delegate = collector; parser.parse()
+            let text = collector.lines.joined(separator: "\n")
+            if !text.isEmpty { out.append("Slide \(index + 1)\n" + text) }
+        }
+        return out.isEmpty ? nil : out.joined(separator: "\n\n")
+    }
+
+    static func parseStrings(_ data: Data) -> [String] {
+        let collector = SharedStrings()
+        let parser = XMLParser(data: data); parser.delegate = collector; parser.parse()
+        return collector.items
+    }
+
+    static func parseSheet(_ data: Data, strings: [String], maxRows: Int = 4_000) -> [String] {
+        let reader = SheetReader(strings: strings, maxRows: maxRows)
+        let parser = XMLParser(data: data); parser.delegate = reader; parser.parse()
+        return reader.rows
+    }
+
+    private final class TextCollector: NSObject, XMLParserDelegate {
+        let tag: String, paragraph: String
+        var lines: [String] = []
+        private var current = ""
+        private var inText = false
+        init(tag: String, paragraph: String) { self.tag = tag; self.paragraph = paragraph }
+        func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) { if name == tag { inText = true } }
+        func parser(_ parser: XMLParser, foundCharacters string: String) { if inText { current += string } }
+        func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
+            if name == tag { inText = false }
+            if name == paragraph { let t = current.trimmingCharacters(in: .whitespacesAndNewlines); if !t.isEmpty { lines.append(t) }; current = "" }
+        }
+    }
+
+    private final class SharedStrings: NSObject, XMLParserDelegate {
+        var items: [String] = []
+        private var current = ""
+        private var inText = false
+        func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) {
+            if name == "si" { current = "" }
+            if name == "t" { inText = true }
+        }
+        func parser(_ parser: XMLParser, foundCharacters string: String) { if inText { current += string } }
+        func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
+            if name == "t" { inText = false }
+            if name == "si" { items.append(current) }
+        }
+    }
+
+    private final class SheetReader: NSObject, XMLParserDelegate {
+        let strings: [String], maxRows: Int
+        var rows: [String] = []
+        private var cells: [String] = []
+        private var type = ""
+        private var value = ""
+        private var inValue = false
+        init(strings: [String], maxRows: Int) { self.strings = strings; self.maxRows = maxRows }
+        func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) {
+            switch name {
+            case "row": cells = []
+            case "c": type = attributes["t"] ?? ""; value = ""
+            case "v", "t": inValue = true
+            default: break
+            }
+        }
+        func parser(_ parser: XMLParser, foundCharacters string: String) { if inValue { value += string } }
+        func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
+            switch name {
+            case "v", "t": inValue = false
+            case "c":
+                if type == "s", let index = Int(value.trimmingCharacters(in: .whitespaces)), index >= 0, index < strings.count { cells.append(strings[index]) }
+                else { cells.append(value) }
+            case "row":
+                let line = cells.joined(separator: "\t").trimmingCharacters(in: .whitespaces)
+                if !line.isEmpty, rows.count < maxRows { rows.append(line) }
+            default: break
+            }
+        }
     }
 }

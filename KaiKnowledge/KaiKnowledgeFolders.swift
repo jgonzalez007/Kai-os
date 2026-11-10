@@ -10,23 +10,48 @@
 import Foundation
 
 public struct KaiKnowledgeFolder: Codable, Equatable, Identifiable, Sendable {
+    /// How far Kai trusts what is in the folder as a fact about the person.
+    public enum Trust: String, Codable, CaseIterable, Sendable {
+        /// Their own writing and documents. Used to describe them.
+        case mine
+        /// Other people's material kept for context (manuals, reports, a colleague's notes). Searched, but never used to describe the person.
+        case reference
+
+        public var title: String { self == .mine ? "My own files" : "Reference" }
+    }
+
     public var id: String
     public var path: String
+    public var trust: Trust
     public var enabled: Bool
     /// More folder names to skip, besides the built-in ones.
     public var skipNames: [String]
     public var addedAt: Date
 
-    public init(id: String = UUID().uuidString.prefix(8).lowercased().description, path: String, enabled: Bool = true,
+    public init(id: String = UUID().uuidString.prefix(8).lowercased().description, path: String, trust: Trust = .mine, enabled: Bool = true,
                 skipNames: [String] = [], addedAt: Date = Date()) {
         self.id = id
         self.path = path
+        self.trust = trust
         self.enabled = enabled
         self.skipNames = skipNames
         self.addedAt = addedAt
     }
 
+    // Lists saved before there was a trust setting have none: those folders count as the person's own.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        path = try c.decode(String.self, forKey: .path)
+        trust = try c.decodeIfPresent(Trust.self, forKey: .trust) ?? .mine
+        enabled = try c.decode(Bool.self, forKey: .enabled)
+        skipNames = try c.decodeIfPresent([String].self, forKey: .skipNames) ?? []
+        addedAt = try c.decode(Date.self, forKey: .addedAt)
+    }
+
     public var url: URL { URL(fileURLWithPath: path, isDirectory: true) }
+    /// Where its documents are filed in the knowledge base.
+    public var source: String { trust == .mine ? KaiKnowledgeIndexer.extraFoldersSource : KaiKnowledgeIndexer.referenceSource }
     public var name: String { url.lastPathComponent.isEmpty ? path : url.lastPathComponent }
 }
 
@@ -165,11 +190,11 @@ public enum KaiKnowledgeCitation {
         switch source {
         case KaiKnowledgeIndexer.folderSource:
             return "Files: \(sourceID)"
-        case KaiKnowledgeIndexer.extraFoldersSource:
+        case KaiKnowledgeIndexer.extraFoldersSource, KaiKnowledgeIndexer.referenceSource:
             let parts = sourceID.split(separator: "/", maxSplits: 1).map(String.init)
             guard parts.count == 2 else { return "Folders" }
             let folder = folders.first { $0.id == parts[0] }?.name ?? "folder"
-            return "Folders (\(folder)): \(parts[1])"
+            return (source == KaiKnowledgeIndexer.referenceSource ? "Reference" : "Folders") + " (\(folder)): \(parts[1])"
         default:
             return ""
         }

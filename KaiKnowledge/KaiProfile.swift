@@ -74,6 +74,7 @@ public enum KaiProfilePrompt {
         case KaiKnowledgeIndexer.folderSource:
             return document.sourceID.hasPrefix(KaiManualNote.folderName + "/") ? 0 : 1
         case KaiKnowledgeIndexer.extraFoldersSource: return 1
+        case KaiKnowledgeIndexer.referenceSource: return 4
         case KaiKnowledgeIndexer.notesSource: return 2
         case KaiKnowledgeIndexer.calendarSource: return 3
         case "slack": return 4
@@ -87,7 +88,7 @@ public enum KaiProfilePrompt {
         case 1: return "file the user keeps"
         case 2: return "user's note"
         case 3: return "user's calendar"
-        case 4: return "Slack, written by the user and others"
+        case 4: return document.source == KaiKnowledgeIndexer.referenceSource ? "reference material the user keeps, written by other people" : "Slack, written by the user and others"
         default: return "email, written by other people to the user"
         }
     }

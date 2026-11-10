@@ -63,6 +63,9 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
                 UNIQUE(source, source_id))
             """)
         try execute("CREATE VIRTUAL TABLE IF NOT EXISTS chunks USING fts5(text, title, doc_id UNINDEXED, tokenize='porter unicode61')")
+        // One vector per chunk, for searching by meaning. Made by a local embedding model, and optional.
+        try execute("CREATE TABLE IF NOT EXISTS embeddings(chunk_id INTEGER PRIMARY KEY, doc_id INTEGER NOT NULL, model TEXT NOT NULL, vector BLOB NOT NULL)")
+        try execute("CREATE INDEX IF NOT EXISTS embeddings_doc ON embeddings(doc_id)")
     }
 
     deinit { sqlite3_close(db) }
@@ -87,6 +90,7 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
         do {
             if let existing {
                 try run("DELETE FROM chunks WHERE doc_id = ?", [existing.0])
+                try run("DELETE FROM embeddings WHERE doc_id = ?", [existing.0])
                 try run("UPDATE documents SET title = ?, modified = ?, fingerprint = ? WHERE id = ?",
                         [document.title, document.modified?.timeIntervalSince1970 as Any, document.fingerprint, existing.0])
             } else {
@@ -120,6 +124,7 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
         let gone = stored.filter { !ids.contains($0.1) }
         for (id, _) in gone {
             try run("DELETE FROM chunks WHERE doc_id = ?", [id])
+            try run("DELETE FROM embeddings WHERE doc_id = ?", [id])
             try run("DELETE FROM documents WHERE id = ?", [id])
         }
         return gone.count
@@ -128,6 +133,7 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
     public func clear() throws {
         lock.lock(); defer { lock.unlock() }
         try execute("DELETE FROM chunks")
+        try execute("DELETE FROM embeddings")
         try execute("DELETE FROM documents")
     }
 
@@ -182,6 +188,106 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
         var hits = try matches(KaiSearchQuery.match(words, all: true), limit: limit)
         if hits.isEmpty, words.count > 1 { hits = try matches(KaiSearchQuery.match(words, all: false), limit: limit) }
         return hits
+    }
+
+    // MARK: Search by meaning
+
+    /// A vector's length is made 1, so the dot product of two is their cosine similarity.
+    public static func normalized(_ vector: [Float]) -> [Float] {
+        let length = vector.reduce(0) { $0 + $1 * $1 }.squareRoot()
+        return length > 0 ? vector.map { $0 / length } : vector
+    }
+
+    static func data(_ vector: [Float]) -> Data { vector.withUnsafeBufferPointer { Data(buffer: $0) } }
+    static func vector(_ data: Data) -> [Float] { data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) } }
+
+    /// Chunks that have no vector yet from `model`.
+    public func chunksNeedingEmbedding(model: String, limit: Int) throws -> [(id: Int, text: String)] {
+        lock.lock(); defer { lock.unlock() }
+        return try rows("""
+            SELECT chunks.rowid, chunks.text FROM chunks
+            LEFT JOIN embeddings e ON e.chunk_id = chunks.rowid AND e.model = ?
+            WHERE e.chunk_id IS NULL LIMIT ?
+            """, [model, max(limit, 1)]) { (id: $0.int(0), text: $0.text(1)) }
+    }
+
+    public func saveEmbeddings(_ items: [(id: Int, vector: [Float])], model: String) throws {
+        lock.lock(); defer { lock.unlock() }
+        try execute("BEGIN")
+        do {
+            for item in items {
+                guard let doc = try rows("SELECT doc_id FROM chunks WHERE rowid = ?", [item.id], { $0.int(0) }).first else { continue }
+                try run("DELETE FROM embeddings WHERE chunk_id = ?", [item.id])
+                try insertEmbedding(chunk: item.id, doc: doc, model: model, vector: Self.normalized(item.vector))
+            }
+            try execute("COMMIT")
+        } catch {
+            try? execute("ROLLBACK")
+            throw error
+        }
+    }
+
+    private func insertEmbedding(chunk: Int, doc: Int, model: String, vector: [Float]) throws {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "INSERT INTO embeddings(chunk_id, doc_id, model, vector) VALUES(?,?,?,?)", -1, &statement, nil) == SQLITE_OK else { throw KaiKnowledgeError.sqlite(message()) }
+        defer { sqlite3_finalize(statement) }
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        sqlite3_bind_int64(statement, 1, Int64(chunk)); sqlite3_bind_int64(statement, 2, Int64(doc))
+        sqlite3_bind_text(statement, 3, model, -1, transient)
+        let blob = Self.data(vector)
+        _ = blob.withUnsafeBytes { sqlite3_bind_blob(statement, 4, $0.baseAddress, Int32(blob.count), transient) }
+        guard sqlite3_step(statement) == SQLITE_DONE else { throw KaiKnowledgeError.sqlite(message()) }
+    }
+
+    /// How many chunks have a vector from `model`, out of all of them.
+    public func embeddingProgress(model: String) throws -> (embedded: Int, total: Int) {
+        lock.lock(); defer { lock.unlock() }
+        let total = try rows("SELECT COUNT(*) FROM chunks", []) { $0.int(0) }.first ?? 0
+        let done = try rows("SELECT COUNT(*) FROM embeddings WHERE model = ?", [model]) { $0.int(0) }.first ?? 0
+        return (done, total)
+    }
+
+    /// Below this similarity a chunk is not about the question, however it ranks.
+    public static let minimumSimilarity: Float = 0.5
+
+    /// Documents whose best chunk is closest in meaning to `queryVector`, best first.
+    public func meaningMatches(queryVector: [Float], model: String, limit: Int) throws -> [KaiKnowledgeHit] {
+        let query = Self.normalized(queryVector)
+        lock.lock(); defer { lock.unlock() }
+        let all = try rows("SELECT chunk_id, doc_id, vector FROM embeddings WHERE model = ?", [model]) { row -> (Int, Int, Data) in
+            let bytes = sqlite3_column_blob(row.statement, 2), count = Int(sqlite3_column_bytes(row.statement, 2))
+            return (row.int(0), row.int(1), bytes.map { Data(bytes: $0, count: count) } ?? Data())
+        }
+        var best: [Int: (score: Float, chunk: Int)] = [:]
+        for (chunk, doc, blob) in all {
+            let vector = Self.vector(blob)
+            guard vector.count == query.count else { continue }
+            var dot: Float = 0
+            for index in 0..<vector.count { dot += vector[index] * query[index] }
+            if dot >= Self.minimumSimilarity, dot > (best[doc]?.score ?? -1) { best[doc] = (dot, chunk) }
+        }
+        var hits: [KaiKnowledgeHit] = []
+        for (doc, found) in best.sorted(by: { $0.value.score > $1.value.score }).prefix(max(limit, 1)) {
+            guard let head = try rows("SELECT source, source_id, title, modified FROM documents WHERE id = ?", [doc], { row in
+                (row.text(0), row.text(1), row.text(2), row.isNull(3) ? nil : Date(timeIntervalSince1970: row.double(3)))
+            }).first, let text = try rows("SELECT text FROM chunks WHERE rowid = ?", [found.chunk], { $0.text(0) }).first else { continue }
+            hits.append(KaiKnowledgeHit(source: head.0, sourceID: head.1, title: head.2,
+                                        snippet: String(text.replacingOccurrences(of: "\n", with: " ").prefix(260)), modified: head.3))
+        }
+        return hits
+    }
+
+    /// Words and meaning together: a document found by either is kept, and one found by both comes first
+    /// (reciprocal rank fusion). Without a query vector this is the plain word search.
+    public func search(_ query: String, queryVector: [Float]?, model: String?, limit: Int = 8) throws -> [KaiKnowledgeHit] {
+        let byWords = try search(query, limit: limit * 2)
+        guard let queryVector, let model else { return Array(byWords.prefix(limit)) }
+        let byMeaning = try meaningMatches(queryVector: queryVector, model: model, limit: limit * 2)
+        func key(_ hit: KaiKnowledgeHit) -> String { hit.source + "\u{1F}" + hit.sourceID }
+        var score: [String: Double] = [:], hitFor: [String: KaiKnowledgeHit] = [:]
+        for (rank, hit) in byWords.enumerated() { score[key(hit), default: 0] += 1 / Double(60 + rank); hitFor[key(hit)] = hit }
+        for (rank, hit) in byMeaning.enumerated() { score[key(hit), default: 0] += 1 / Double(60 + rank); if hitFor[key(hit)] == nil { hitFor[key(hit)] = hit } }
+        return score.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }.prefix(limit).compactMap { hitFor[$0.key] }
     }
 
     private func matches(_ match: String, limit: Int) throws -> [KaiKnowledgeHit] {

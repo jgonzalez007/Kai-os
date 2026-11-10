@@ -343,7 +343,7 @@ struct KaiKnowledgeView: View {
 
     static func color(for source: String) -> Color {
         switch source {
-        case KaiKnowledgeIndexer.folderSource, KaiKnowledgeIndexer.extraFoldersSource: return KaiColor.cyan
+        case KaiKnowledgeIndexer.folderSource, KaiKnowledgeIndexer.extraFoldersSource, KaiKnowledgeIndexer.referenceSource: return KaiColor.cyan
         case KaiKnowledgeIndexer.notesSource: return Color(red: 1.0, green: 0.8, blue: 0.25)
         case KaiKnowledgeIndexer.calendarSource: return Color(red: 1.0, green: 0.38, blue: 0.35)
         case KaiKnowledgeIndexer.mailSource: return KaiColor.liquidBlue
@@ -356,6 +356,7 @@ struct KaiKnowledgeView: View {
         switch source {
         case KaiKnowledgeIndexer.folderSource: return "Files"
         case KaiKnowledgeIndexer.extraFoldersSource: return "Folders"
+        case KaiKnowledgeIndexer.referenceSource: return "Reference"
         case KaiKnowledgeIndexer.notesSource: return "Notes"
         case KaiKnowledgeIndexer.calendarSource: return "Calendar"
         case KaiKnowledgeIndexer.mailSource: return "Mail"

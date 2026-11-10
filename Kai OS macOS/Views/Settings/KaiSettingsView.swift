@@ -401,6 +401,10 @@ struct KaiSettingsView: View {
 
                 if page == .knowledge { knowledgeFoldersCard }
 
+                if page == .knowledge { meaningCard }
+
+                if page == .knowledge, !appState.knowledgeGaps.isEmpty { gapsCard }
+
                 if page == .knowledge {
                 // ── Slack ──
                 settingsCard {
@@ -804,6 +808,11 @@ struct KaiSettingsView: View {
                         Text(folderStatus(folder)).font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
                     }
                     Spacer()
+                    Picker("", selection: Binding(get: { folder.trust }, set: { appState.setKnowledgeFolder(folder.id, trust: $0) })) {
+                        ForEach(KaiKnowledgeFolder.Trust.allCases, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .labelsHidden().frame(width: 130).controlSize(.small)
+                    .help("My own files describe you. Reference is other people's material: Kai searches it but never uses it to describe you.")
                     Toggle("", isOn: Binding(get: { folder.enabled }, set: { appState.setKnowledgeFolder(folder.id, enabled: $0) }))
                         .labelsHidden().toggleStyle(.switch).controlSize(.small)
                     Button { appState.removeKnowledgeFolder(folder.id) } label: { Image(systemName: "xmark.circle") }
@@ -816,6 +825,58 @@ struct KaiSettingsView: View {
             if let message = appState.knowledgeAddMessage, !message.isEmpty {
                 Text(message).font(KaiFont.caption).foregroundStyle(KaiColor.cyan)
             }
+            if let progress = appState.knowledgeProgress {
+                HStack(spacing: 6) { ProgressView().controlSize(.small); Text("Reading \(progress)").font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary) }
+            }
+        }
+    }
+
+    /// Search by meaning: finds a note even when it uses other words. Needs a small model, downloaded only when asked.
+    private var meaningCard: some View {
+        settingsCard {
+            SectionHeader(title: "Search by meaning")
+            Text("Today Kai finds files by the words you use. With this on, it also finds a file that says the same thing in other words, such as “car insurance” for “auto policy”. It needs a small model (nomic-embed-text, about 274 MB) that Ollama downloads from its library once, to this Mac. Everything stays on this Mac.")
+                .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+            switch appState.meaningState {
+            case .off:
+                Button("Download the model and turn on") { appState.enableMeaningSearch() }
+                    .buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small)
+            case .downloading(let fraction):
+                ProgressView(value: fraction)
+                Text("Downloading… \(Int(fraction * 100))%").font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+            case .reading(let done, let total):
+                ProgressView(value: Double(done), total: Double(max(total, 1)))
+                Text("Reading your files by meaning: \(done) of \(total). Search keeps working with words meanwhile.").font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+            case .ready(let chunks):
+                HStack {
+                    Label("On. \(chunks) passages searchable by meaning.", systemImage: "checkmark.circle.fill").font(KaiFont.caption).foregroundStyle(KaiColor.cyan)
+                    Spacer()
+                    Button("Turn off") { appState.disableMeaningSearch() }.controlSize(.small)
+                }
+            case .failed(let message):
+                Text(message).font(KaiFont.caption).foregroundStyle(KaiColor.warning)
+                Button("Try again") { appState.enableMeaningSearch() }.controlSize(.small)
+            }
+        }
+        .task { await appState.refreshMeaningState() }
+    }
+
+    /// What Kai looked for and didn't find, so you know what to add.
+    private var gapsCard: some View {
+        settingsCard {
+            SectionHeader(title: "What Kai couldn't find")
+            Text("Questions Kai searched your knowledge for and found nothing about. Add a file, a folder, or a note, and it can answer next time.")
+                .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+            ForEach(appState.knowledgeGaps.prefix(8)) { gap in
+                HStack {
+                    Text(gap.query).lineLimit(1)
+                    if gap.count > 1 { Text("asked \(gap.count)×").font(.caption2).foregroundStyle(.secondary) }
+                    Spacer()
+                    Button("Add a note") { manualTitle = gap.query; appState.clearKnowledgeGaps(gap.id) }.controlSize(.mini)
+                    Button { appState.clearKnowledgeGaps(gap.id) } label: { Image(systemName: "xmark.circle") }.buttonStyle(.plain)
+                }
+            }
+            HStack { Spacer(); Button("Clear all") { appState.clearKnowledgeGaps() }.controlSize(.small).foregroundStyle(.secondary) }
         }
     }
 

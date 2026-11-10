@@ -3145,6 +3145,193 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testMailCalendarPlanning() async throws {
+        // Mail
+        func msg(_ id: String, _ sender: String, read: Bool = false) -> KaiMailCleanupInput {
+            KaiMailCleanupInput(id: id, position: Int(id) ?? 1, sender: sender, subject: "s\(id)", date: Date(timeIntervalSince1970: 1_000 + Double(Int(id) ?? 0)), isRead: read, isFlagged: false)
+        }
+        let bulk = (1...4).map { msg("\($0)", "Deals <no-reply@shop.example.com>") }
+        let quiet = (10...15).map { msg("\($0)", "Pat Lee <pat@example.org>") }
+        let opened = [msg("20", "Ana <ana@example.org>", read: true), msg("21", "Ana <ana@example.org>")]
+        let groups = KaiMailCleanup.groups(from: bulk + quiet + opened)
+        check("an automated sender with several unread, or a person with many unopened, is suggested; a normal conversation is not") {
+            let shop = groups.first { $0.key == "example.com" }, pat = groups.first { $0.key == "pat@example.org" }, ana = groups.first { $0.key == "ana@example.org" }
+            return shop?.suggestion?.contains("rule") == true && pat?.suggestion?.contains("Mute") == true && ana?.suggestion == nil
+        }
+        check("a muted sender is not suggested again") {
+            KaiMailCleanup.groups(from: bulk, muted: ["example.com"]).first?.suggestion == nil
+        }
+        check("marking read can be undone, a rule can be undone by name, and a move can't") {
+            let items = [KaiMailCleanupPlan.Item(id: "1", position: 1, subject: "s")]
+            let read = KaiMailCleanupPlan(operation: .markRead, senderKey: "k", senderName: "N", items: items)
+            let rule = KaiMailCleanupPlan(operation: .rule, senderKey: "shop.com", senderName: "Shop", items: items)
+            let moveRule = KaiMailCleanupPlan(operation: .moveRule(to: "Noise"), senderKey: "shop.com", senderName: "Shop", items: items)
+            let move = KaiMailCleanupPlan(operation: .move(to: "Noise"), senderKey: "k", senderName: "N", items: items)
+            return read.undo?.operation == .markUnread && read.undo?.items == items
+                && rule.undo?.operation == .removeRule(named: "Kai: mark mail from shop.com as read")
+                && moveRule.undo?.operation == .removeRule(named: "Kai: move mail from shop.com to Noise")
+                && move.undo == nil && read.undo?.undo == nil && read.undo?.change.contains("unread") == true
+        }
+        check("the new Mail scripts compile, and the rule remover refuses any rule Kai didn't name") {
+            compiles(KaiMailCleanupRunner.removeRuleScript) && compiles(KaiMailCleanupRunner.changeScript) && KaiMailCleanupRunner.removeRuleScript.contains("does not start with \"Kai: \"")
+        }
+        check("the saved mail list comes back as it was, readable only by this user, and holds no bodies") {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("kai-mail-\(UUID().uuidString)/m.json")
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            let cache = KaiMailListCache(url: url)
+            let item = KaiMailItem(id: "9", sender: "Ana <a@b.org>", subject: "Lunch", date: Date(timeIntervalSince1970: 5_000), isRead: false, isFlagged: true, account: "Work", mailbox: "inbox")
+            try cache.save([item], at: Date(timeIntervalSince1970: 7_000))
+            let mode = (try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber)?.intValue
+            let raw = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            let back = cache.load()
+            cache.delete()
+            return back?.items == [item] && back?.savedAt == Date(timeIntervalSince1970: 7_000) && mode == 0o600 && !raw.lowercased().contains("body") && cache.load() == nil
+        }
+
+        // Calendar
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "UTC")!
+        func at(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date { cal.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute))! }
+        func event(_ id: String, _ from: Date, _ to: Date, allDay: Bool = false, cancelled: Bool = false, free: Bool = false) -> KaiCalendarItem {
+            KaiCalendarItem(id: id, title: id, start: from, end: to, isAllDay: allDay, location: "", calendarName: "Work", isCancelled: cancelled, showsAsFree: free)
+        }
+        // Mon 9 Nov 2026
+        let a = event("a", at(9, 10), at(9, 11)), b = event("b", at(9, 10, 30), at(9, 11, 30)), c = event("c", at(9, 11, 30), at(9, 12))
+        check("overlapping events are found in both directions, and back-to-back ones are not overlaps") {
+            let found = KaiCalendarPlanner.conflicts(in: [a, b, c])
+            return found["a"]?.map(\.id) == ["b"] && found["b"]?.map(\.id) == ["a"] && found["c"] == nil
+        }
+        check("all-day, cancelled and free events never clash") {
+            let others = [event("x", at(9, 10), at(9, 12), allDay: true), event("y", at(9, 10), at(9, 12), cancelled: true), event("z", at(9, 10), at(9, 12), free: true)]
+            return KaiCalendarPlanner.conflicts(in: [a] + others).isEmpty
+        }
+        let busy = [event("m1", at(9, 9), at(9, 10)), event("m2", at(9, 10, 30), at(9, 12)), event("m3", at(9, 13), at(9, 17))]
+        check("free slots fall between events, inside the working day, on the half hour") {
+            let slots = KaiCalendarPlanner.freeSlots(events: busy, from: at(9, 8), days: 1, minutes: 30, window: .init(startHour: 9, endHour: 17), limit: 10, calendar: cal)
+            return slots.map(\.start) == [at(9, 10), at(9, 12), at(9, 12, 30)] && slots.allSatisfy { $0.duration == 1_800 }
+        }
+        check("a longer meeting only fits where there is room, and a slot never overlaps an event") {
+            let slots = KaiCalendarPlanner.freeSlots(events: busy, from: at(9, 8), days: 1, minutes: 60, window: .init(startHour: 9, endHour: 17), limit: 10, calendar: cal)
+            return slots.map(\.start) == [at(9, 12)] && slots.allSatisfy { slot in !busy.contains { $0.start < slot.end && slot.start < $0.end } }
+        }
+        check("it starts from now, skips weekends, and stops at the limit") {
+            // Friday 13 Nov 2026 at 16:10: only 16:30 to 17:00 is left that day, then Monday.
+            let slots = KaiCalendarPlanner.freeSlots(events: [], from: at(13, 16, 10), days: 4, minutes: 30, window: .init(startHour: 9, endHour: 17), limit: 3, calendar: cal)
+            return slots.count == 3 && slots[0].start == at(13, 16, 30) && slots[1].start == at(16, 9) && slots[2].start == at(16, 9, 30)
+        }
+        check("a buffer keeps clear of other events, and no room gives no slots") {
+            let single = [event("only", at(9, 10), at(9, 11))]
+            let buffered = KaiCalendarPlanner.freeSlots(events: single, from: at(9, 8), days: 1, minutes: 60, window: .init(startHour: 9, endHour: 12), buffer: 30, limit: 5, calendar: cal)
+            let none = KaiCalendarPlanner.freeSlots(events: [event("all", at(9, 9), at(9, 17))], from: at(9, 8), days: 1, minutes: 30, window: .init(startHour: 9, endHour: 17), calendar: cal)
+            return buffered.isEmpty && none.isEmpty
+        }
+    }
+
+    func testKnowledgeMeaning() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("kai-meaning-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        func zip(_ files: [String: String], to name: String) throws -> URL {
+            let dir = root.appendingPathComponent("z-" + name); try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            for (path, text) in files {
+                let url = dir.appendingPathComponent(path); try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try text.write(to: url, atomically: true, encoding: .utf8)
+            }
+            let out = root.appendingPathComponent(name)
+            let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/zip"); p.arguments = ["-qr", out.path, "."]; p.currentDirectoryURL = dir
+            try p.run(); p.waitUntilExit()
+            return out
+        }
+        let xlsx = try zip([
+            "xl/sharedStrings.xml": "<sst><si><t>Item</t></si><si><t>Widget</t></si><si><r><t>Gad</t></r><r><t>get</t></r></si></sst>",
+            "xl/worksheets/sheet1.xml": "<worksheet><sheetData><row><c t=\"s\"><v>0</v></c><c><v>Price</v></c></row><row><c t=\"s\"><v>1</v></c><c><v>4.5</v></c></row><row><c t=\"s\"><v>2</v></c><c><v>9</v></c></row></sheetData></worksheet>",
+        ], to: "prices.xlsx")
+        let pptx = try zip([
+            "ppt/slides/slide2.xml": "<p:sld><a:p><a:r><a:t>Second slide</a:t></a:r></a:p></p:sld>",
+            "ppt/slides/slide10.xml": "<p:sld><a:p><a:r><a:t>Tenth slide</a:t></a:r></a:p></p:sld>",
+            "ppt/slides/slide1.xml": "<p:sld><a:p><a:r><a:t>Launch</a:t></a:r><a:r><a:t> plan</a:t></a:r></a:p></p:sld>",
+        ], to: "deck.pptx")
+        check("an Excel workbook is read as rows, with shared strings filled in") {
+            let text = KaiFileReader.read(xlsx) ?? ""
+            return text.contains("Item\tPrice") && text.contains("Widget\t4.5") && text.contains("Gadget\t9")
+        }
+        check("a PowerPoint deck is read slide by slide, in order") {
+            let text = KaiFileReader.read(pptx) ?? ""
+            let one = text.range(of: "Launch plan"), two = text.range(of: "Second slide"), ten = text.range(of: "Tenth slide")
+            return one != nil && two != nil && ten != nil && one!.lowerBound < two!.lowerBound && two!.lowerBound < ten!.lowerBound
+        }
+        check("a broken archive reads as nothing instead of failing") {
+            let bad = root.appendingPathComponent("bad.xlsx"); try? "not a zip".write(to: bad, atomically: true, encoding: .utf8)
+            return KaiFileReader.read(bad) == nil && KaiFileReader.supports("xlsx") && KaiFileReader.supports("pptx")
+        }
+
+        // Trust
+        let mine = root.appendingPathComponent("mine"), ref = root.appendingPathComponent("ref")
+        try FileManager.default.createDirectory(at: mine, withIntermediateDirectories: true); try FileManager.default.createDirectory(at: ref, withIntermediateDirectories: true)
+        try "I run the platform team.".write(to: mine.appendingPathComponent("about.md"), atomically: true, encoding: .utf8)
+        try "The vendor manual says the pump runs at 40 psi.".write(to: ref.appendingPathComponent("manual.md"), atomically: true, encoding: .utf8)
+        let store = try KaiKnowledgeStore(url: root.appendingPathComponent("k.sqlite"))
+        var folders = [KaiKnowledgeFolder(id: "m1", path: mine.path, trust: .mine), KaiKnowledgeFolder(id: "r1", path: ref.path, trust: .reference)]
+        _ = try KaiKnowledgeIndexer.indexFolders(folders, into: store)
+        check("a reference folder is filed apart from the person's own, and ranked below it for describing them") {
+            let counts = try store.counts()
+            let docs = try store.documents(limit: 10)
+            let own = docs.first { $0.sourceID == "m1/about.md" }!, other = docs.first { $0.sourceID == "r1/manual.md" }!
+            return counts["folder"] == 1 && counts["reference"] == 1 && KaiProfilePrompt.tier(own) < KaiProfilePrompt.tier(other)
+                && KaiProfilePrompt.tag(other).contains("reference") && KaiKnowledgeCitation.label(source: "reference", sourceID: "r1/manual.md", folders: folders) == "Reference (ref): manual.md"
+        }
+        check("changing a folder's trust moves its documents, and an old list without trust counts as the person's own") {
+            folders[1].trust = .mine
+            _ = try KaiKnowledgeIndexer.indexFolders(folders, into: store)
+            let counts = try store.counts()
+            let old = #"[{"id":"x","path":"/tmp/a","enabled":true,"skipNames":[],"addedAt":"2026-01-01T00:00:00Z"}]"#
+            let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+            let decoded = try decoder.decode([KaiKnowledgeFolder].self, from: Data(old.utf8))
+            return counts["folder"] == 2 && counts["reference"] == nil && decoded.first?.trust == .mine
+        }
+        check("progress is reported while a folder is read") {
+            let big = root.appendingPathComponent("big"); try FileManager.default.createDirectory(at: big, withIntermediateDirectories: true)
+            for i in 0..<45 { try "note \(i)".write(to: big.appendingPathComponent("n\(i).txt"), atomically: true, encoding: .utf8) }
+            final class Box: @unchecked Sendable { var lines: [String] = [] }
+            let box = Box()
+            _ = try KaiKnowledgeIndexer.indexFolders([KaiKnowledgeFolder(id: "b1", path: big.path)], into: try KaiKnowledgeStore(url: root.appendingPathComponent("p.sqlite"))) { box.lines.append($0) }
+            return box.lines.contains { $0.contains("big") && $0.contains("files") }
+        }
+
+        // Search by meaning, with made-up vectors
+        let vs = try KaiKnowledgeStore(url: root.appendingPathComponent("v.sqlite"))
+        _ = try vs.upsert(KaiKnowledgeDocument(source: "files", sourceID: "policy.md", title: "Auto policy", text: "Your vehicle coverage renews in March.", fingerprint: "1"))
+        _ = try vs.upsert(KaiKnowledgeDocument(source: "files", sourceID: "pasta.md", title: "Pasta", text: "Boil water, add salt, cook the pasta.", fingerprint: "2"))
+        let pending = try vs.chunksNeedingEmbedding(model: "m", limit: 10)
+        check("every chunk starts without a vector") { let p = try vs.embeddingProgress(model: "m"); return pending.count == 2 && p == (0, 2) }
+        // "car insurance" shares no word with "vehicle coverage", but points the same way.
+        try vs.saveEmbeddings(pending.map { (id: $0.id, vector: $0.text.contains("vehicle") ? [1, 0.1, 0] : [0, 0.1, 1]) }, model: "m")
+        check("vectors are saved once per chunk and counted") { let p = try vs.embeddingProgress(model: "m"); let left = try vs.chunksNeedingEmbedding(model: "m", limit: 10); return p == (2, 2) && left.isEmpty }
+        check("a question is matched by meaning even with no word in common") {
+            let words = try vs.search("car insurance", limit: 5)
+            let hybrid = try vs.search("car insurance", queryVector: [0.9, 0.2, 0], model: "m", limit: 5)
+            return words.isEmpty && hybrid.first?.sourceID == "policy.md" && !hybrid.contains { $0.sourceID == "pasta.md" }
+        }
+        check("without a vector the search is the plain word search, and a different model's vectors are ignored") {
+            let a = try vs.search("pasta", queryVector: nil, model: nil, limit: 5)
+            let b = try vs.meaningMatches(queryVector: [1, 0, 0], model: "other", limit: 5)
+            return a.first?.sourceID == "pasta.md" && b.isEmpty
+        }
+        check("an edited document loses its old vectors, so they are made again") {
+            _ = try vs.upsert(KaiKnowledgeDocument(source: "files", sourceID: "pasta.md", title: "Pasta", text: "Now it is about bread instead.", fingerprint: "3"))
+            let left = try vs.chunksNeedingEmbedding(model: "m", limit: 10), p = try vs.embeddingProgress(model: "m")
+            return left.count == 1 && p == (1, 2)
+        }
+
+        // Gaps
+        check("a question with no answer is remembered once, counted when repeated, and kept short") {
+            var gaps = KaiKnowledgeGapStore.recording("pool resurfacing quote", in: [])
+            gaps = KaiKnowledgeGapStore.recording("Pool resurfacing quote", in: gaps)
+            gaps = KaiKnowledgeGapStore.recording("ab", in: gaps)
+            let many = (0..<40).reduce([KaiKnowledgeGap]()) { KaiKnowledgeGapStore.recording("question number \($1)", in: $0) }
+            return gaps.count == 1 && gaps[0].count == 2 && many.count == KaiKnowledgeGapStore.maxGaps && KaiKnowledgeGapStore.clean(String(repeating: "x", count: 500))?.count == 120
+        }
+    }
+
     func testKnowledgeFolders() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("kai-folders-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

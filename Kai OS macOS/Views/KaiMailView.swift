@@ -57,6 +57,8 @@ struct KaiMailView: View {
     @State private var pending: KaiMailCleanupPlan?
     @State private var cleanBusy = false
     @State private var cleanNote: String?
+    /// What would reverse the last change, offered as an Undo button until the person does something else.
+    @State private var undoPlan: KaiMailCleanupPlan?
     @State private var folders: [String]?
     /// With "Always move to…": also move the messages already here, in the same go.
     @State private var alsoMoveExisting = true
@@ -177,6 +179,10 @@ struct KaiMailView: View {
             .padding(.horizontal, 12).padding(.vertical, 7).frame(width: 260)
             .background(Capsule().fill(Color.white.opacity(0.07)))
             if appState.mailState == .loading { ProgressView().controlSize(.small) }
+            if let when = appState.mailUpdatedAt {
+                Text(appState.mailShowingCache ? "From \(when.formatted(date: .omitted, time: .shortened)), updating…" : "Updated \(when.formatted(.relative(presentation: .named)))")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
             Button { appState.refreshMail() } label: { Image(systemName: "arrow.clockwise") }.buttonStyle(.plain).help("Read the inbox again")
         }
         .padding(.top, 4)
@@ -357,6 +363,7 @@ struct KaiMailView: View {
                     }
                     Text(group.messages.prefix(2).map(\.subject).joined(separator: " · ")).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                     if group.unread > 0 { Text("\(group.unread) unread").font(.caption2).foregroundStyle(KaiColor.cyan) }
+                    if group.suggestion != nil { tag("Suggested", KaiColor.warning) }
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 9)
@@ -376,6 +383,7 @@ struct KaiMailView: View {
         cleanKey = group.id
         pending = nil
         cleanNote = nil
+        undoPlan = nil
         folders = nil
         guard let position = group.messages.first?.position else { return }
         Task {
@@ -433,7 +441,18 @@ struct KaiMailView: View {
                         action(group.isMuted ? "Unmute" : "Mute in Kai", group.isMuted ? "bell" : "bell.slash") { toggleMute(group) }
                     }
                     if let pending { confirmBar(pending, group) }
-                    if let cleanNote { Text(cleanNote).font(.callout).foregroundStyle(KaiColor.cyan) }
+                    if let cleanNote {
+                        HStack(spacing: 8) {
+                            Text(cleanNote).font(.callout).foregroundStyle(KaiColor.cyan)
+                            if let undoPlan {
+                                Button("Undo") { approve(undoPlan) }.controlSize(.small).disabled(cleanBusy)
+                                    .help(undoPlan.change)
+                            }
+                        }
+                    }
+                    if let hint = group.suggestion, pending == nil {
+                        Label(hint, systemImage: "lightbulb").font(.caption).foregroundStyle(KaiColor.warning)
+                    }
                 }
                 .padding(18)
                 Divider().overlay(Color.white.opacity(0.1))
@@ -521,7 +540,10 @@ struct KaiMailView: View {
                 try? appState.actionLog.record(event: "succeeded", card: card, detail: detail)
                 cleanNote = detail
                 pending = nil
+                undoPlan = plan.undo
                 switch plan.operation {
+                case .markUnread: appState.applyMailUnread(ids: ids)
+                case .removeRule: break
                 case .markRead: appState.applyMailCleanup(ids: ids, moved: false)
                 case .move: appState.applyMailCleanup(ids: ids, moved: true)
                 case .rule: break
