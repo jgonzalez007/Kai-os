@@ -726,7 +726,7 @@ struct KaiMailView: View {
 
     private func summarize() {
         let profile = KaiProfilePrompt.promptSection(appState.profile)
-        let preferences = KaiInstructions.promptSection(KaiInstructions.stored())
+        let preferences = KaiAnswerStyle.promptSection(for: .summaries)
         withMessage("Reading it for you…") { source, model in
             let answer = try await run(KaiMailSummaryPrompt.messages(source: source, profile: profile, preferences: preferences), model: model, temperature: 0.2)
             return answer.isEmpty ? .failed("The model returned nothing. Try again.") : .summary(answer)
@@ -736,7 +736,7 @@ struct KaiMailView: View {
     private func draftReply(_ message: MailMessage) {
         replyNote = nil
         withMessage("Writing a reply…") { source, model in
-            let answer = try await run(KaiReplyPrompt.messages(source: source, instruction: "", previousDraft: nil), model: model, temperature: 0.4)
+            let answer = try await run(KaiReplyPrompt.messages(source: source, instruction: "", previousDraft: nil, style: KaiAnswerStyle.drafting(base: nil)), model: model, temperature: 0.4)
             let draft = KaiReplyPrompt.removingPlaceholderSignature(answer)
             return draft.isEmpty ? .failed("The model returned nothing. Try again.") : .draft(draft)
         }

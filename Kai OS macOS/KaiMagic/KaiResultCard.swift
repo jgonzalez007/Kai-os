@@ -67,7 +67,7 @@ final class KaiScreenTaskController: ObservableObject {
         original = ""
         replaceState = .unavailable
         // Taken now, while the app the user was in is still in front.
-        context = Self.currentContext(appState: appState)
+        context = Self.currentContext(appState: appState, task: task)
         focused = task == .proofread ? KaiFocusedText.capture() : nil
         if let focused {
             original = focused.original
@@ -86,7 +86,7 @@ final class KaiScreenTaskController: ObservableObject {
     }
 
     /// What Kai knows about this moment: the app and window, who the user is, and their own preferences.
-    private static func currentContext(appState: AppState) -> KaiScreenTask.Context {
+    private static func currentContext(appState: AppState, task: KaiScreenTask) -> KaiScreenTask.Context {
         let own = Bundle.main.bundleIdentifier
         let app = NSWorkspace.shared.frontmostApplication
         let front = app?.bundleIdentifier == own ? nil : app
@@ -98,7 +98,8 @@ final class KaiScreenTaskController: ObservableObject {
         }
         return KaiScreenTask.Context(appName: front?.localizedName, windowTitle: title,
                                      profile: KaiProfilePrompt.promptSection(appState.profile),
-                                     preferences: KaiInstructions.promptSection(KaiInstructions.stored()))
+                                     preferences: KaiInstructions.promptSection(KaiInstructions.stored()),
+                                     writing: KaiNoAISlop.promptSection(for: task == .proofread ? .proofread : .summaries))
     }
 
     /// Reworks the answer (shorter, action items, a reply, another tone) without looking at the screen again.
@@ -113,14 +114,16 @@ final class KaiScreenTaskController: ObservableObject {
             defer { isRefining = false }
             do {
                 var answer = ""
-                for try await event in KaiOllamaClient().stream(model: model, messages: messages, tools: [], temperature: 0.3) {
+                // Finding slop doesn't change the suggestion: the findings go under it.
+                let reportOnly = refinement == .detectSlop
+                if reportOnly { notes = "" }
+                for try await event in KaiOllamaClient().stream(model: model, messages: messages, tools: [], temperature: reportOnly ? 0.1 : 0.3) {
                     try Task.checkCancellation()
                     guard case .text(let delta) = event else { continue }
                     answer += delta
-                    text = KaiScreenTask.cleaned(answer)
-                    notes = ""
+                    if reportOnly { notes = KaiScreenTask.cleaned(answer) } else { text = KaiScreenTask.cleaned(answer); notes = "" }
                 }
-                if text.isEmpty { text = previous }
+                if !reportOnly, text.isEmpty { text = previous }
             } catch is CancellationError {
             } catch {
                 text = previous

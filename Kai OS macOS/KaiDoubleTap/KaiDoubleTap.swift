@@ -214,13 +214,13 @@ final class KaiDoubleTapController: ObservableObject {
         let messages: [KaiOllamaMessage]
         switch context {
         case .mail(_, let source):
-            messages = KaiReplyPrompt.messages(source: source, instruction: instruction, previousDraft: previousDraft, style: appState.writingStyle.activeStyle)
+            messages = KaiReplyPrompt.messages(source: source, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle))
         case .screen(let jpeg):
-            messages = KaiReplyPrompt.messages(screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: appState.writingStyle.activeStyle)
+            messages = KaiReplyPrompt.messages(screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle))
         case .chat(let app, let text):
-            messages = KaiReplyPrompt.chatMessages(app: app, conversation: text, instruction: instruction, previousDraft: previousDraft, style: appState.writingStyle.activeStyle)
+            messages = KaiReplyPrompt.chatMessages(app: app, conversation: text, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle))
         case .chatScreen(let app, let jpeg):
-            messages = KaiReplyPrompt.chatMessages(app: app, screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: appState.writingStyle.activeStyle)
+            messages = KaiReplyPrompt.chatMessages(app: app, screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle))
         }
         do {
             if !appState.chatModels.contains(appState.selectedModel) { try await appState.refreshChatModels() }

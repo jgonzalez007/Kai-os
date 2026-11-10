@@ -2967,6 +2967,56 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testAnswerStyle() async throws {
+        let suite = "kai-test-style-\(UUID().uuidString)"
+        let d = UserDefaults(suiteName: suite)!
+        defer { d.removePersistentDomain(forName: suite) }
+        check("No AI slop is off until it is turned on") {
+            KaiNoAISlop.Scope.allCases.allSatisfy { !KaiNoAISlop.isOn($0, defaults: d) } && KaiNoAISlop.promptSection(for: .chat, defaults: d) == nil
+        }
+        d.set(true, forKey: KaiNoAISlop.masterKey)
+        check("once on, every place gets the rules, and each can be turned off alone") {
+            let all = KaiNoAISlop.Scope.allCases.allSatisfy { KaiNoAISlop.isOn($0, defaults: d) }
+            d.set(false, forKey: KaiNoAISlop.key(.summaries))
+            return all && !KaiNoAISlop.isOn(.summaries, defaults: d) && KaiNoAISlop.isOn(.chat, defaults: d)
+        }
+        check("the rules name the patterns and never ask for invented detail") {
+            let r = KaiNoAISlop.rules
+            return r.contains("It's not X, it's Y") && r.contains("delve") && r.contains("Never invent") && r.count < 3_500
+                && KaiNoAISlop.editRules.contains("keep their meaning") && (KaiNoAISlop.promptSection(for: .proofread, defaults: d) ?? "").contains("keep their meaning")
+        }
+        check("Find AI slop quotes and fixes without rewriting; Remove AI slop edits and returns only the text") {
+            KaiNoAISlop.detectInstruction.contains("without rewriting") && KaiNoAISlop.detectInstruction.contains("do not guess whether an AI wrote it")
+                && KaiNoAISlop.removeInstruction.contains("Return only the full edited text")
+                && KaiScreenTask.Refinement.available(for: .proofread).contains(.deslop) && KaiScreenTask.Refinement.available(for: .proofread).contains(.detectSlop)
+        }
+        check("the report request is not told to return only revised text") {
+            let m = KaiScreenTask.proofread.refineMessages(previous: "It's not a bug. It's a feature.", refinement: .detectSlop)
+            let n = KaiScreenTask.proofread.refineMessages(previous: "x", refinement: .shorter)
+            return !m[0].content.contains("Return only the revised text") && n[0].content.contains("Return only the revised text")
+        }
+        d.set("Keep answers short.", forKey: KaiInstructions.defaultsKey)
+        check("the person's instructions and the rules come together for a scope") {
+            let section = KaiAnswerStyle.promptSection(for: .chat, defaults: d) ?? ""
+            return section.contains("Keep answers short.") && section.contains("Write like a sharp human editor")
+                && !(KaiAnswerStyle.promptSection(for: .summaries, defaults: d) ?? "").contains("sharp human editor")
+        }
+        check("a draft style keeps the person's own writing style first, then adds the rest") {
+            let style = KaiAnswerStyle.drafting(base: "Casual, signs off with Thanks.", defaults: d) ?? ""
+            return style.hasPrefix("Casual, signs off with Thanks.") && style.contains("Keep answers short.") && style.contains("sharp human editor")
+                && KaiAnswerStyle.drafting(base: nil, defaults: UserDefaults(suiteName: suite + "x")!) == nil
+        }
+        check("a preset is added once and the text stays within its limit") {
+            let once = KaiAnswerStyle.adding(KaiAnswerStyle.presets[0].line, to: "Call me Jose.")
+            let twice = KaiAnswerStyle.adding(KaiAnswerStyle.presets[0].line, to: once)
+            return once == twice && once.hasPrefix("Call me Jose.\n") && once.count <= KaiInstructions.maxLength
+        }
+        check("instructions go into the screen task prompt as writing rules") {
+            let c = KaiScreenTask.Context(writing: "WRITE PLAINLY")
+            return KaiScreenTask.proofread.systemPrompt(context: c).contains("WRITE PLAINLY") && KaiScreenTask.summarize.systemPrompt(context: c).contains("WRITE PLAINLY")
+        }
+    }
+
     func testKnowledgeFolders() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("kai-folders-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

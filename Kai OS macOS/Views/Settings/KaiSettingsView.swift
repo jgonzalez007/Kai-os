@@ -238,6 +238,8 @@ struct KaiSettingsView: View {
 
                 }
 
+                if page == .ai { answerStyleCard }
+
                 if page == .ai {
                 // ── AI ──
                 settingsCard {
@@ -695,6 +697,67 @@ struct KaiSettingsView: View {
     @State private var manualSaving = false
 
     @State private var dropTargeted = false
+    @AppStorage(KaiInstructions.defaultsKey) private var answerInstructions = ""
+    @AppStorage(KaiNoAISlop.masterKey) private var noSlop = false
+
+    /// How Kai writes: the person's own instructions, and the optional No AI Slop rules.
+    private var answerStyleCard: some View {
+        settingsCard {
+            SectionHeader(title: "How Kai answers")
+            Text("Tell Kai how you want answers written. It follows this in chat, summaries, drafts and computer tasks, below its safety rules: these never turn off approval or make it trust text from a screen or a message.")
+                .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $answerInstructions)
+                    .scrollContentBackground(.hidden)
+                    .font(.system(size: 14))
+                    .padding(8).frame(height: 110)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.4)))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    .onChange(of: answerInstructions) { _, value in
+                        if value.count > KaiInstructions.maxLength { answerInstructions = String(value.prefix(KaiInstructions.maxLength)) }
+                    }
+                if answerInstructions.isEmpty {
+                    Text("For example: Keep answers short and answer first. Call me Jose. Don't use bullet lists unless I ask.")
+                        .foregroundStyle(.secondary.opacity(0.7)).padding(.horizontal, 14).padding(.vertical, 16).allowsHitTesting(false)
+                }
+            }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8, alignment: .leading)], alignment: .leading, spacing: 8) {
+                ForEach(KaiAnswerStyle.presets, id: \.title) { preset in
+                    Button { answerInstructions = KaiAnswerStyle.adding(preset.line, to: answerInstructions) } label: {
+                        Label(preset.title, systemImage: "plus").font(.system(size: 11, weight: .medium))
+                            .padding(.horizontal, 10).padding(.vertical, 5)
+                            .background(Capsule().fill(Color.white.opacity(0.08)))
+                    }
+                    .buttonStyle(.plain).help(preset.line)
+                }
+            }
+            Text("\(answerInstructions.count) of \(KaiInstructions.maxLength) characters. Kept on this Mac.")
+                .font(.caption).foregroundStyle(.secondary)
+
+            Divider().overlay(Color.white.opacity(0.1))
+
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("No AI slop").fontWeight(.medium)
+                    Text("Keeps Kai from writing in stock AI phrases: “It's not X, it's Y”, “Here's the thing”, “a testament to”, “delve”, and about twenty more patterns. Optional, and off until you turn it on.")
+                        .font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                }
+                Spacer()
+                Toggle("", isOn: $noSlop).labelsHidden().toggleStyle(.switch).tint(.green)
+            }
+            if noSlop {
+                ForEach(KaiNoAISlop.Scope.allCases, id: \.self) { scope in
+                    Toggle(scope.title, isOn: Binding(
+                        get: { UserDefaults.standard.object(forKey: KaiNoAISlop.key(scope)) as? Bool ?? true },
+                        set: { UserDefaults.standard.set($0, forKey: KaiNoAISlop.key(scope)); appState.objectWillChange.send() }
+                    ))
+                    .toggleStyle(.switch).controlSize(.small).font(.callout)
+                }
+            }
+            Text("Proofread also gets two buttons, Remove AI slop and Find AI slop, whether or not this is on. Based on the No AI Slop skill by Peter Yang (MIT licence).")
+                .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+        }
+    }
 
     /// Folders for Kai to read and files to hand it. A file is copied into the knowledge folder's Uploads; a folder stays where it is.
     private var knowledgeFoldersCard: some View {

@@ -624,7 +624,7 @@ final class AppState: ObservableObject {
             App context: \(appCategory). \
             Adaptive mode: \(appAwarenessMode). \
             Available actions: \(suggestions.isEmpty ? "general" : suggestions.joined(separator: ", ")).
-            """ + (KaiProfilePrompt.promptSection(profile).map { "\n\n" + $0 } ?? "") + (KaiInstructions.promptSection(KaiInstructions.stored()).map { "\n\n" + $0 } ?? "")
+            """ + (KaiProfilePrompt.promptSection(profile).map { "\n\n" + $0 } ?? "") + (KaiAnswerStyle.promptSection(for: .chat).map { "\n\n" + $0 } ?? "")
         )
         let turns = messages
             .filter { ($0.kind == .chat && !$0.text.isEmpty) || $0.kind == .action }
