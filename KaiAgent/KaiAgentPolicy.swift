@@ -78,7 +78,7 @@ public struct KaiAgentPolicy: Sendable {
         switch action {
         case .scroll:
             return .allow
-        case .click, .type, .key:
+        case .click, .clickElement, .type, .key:
             if mode == .askEach { return .needsApproval(action.summary) }
             if let reason = riskReason(action, in: app) { return .needsApproval(reason) }
             return .allow

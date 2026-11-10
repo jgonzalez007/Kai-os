@@ -4,6 +4,8 @@ import KaiShared
 /// One thing the agent can do. Coordinates are pixels in the screenshot the model saw.
 public enum KaiAgentAction: Equatable, Sendable {
     case click(x: Int, y: Int, double: Bool, right: Bool)
+    /// A click on a numbered item of the latest screenshot. The runner turns it into a point.
+    case clickElement(number: Int, double: Bool, right: Bool)
     case type(String)
     case key(KaiKeyCombo)
     case scroll(x: Int, y: Int, dx: Int, dy: Int)
@@ -17,6 +19,8 @@ public enum KaiAgentAction: Equatable, Sendable {
         switch self {
         case .click(let x, let y, let double, let right):
             return "\(right ? "Right-click" : double ? "Double-click" : "Click") at (\(x), \(y))"
+        case .clickElement(let number, let double, let right):
+            return "\(right ? "Right-click" : double ? "Double-click" : "Click") item \(number)"
         case .type(let text):
             let shown = text.count > 60 ? String(text.prefix(60)) + "…" : text
             return "Type “\(shown.replacingOccurrences(of: "\n", with: "⏎"))”"
@@ -96,7 +100,7 @@ public enum KaiAgentTools {
     /// Tools that only read, so they run without asking. The rest make something, so each one asks first.
     public static let readOnlyTools: Set<String> = ["read_calendar", "search_files"]
     public static let directToolNames = ["open_url", "create_note", "add_calendar_event", "compose_mail_draft", "read_calendar", "search_files"]
-    public static let names = ["computer_click", "computer_type", "computer_key", "computer_scroll", "computer_wait", "computer_open_app"] + directToolNames + ["task_complete"]
+    public static let names = ["computer_click", "computer_type", "computer_key", "computer_scroll", "computer_wait", "computer_open_app", "computer_new_tab", "computer_new_window", "computer_address_bar"] + directToolNames + ["task_complete"]
 
     /// The text of a note as HTML for Apple Notes, with the title as its heading. Characters that mean something in HTML
     /// are escaped, so a title or body can't add markup of its own.
@@ -126,10 +130,11 @@ public enum KaiAgentTools {
     }
 
     public static let definitions: [KaiOllamaTool] = [
-        KaiOllamaTool(name: "computer_click", description: "Click at a point on the screenshot. x and y are pixels in the latest screenshot.",
+        KaiOllamaTool(name: "computer_click", description: "Click a numbered item from the list under the screenshot (give element), or a point on the screenshot (give x and y).",
                       parameters: [
-                        .init(name: "x", type: "integer", description: "Pixels from the left edge of the screenshot", required: true),
-                        .init(name: "y", type: "integer", description: "Pixels from the top edge of the screenshot", required: true),
+                        .init(name: "element", type: "integer", description: "The number of the item to click, as listed and drawn on the screenshot", required: false),
+                        .init(name: "x", type: "integer", description: "Pixels from the left edge of the screenshot, when there is no element number", required: false),
+                        .init(name: "y", type: "integer", description: "Pixels from the top edge of the screenshot, when there is no element number", required: false),
                         .init(name: "double", type: "boolean", description: "True to double-click", required: false),
                         .init(name: "right", type: "boolean", description: "True to right-click", required: false)]),
         KaiOllamaTool(name: "computer_type", description: "Type text into the focused field. Click the field first.",
@@ -146,6 +151,9 @@ public enum KaiAgentTools {
                       parameters: [.init(name: "seconds", type: "number", description: "Seconds to wait", required: true)]),
         KaiOllamaTool(name: "computer_open_app", description: "Open or switch to an app by name, such as Notes, Safari or Mail. Use this instead of hunting for an app icon.",
                       parameters: [.init(name: "name", type: "string", description: "The app's name", required: true)]),
+        KaiOllamaTool(name: "computer_new_tab", description: "Open a new tab in the front browser (⌘T), so the page that was open is left alone.", parameters: []),
+        KaiOllamaTool(name: "computer_new_window", description: "Open a new window in the front app (⌘N).", parameters: []),
+        KaiOllamaTool(name: "computer_address_bar", description: "Move the cursor to the browser's address bar (⌘L). Then type an address and press return.", parameters: []),
         KaiOllamaTool(name: "open_url", description: "Open a web address in the browser. Use it instead of typing into the address bar.",
                       parameters: [.init(name: "url", type: "string", description: "A full http or https address", required: true)]),
         KaiOllamaTool(name: "create_note", description: "Make a new note in Apple Notes without opening the app. Much faster than clicking.",
@@ -190,8 +198,15 @@ public enum KaiAgentTools {
             }
         }
         switch call.name {
+        case "computer_new_tab": return .success(.key(KaiKeyCombo(modifiers: [.command], key: "t")))
+        case "computer_new_window": return .success(.key(KaiKeyCombo(modifiers: [.command], key: "n")))
+        case "computer_address_bar": return .success(.key(KaiKeyCombo(modifiers: [.command], key: "l")))
         case "computer_click":
-            guard let x = int("x"), let y = int("y") else { return .failure(.missing("x and y")) }
+            if let number = int("element") {
+                guard number >= 1, number <= KaiAgentElements.maxCount else { return .failure(.invalid("Item numbers go from 1 to \(KaiAgentElements.maxCount), as listed under the screenshot.")) }
+                return .success(.clickElement(number: number, double: bool("double"), right: bool("right")))
+            }
+            guard let x = int("x"), let y = int("y") else { return .failure(.missing("an element number, or x and y")) }
             guard x >= 0, y >= 0 else { return .failure(.invalid("x and y must be inside the screenshot.")) }
             return .success(.click(x: x, y: y, double: bool("double"), right: bool("right")))
         case "computer_type":

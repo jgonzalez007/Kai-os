@@ -17,6 +17,8 @@ struct KaiSidekickSettingsView: View {
     @AppStorage(KaiSharedKey.defaultsKey) private var sharedKey = KaiSharedKey.default.rawValue
     @AppStorage(KaiInstructions.defaultsKey) private var instructions = ""
     @AppStorage(KaiAgentEffort.defaultsKey) private var effort = KaiAgentEffort.default.rawValue
+    @AppStorage(KaiAgentController.modelKey) private var sidekickModel = ""
+    @EnvironmentObject var appState: AppState
 
     var body: some View {
         VStack(alignment: .leading, spacing: 32) {
@@ -88,10 +90,26 @@ struct KaiSidekickSettingsView: View {
                         }
                     }
                     Text((KaiAgentEffort(rawValue: effort) ?? .default).detail).font(.caption).foregroundStyle(.secondary)
+                    Divider().overlay(Color.white.opacity(0.08))
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Model for computer tasks").fontWeight(.medium)
+                            Text("A model that reads images and runs on this Mac. A bigger one clicks more accurately and is slower. “Same as chat” uses your chat model if it can read images.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Picker("", selection: $sidekickModel) {
+                            Text("Same as chat").tag("")
+                            ForEach(appState.modelInfo.filter(\.supportsVision), id: \.name) { Text($0.name).tag($0.name) }
+                        }
+                        .labelsHidden().frame(width: 200)
+                    }
                 }
                 .padding(20)
                 .kaiGlassSurface(radius: 16)
             }
+
+            KaiLessonsCard(agent: appState.agent)
         }
     }
 
@@ -107,5 +125,74 @@ struct KaiSidekickSettingsView: View {
             control()
         }
         .padding(.horizontal, 20).padding(.vertical, 16)
+    }
+}
+
+/// What Sidekick has learned from earlier tasks, to read, correct and delete.
+private struct KaiLessonsCard: View {
+    @ObservedObject var agent: KaiAgentController
+    @AppStorage(KaiAgentLessons.learnKey) private var learn = true
+    @State private var newText = ""
+    @State private var newApp = ""
+    @State private var problem: String?
+    @State private var confirmForget = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("What Sidekick has learned").font(.title3).fontWeight(.semibold)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Learn from tasks").fontWeight(.medium)
+                        Text("After a task that took real work or ran into trouble, a model on this Mac writes up to two short tips, like “Chrome: ⌘T opens a new tab”. Tips are about how to do things, never about what was on your screen. Kai adds the ones that fit to its next task, below its safety rules.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if agent.isLearning { ProgressView().controlSize(.small) }
+                    Toggle("", isOn: $learn).labelsHidden().toggleStyle(.switch).tint(.green)
+                }
+                Divider().overlay(Color.white.opacity(0.08))
+                if agent.lessons.isEmpty {
+                    Text("Nothing yet. Tips appear here after Sidekick finishes a task.").font(.callout).foregroundStyle(.secondary)
+                }
+                ForEach(agent.lessons.sorted { $0.createdAt > $1.createdAt }) { lesson in
+                    HStack(alignment: .top, spacing: 8) {
+                        Toggle("", isOn: Binding(get: { lesson.enabled }, set: { agent.setLesson(lesson.id, enabled: $0) }))
+                            .labelsHidden().toggleStyle(.switch).controlSize(.mini)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(lesson.text).font(.callout).foregroundStyle(lesson.enabled ? .primary : .secondary)
+                            Text((lesson.app ?? "Any app") + (lesson.learned ? " · learned" : " · added by you")).font(.caption2).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button { agent.deleteLesson(lesson.id) } label: { Image(systemName: "xmark.circle") }
+                            .buttonStyle(.plain).help("Delete this tip")
+                    }
+                }
+                HStack {
+                    TextField("App (optional)", text: $newApp).kaiInput().frame(width: 140)
+                    TextField("Add a tip, such as: always open links in a new tab", text: $newText).kaiInput()
+                    Button("Add") {
+                        problem = agent.addLesson(newText, app: newApp) ? nil : "That tip is too short, or it has an address, a number or a word like password in it."
+                        if problem == nil { newText = ""; newApp = "" }
+                    }
+                    .controlSize(.small).disabled(newText.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                if let problem { Text(problem).font(.caption).foregroundStyle(KaiColor.warning) }
+                if !agent.lessons.isEmpty {
+                    HStack {
+                        Spacer()
+                        if confirmForget {
+                            Text("Delete every tip?").font(.caption).foregroundStyle(.secondary)
+                            Button("Delete all", role: .destructive) { agent.forgetLessons(); confirmForget = false }.controlSize(.small)
+                            Button("Keep") { confirmForget = false }.controlSize(.small)
+                        } else {
+                            Button("Forget everything") { confirmForget = true }.controlSize(.small).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding(20)
+            .kaiGlassSurface(radius: 16)
+        }
     }
 }

@@ -94,7 +94,10 @@ public struct KaiKnowledgeGraph: Equatable, Sendable {
             }
             return out
         }
-        let norms = weighted.map { sqrt($0.values.reduce(0) { $0 + $1 * $1 }) }
+        // Sums are taken over words in alphabetical order. A dictionary hands its words out in a different order each
+        // time, and adding decimals in a different order gives slightly different totals, so the picture would shift.
+        let sorted: [[(word: String, value: Double)]] = weighted.map { $0.sorted { $0.key < $1.key }.map { (word: $0.key, value: $0.value) } }
+        let norms = sorted.map { sqrt($0.reduce(0) { $0 + $1.value * $1.value }) }
 
         var candidates: [KaiGraphEdge] = []
         let byTitle = Dictionary(nodes.map { ($0.title.lowercased(), $0.index) }, uniquingKeysWith: { first, _ in first })
@@ -104,9 +107,13 @@ public struct KaiKnowledgeGraph: Equatable, Sendable {
             }
             guard norms[i] > 0 else { continue }
             for j in (i + 1)..<max(documents.count, i + 1) where norms[j] > 0 {
-                let (small, large) = weighted[i].count <= weighted[j].count ? (weighted[i], weighted[j]) : (weighted[j], weighted[i])
                 var dot = 0.0
-                for (word, value) in small { if let other = large[word] { dot += value * other } }
+                var x = 0, y = 0
+                let (left, right) = (sorted[i], sorted[j])
+                while x < left.count, y < right.count {
+                    if left[x].word == right[y].word { dot += left[x].value * right[y].value; x += 1; y += 1 }
+                    else if left[x].word < right[y].word { x += 1 } else { y += 1 }
+                }
                 let similarity = dot / (norms[i] * norms[j])
                 if similarity >= threshold { candidates.append(KaiGraphEdge(a: i, b: j, weight: min(1, similarity))) }
             }

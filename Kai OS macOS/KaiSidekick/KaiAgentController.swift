@@ -34,6 +34,14 @@ final class KaiAgentController: ObservableObject {
     @Published private(set) var outcome: KaiAgentOutcome?
     @Published var message: String?
 
+    /// What Sidekick has learned from earlier tasks (see KaiAgentLessons). Shown and editable in Sidekick settings.
+    @Published private(set) var lessons: [KaiAgentLesson] = KaiAgentLessonStore.standard.load()
+    @Published private(set) var isLearning = false
+    static let modelKey = "kai.sidekick.model"
+
+    private var runEvents: [KaiAgentEvent] = []
+    private var runTask = ""
+    private var runModel = ""
     private var stopSwitch = KaiAgentStopSwitch()
     private var approval: CheckedContinuation<Bool, Never>?
     private let input = KaiSystemInput()
@@ -58,6 +66,8 @@ final class KaiAgentController: ObservableObject {
         isRunning = true
         lines = []
         outcome = nil
+        runEvents = []
+        runTask = trimmed
         Task {
             guard let model = await chooseModel(appState: appState) else {
                 isRunning = false
@@ -87,8 +97,10 @@ final class KaiAgentController: ObservableObject {
             limits: KaiAgentEffort.stored().limits,
             stop: stopSwitch,
             userInstructions: KaiInstructions.stored(),
-            tools: KaiAgentDirectTools()
+            tools: KaiAgentDirectTools(),
+            lessons: KaiAgentLessons.promptSection(lessons, task: task)
         )
+        runModel = model
         // Load the model into memory while Kai steps aside, so the first step doesn't wait for it.
         Task.detached { await KaiOllamaClient().warm(model: model) }
         Task {
@@ -108,6 +120,8 @@ final class KaiAgentController: ObservableObject {
     }
 
     private func finish(_ result: KaiAgentOutcome) {
+        runEvents.append(.finished(result))
+        learnFromRun()
         isRunning = false
         outcome = result
         message = nil
@@ -122,11 +136,55 @@ final class KaiAgentController: ObservableObject {
     /// A local model that reads images: the one chosen in Kai if it is local, else the first that can.
     private func chooseModel(appState: AppState) async -> String? {
         if appState.modelInfo.isEmpty { try? await appState.refreshChatModels() }
+        // A model picked for Sidekick on its own wins, when it is installed and can read images.
+        let picked = UserDefaults.standard.string(forKey: Self.modelKey) ?? ""
+        if !picked.isEmpty, appState.modelInfo.first(where: { $0.name == picked })?.supportsVision == true { return picked }
         let chosen = KaiModelTag.name(from: appState.selectedModel)
         if appState.selectedModel.hasPrefix("ollama: "), appState.modelInfo.first(where: { $0.name == chosen })?.supportsVision == true {
             return chosen
         }
         return appState.modelInfo.first { $0.supportsVision }?.name
+    }
+
+    // MARK: Lessons
+
+    private func saveLessons(_ updated: [KaiAgentLesson]) {
+        lessons = updated
+        try? KaiAgentLessonStore.standard.save(updated)
+    }
+
+    func addLesson(_ text: String, app: String? = nil) -> Bool {
+        guard let clean = KaiAgentLessons.sanitize(text) else { return false }
+        saveLessons(KaiAgentLessons.merge([KaiAgentLesson(text: clean, app: app?.isEmpty == false ? app : nil, learned: false)], into: lessons))
+        return true
+    }
+
+    func deleteLesson(_ id: String) { saveLessons(lessons.filter { $0.id != id }) }
+
+    func setLesson(_ id: String, enabled: Bool) {
+        saveLessons(lessons.map { var l = $0; if l.id == id { l.enabled = enabled }; return l })
+    }
+
+    func forgetLessons() { saveLessons([]) }
+
+    /// After a task that took real work or hit trouble, a local model writes up to two tips from the log of what
+    /// was done. The log has no screen content and no typed text. Each tip is cleaned before it is kept.
+    private func learnFromRun() {
+        guard KaiAgentLessons.isLearning(), KaiAgentLessons.worthLearning(events: runEvents), !runModel.isEmpty else { return }
+        let messages = KaiAgentLessons.distillMessages(task: runTask, events: runEvents)
+        let model = runModel
+        isLearning = true
+        Task {
+            var answer = ""
+            do {
+                for try await event in KaiOllamaClient().stream(model: model, messages: messages, tools: [], temperature: 0.1) {
+                    if case .text(let delta) = event { answer += delta }
+                }
+                let fresh = KaiAgentLessons.parse(answer)
+                if !fresh.isEmpty { saveLessons(KaiAgentLessons.merge(fresh, into: lessons)) }
+            } catch {}
+            isLearning = false
+        }
     }
 
     // MARK: From the runner
@@ -147,6 +205,10 @@ final class KaiAgentController: ObservableObject {
     }
 
     func handle(_ event: KaiAgentEvent) {
+        switch event {
+        case .thought, .started, .finished: break
+        default: runEvents.append(event)
+        }
         switch event {
         case .thought(_, let text): lines.append(Line(kind: .thought, text: text))
         case .proposed(_, let summary): lines.append(Line(kind: .proposed, text: summary))

@@ -56,7 +56,8 @@ struct KaiSystemScreen: KaiAgentScreen {
         let elements = await Task.detached(priority: .userInitiated) {
             KaiAXElements.collect(bounds: bounds, pixelWidth: width, pixelHeight: height, ownBundleIdentifier: Bundle.main.bundleIdentifier)
         }.value
-        return KaiAgentFrame(jpeg: data, pixelWidth: width, pixelHeight: height, screenWidth: bounds.width, screenHeight: bounds.height, elements: elements)
+        let marked = KaiMarks.draw(on: data, elements: elements, pixelWidth: width, pixelHeight: height)
+        return KaiAgentFrame(jpeg: marked, pixelWidth: width, pixelHeight: height, screenWidth: bounds.width, screenHeight: bounds.height, elements: elements)
     }
 }
 
@@ -133,6 +134,16 @@ final class KaiSystemInput: KaiAgentInput, @unchecked Sendable {
     private func clearUserInput() { lock.lock(); userInput = false; lock.unlock() }
 
     func userInterrupted() async -> Bool { lock.lock(); defer { lock.unlock() }; return userInput }
+
+    /// Says when an app is already running, so the model starts its own work in a new tab or window and leaves what is there alone.
+    func runningNote(for appName: String) async -> String? {
+        let wanted = appName.lowercased().replacingOccurrences(of: ".app", with: "")
+        guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.activationPolicy == .regular && $0.localizedName?.lowercased() == wanted }) else { return nil }
+        let windows = (CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? [])
+            .filter { ($0[kCGWindowOwnerPID as String] as? Int32) == app.processIdentifier && ($0[kCGWindowLayer as String] as? Int) == 0 && ($0[kCGWindowIsOnscreen as String] as? Bool) == true }
+        let count = windows.count
+        return "\(app.localizedName ?? appName) was already open with \(count) window\(count == 1 ? "" : "s"). It may hold the user's own work: leave it as it is, and start your task in a new tab (computer_new_tab) or window (computer_new_window)."
+    }
     func clearInterruption() async { clearUserInput() }
 
     func frontmostBundleIdentifier() async -> String? {
