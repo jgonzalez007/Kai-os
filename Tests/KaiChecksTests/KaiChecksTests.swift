@@ -1716,13 +1716,17 @@ final class KaiChecksTests: XCTestCase {
                 && auto.decide(.type("hello world"), frontmostBundleIdentifier: "com.apple.Safari") == .allow
                 && auto.decide(.key(KaiKeyCombo(modifiers: [.command], key: "c")), frontmostBundleIdentifier: "com.apple.Safari") == .allow
         }
-        check("automatic mode still asks before Return, delete, quit, a new line and send shortcuts") {
-            let risky: [KaiAgentAction] = [
-                .key(KaiKeyCombo(modifiers: [], key: "return")), .key(KaiKeyCombo(modifiers: [], key: "delete")),
+        check("automatic mode still asks before quit, close, send shortcuts, and Return or a new line in a chat app") {
+            func asks(_ d: KaiAgentDecision) -> Bool { if case .needsApproval = d { return true } else { return false } }
+            let always: [KaiAgentAction] = [
                 .key(KaiKeyCombo(modifiers: [.command], key: "q")), .key(KaiKeyCombo(modifiers: [.command], key: "return")),
-                .key(KaiKeyCombo(modifiers: [.command], key: "w")), .type("line one\nline two"),
+                .key(KaiKeyCombo(modifiers: [.command], key: "w")), .key(KaiKeyCombo(modifiers: [.command], key: "delete")),
             ]
-            return risky.allSatisfy { if case .needsApproval = auto.decide($0, frontmostBundleIdentifier: "com.apple.Mail") { return true } else { return false } }
+            let chat: [KaiAgentAction] = [.key(KaiKeyCombo(modifiers: [], key: "return")), .type("line one\nline two")]
+            let plain: [KaiAgentAction] = [.key(KaiKeyCombo(modifiers: [], key: "return")), .key(KaiKeyCombo(modifiers: [], key: "delete")), .type("line one\nline two")]
+            return always.allSatisfy { asks(auto.decide($0, frontmostBundleIdentifier: "com.apple.Mail")) }
+                && chat.allSatisfy { asks(auto.decide($0, frontmostBundleIdentifier: "com.tinyspeck.slackmacgap")) }
+                && plain.allSatisfy { auto.decide($0, frontmostBundleIdentifier: "com.apple.Safari") == .allow }
         }
 
         // The loop
@@ -1744,6 +1748,16 @@ final class KaiChecksTests: XCTestCase {
             let told = f.seenMessages.last?.contains { $0.role == "tool" && $0.content.contains("declined") } ?? false
             return f.performed.isEmpty && told && f.events.contains { if case .declined = $0 { return true } else { return false } }
         }
+        await checkAsync("finishing in the same reply as an action is not accepted before the result is seen") {
+            let f = AgentFakes(script: [("", [AgentFakes.typed("a"), AgentFakes.finish("done")]), ("", [AgentFakes.finish("Really done.")])])
+            let outcome = await f.runner(mode: .auto).run(task: "t")
+            return outcome == .completed("Really done.") && f.performed.count == 1
+        }
+        check("the default pace waits longer and does fewer things per reply") {
+            let l = KaiAgentLimits()
+            return l.maxActionsPerStep == 2 && l.settleDelay >= .milliseconds(1200) && l.settleMinimum >= .milliseconds(300)
+                && KaiAgentEffort.careful.limits.maxActionsPerStep == 1
+        }
         await checkAsync("an action in a blocked app is refused without even asking") {
             let f = AgentFakes(script: [("", [AgentFakes.click(5, 5)]), ("", [AgentFakes.finish()])], frontmost: ["com.apple.Terminal"], approvals: [true])
             _ = await f.runner(mode: .auto).run(task: "t")
@@ -1755,9 +1769,9 @@ final class KaiChecksTests: XCTestCase {
             _ = await f.runner(mode: .askEach).run(task: "t")
             return f.performed.isEmpty
         }
-        await checkAsync("automatic mode runs a click without asking, and asks for Return") {
+        await checkAsync("automatic mode runs a click without asking, and asks for Return in a chat app") {
             let f = AgentFakes(script: [("", [AgentFakes.click(5, 5)]),
-                                        ("", [AgentFakes.call("computer_key", ["keys": .string("return")])]), ("", [AgentFakes.finish()])], approvals: [false])
+                                        ("", [AgentFakes.call("computer_key", ["keys": .string("return")])]), ("", [AgentFakes.finish()])], frontmost: ["com.tinyspeck.slackmacgap"], approvals: [false])
             _ = await f.runner(mode: .auto).run(task: "t")
             return f.performed.count == 1 && f.requests.count == 1 && f.requests[0].summary == "Press return"
         }
@@ -2863,13 +2877,13 @@ final class KaiChecksTests: XCTestCase {
                 && parse("search_files", ["query": .string("")]) == nil
                 && parse("read_calendar", ["days": .number(99)]) == .tool(name: "read_calendar", arguments: ["days": "14"])
         }
-        check("reading is allowed without asking, even in a blocked app, and making something always asks") {
+        check("reading is allowed without asking, making something asks unless it runs on its own") {
             let auto = KaiAgentPolicy(mode: .auto, ownBundleIdentifier: "ai.kai"), ask = KaiAgentPolicy(mode: .askEach, ownBundleIdentifier: "ai.kai")
             func asks(_ d: KaiAgentDecision) -> Bool { if case .needsApproval = d { return true } else { return false } }
             let read = KaiAgentAction.tool(name: "read_calendar", arguments: ["days": "3"])
             let write = KaiAgentAction.tool(name: "create_note", arguments: ["title": "t", "body": ""])
             return auto.decide(read, frontmostBundleIdentifier: "com.apple.Terminal") == .allow && ask.decide(read, frontmostBundleIdentifier: nil) == .allow
-                && asks(auto.decide(write, frontmostBundleIdentifier: "com.apple.Safari")) && asks(ask.decide(write, frontmostBundleIdentifier: nil))
+                && auto.decide(write, frontmostBundleIdentifier: "com.apple.Safari") == .allow && asks(ask.decide(write, frontmostBundleIdentifier: nil))
         }
         check("a note's text is escaped, so a title or body can't add markup") {
             let html = KaiAgentTools.noteHTML(title: "A <b>&</b>", body: "line <i>one</i>\n\nlast")
@@ -2934,12 +2948,12 @@ final class KaiChecksTests: XCTestCase {
             let told = f.seenMessages.last?.contains { $0.role == "tool" && $0.content.contains("RESULT for read_calendar") } ?? false
             return outcome == .completed("Done.") && log.calls == ["read_calendar"] && f.performed.isEmpty && f.requests.isEmpty && told
         }
-        await checkAsync("a tool that makes something waits for approval, and does nothing if declined") {
+        await checkAsync("in ask-each mode a tool that makes something waits for approval, and does nothing if declined") {
             let args: [String: KaiToolArgument] = ["title": .string("Shopping"), "body": .string("milk")]
             let declined = AgentFakes(script: [("", [AgentFakes.call("create_note", args)]), ("", [AgentFakes.finish()])], approvals: [false]); let l1 = Log()
-            _ = await declined.runner(mode: .auto, tools: Tools(log: l1)).run(task: "t")
+            _ = await declined.runner(mode: .askEach, tools: Tools(log: l1)).run(task: "t")
             let approved = AgentFakes(script: [("", [AgentFakes.call("create_note", args)]), ("", [AgentFakes.finish()])], approvals: [true]); let l2 = Log()
-            _ = await approved.runner(mode: .auto, tools: Tools(log: l2)).run(task: "t")
+            _ = await approved.runner(mode: .askEach, tools: Tools(log: l2)).run(task: "t")
             return l1.calls.isEmpty && declined.requests.count == 1 && l2.calls == ["create_note"] && approved.requests.first?.summary.contains("Shopping") == true
         }
         await checkAsync("a tool that fails is reported to the model, and without a tool runner it is not available") {

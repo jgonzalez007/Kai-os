@@ -59,8 +59,10 @@ public struct KaiAgentPolicy: Sendable {
 
         // A direct tool doesn't touch the screen, so it doesn't depend on what is in front. Reading is allowed;
         // anything that makes something waits for the person, in both modes.
+        // On its own, it also makes the notes, events and mail drafts it was asked for: they send nothing and can be undone.
         if case .tool(let name, _) = action {
-            return KaiAgentTools.readOnlyTools.contains(name) ? .allow : .needsApproval(action.summary)
+            if KaiAgentTools.readOnlyTools.contains(name) || mode == .auto { return .allow }
+            return .needsApproval(action.summary)
         }
 
         // Opening an app does not depend on what is in front. It can never open one of the blocked apps.
@@ -78,25 +80,35 @@ public struct KaiAgentPolicy: Sendable {
             return .allow
         case .click, .type, .key:
             if mode == .askEach { return .needsApproval(action.summary) }
-            if let reason = riskReason(action) { return .needsApproval(reason) }
+            if let reason = riskReason(action, in: app) { return .needsApproval(reason) }
             return .allow
         default:
             return .allow
         }
     }
 
-    /// Why an action needs a person even in automatic mode, or nil.
-    func riskReason(_ action: KaiAgentAction) -> String? {
+    /// Chat apps, where Return sends the message. Everywhere else Return is an ordinary key on its own.
+    static let sendingApps: Set<String> = [
+        "com.tinyspeck.slackmacgap", "com.apple.MobileSMS", "net.whatsapp.WhatsApp", "ru.keepcoder.Telegram",
+        "com.hnc.Discord", "com.microsoft.teams2", "com.microsoft.teams", "org.whispersystems.signal-desktop",
+        "com.facebook.archon.developerID", "com.skype.skype",
+    ]
+
+    /// Why an action needs a person even in automatic mode, or nil. Return and Delete ask only where they can
+    /// send a message; ⌘Return, quitting, closing and the like always ask.
+    func riskReason(_ action: KaiAgentAction, in app: String? = nil) -> String? {
+        let sends = app.map { Self.sendingApps.contains($0) } ?? true
         switch action {
         case .type(let text):
-            if text.contains("\n") || text.contains("\r") { return "This text includes a new line, which can send or submit." }
+            if sends, text.contains("\n") || text.contains("\r") { return "This text includes a new line, which can send or submit." }
             return nil
         case .key(let combo):
             let command = combo.modifiers.contains(.command)
             let control = combo.modifiers.contains(.control)
             let option = combo.modifiers.contains(.option)
             if Self.riskyKeys.contains(combo.key) {
-                return combo.key == "return" ? "Return can send or submit." : "Delete can remove things."
+                if command || control || option { return combo.key == "return" ? "Return with a modifier can send or submit." : "Delete with a modifier can remove things." }
+                if sends { return combo.key == "return" ? "Return can send or submit." : nil }
             }
             if command, ["q", "w", "space"].contains(combo.key) { return "\(combo.display) closes or launches things." }
             if command, control, combo.key == "q" { return "This locks the screen." }

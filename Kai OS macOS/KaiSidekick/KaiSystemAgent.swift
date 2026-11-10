@@ -31,10 +31,13 @@ struct KaiSystemScreen: KaiAgentScreen {
         let start = clock.now
         try? await Task.sleep(for: minimum)
         guard var previous = try? await KaiScreenGrabber.fingerprint(displayID: display, excludingBundleIdentifier: own) else { return false }
+        // Three calm looks in a row: a page that is still loading often holds still for a moment and then changes.
+        var calm = 0
         while clock.now - start < maximum {
-            try? await Task.sleep(for: .milliseconds(100))
+            try? await Task.sleep(for: .milliseconds(150))
             guard let current = try? await KaiScreenGrabber.fingerprint(displayID: display, excludingBundleIdentifier: own) else { return false }
-            if KaiScreenGrabber.isStable(previous, current) { return true }
+            calm = KaiScreenGrabber.isStable(previous, current) ? calm + 1 : 0
+            if calm >= 3 { return true }
             previous = current
         }
         return true
