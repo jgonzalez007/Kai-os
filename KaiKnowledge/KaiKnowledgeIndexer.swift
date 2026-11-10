@@ -8,6 +8,8 @@ public struct KaiIndexReport: Equatable, Sendable {
     public var updated = 0
     public var unchanged = 0
     public var removed = 0
+    /// Files that were left out: too big, no text in them, or named like a secret.
+    public var skipped = 0
 
     public init() {}
 
@@ -22,7 +24,7 @@ public struct KaiIndexReport: Equatable, Sendable {
     }
 
     public mutating func merge(_ other: KaiIndexReport) {
-        added += other.added; updated += other.updated; unchanged += other.unchanged; removed += other.removed
+        added += other.added; updated += other.updated; unchanged += other.unchanged; removed += other.removed; skipped += other.skipped
     }
 }
 
@@ -30,12 +32,15 @@ public struct KaiIndexReport: Equatable, Sendable {
 /// Mail is indexed by subject and sender only, never by body.
 public enum KaiKnowledgeIndexer {
     public static let folderSource = "files"
+    /// Folders the person added from anywhere on the Mac. Each file's ID is "<folder id>/<path inside it>".
+    public static let extraFoldersSource = "folder"
     public static let notesSource = "notes"
     public static let calendarSource = "calendar"
     public static let mailSource = "mail"
 
-    static let fileExtensions: Set<String> = ["md", "markdown", "txt"]
-    static let maxFileBytes = 1_000_000
+    static var fileExtensions: Set<String> { KaiFileReader.supportedExtensions }
+    /// How much of one file is kept. A long report is searched whole, but a profile reads only the start.
+    static let maxFileCharacters = 120_000
 
     /// ~/Kai OS - Knowledge Base
     public static func defaultFolder() -> URL {
@@ -77,36 +82,85 @@ public enum KaiKnowledgeIndexer {
 
     // MARK: Indexing
 
-    /// Markdown and text files under `folder`. Unchanged files (same size and date) are not read again.
+    /// Files under `folder` that Kai can read: text, Markdown, Word, PDF, web pages and pictures with text. Unchanged files
+    /// (same size and date) are not read again. Hidden files, build folders and files named like secrets are left out.
     @discardableResult
     public static func indexFolder(_ folder: URL, into store: KaiKnowledgeStore) throws -> KaiIndexReport {
-        var report = KaiIndexReport()
         var seen = Set<String>()
-        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
+        var report = KaiIndexReport()
+        _ = try scan(folder, source: folderSource, idPrefix: "", extraSkips: [], store: store, seen: &seen, report: &report)
+        report.removed = try store.removeMissing(source: folderSource, keeping: seen)
+        return report
+    }
+
+    /// The folders the person added. A folder that is switched off or removed from the list is forgotten; a folder that
+    /// is just not there right now (an unplugged drive) keeps what was read, until it comes back.
+    public static func indexFolders(_ folders: [KaiKnowledgeFolder], into store: KaiKnowledgeStore) throws -> (report: KaiIndexReport, results: [String: KaiFolderResult]) {
+        var seen = Set<String>()
+        var report = KaiIndexReport()
+        var results: [String: KaiFolderResult] = [:]
+        var someMissing = false
+        for folder in folders where folder.enabled {
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+                results[folder.id] = KaiFolderResult(available: false)
+                someMissing = true
+                continue
+            }
+            var folderReport = KaiIndexReport()
+            let indexed = try scan(folder.url, source: extraFoldersSource, idPrefix: folder.id + "/", extraSkips: folder.skipNames,
+                                 store: store, seen: &seen, report: &folderReport)
+            report.merge(folderReport)
+            results[folder.id] = KaiFolderResult(indexed: indexed, skipped: folderReport.skipped)
+        }
+        if !someMissing { report.removed = try store.removeMissing(source: extraFoldersSource, keeping: seen) }
+        return (report, results)
+    }
+
+    private static func scan(_ folder: URL, source: String, idPrefix: String, extraSkips: [String], store: KaiKnowledgeStore,
+                             seen: inout Set<String>, report: inout KaiIndexReport) throws -> Int {
+        let keys: [URLResourceKey] = [.isRegularFileKey, .isDirectoryKey, .fileSizeKey, .contentModificationDateKey]
         guard let walker = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: keys,
-                                                          options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return report }
+                                                          options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return 0 }
         let root = folder.resolvingSymlinksInPath().path
+        var indexed = 0
+        var visited = 0
         for case let url as URL in walker {
-            guard fileExtensions.contains(url.pathExtension.lowercased()),
-                  let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
-                  let size = values.fileSize, size <= maxFileBytes else { continue }
+            guard let values = try? url.resourceValues(forKeys: Set(keys)) else { continue }
+            if values.isDirectory == true {
+                if KaiKnowledgeFolders.skips(directory: url.lastPathComponent, extra: extraSkips) { walker.skipDescendants() }
+                continue
+            }
+            let ext = url.pathExtension.lowercased()
+            guard values.isRegularFile == true, KaiFileReader.supports(ext) else { continue }
+            visited += 1
+            if visited > KaiKnowledgeFolders.maxFilesPerFolder { report.skipped += 1; continue }
+            guard let size = values.fileSize else { continue }
+            if KaiKnowledgeFolders.looksSecret(fileName: url.lastPathComponent) || size > KaiFileReader.maxBytes(for: ext) {
+                report.skipped += 1
+                continue
+            }
+            // A link that leads outside the folder is never followed.
             let resolved = url.resolvingSymlinksInPath().path
             guard resolved.hasPrefix(root + "/") else { continue }
             let relative = String(resolved.dropFirst(root.count + 1))
-            seen.insert(relative)
+            let id = idPrefix + relative
             let modified = values.contentModificationDate
             let fingerprint = "\(Int(modified?.timeIntervalSince1970 ?? 0))-\(size)"
-            if try store.isCurrent(source: folderSource, sourceID: relative, fingerprint: fingerprint) {
+            if try store.isCurrent(source: source, sourceID: id, fingerprint: fingerprint) {
+                seen.insert(id)
                 report.unchanged += 1
+                indexed += 1
                 continue
             }
-            guard let text = try? String(contentsOf: url, encoding: .utf8) else { continue }
-            let title = markdownTitle(text) ?? url.deletingPathExtension().lastPathComponent
-            report.record(try store.upsert(KaiKnowledgeDocument(source: folderSource, sourceID: relative, title: title,
+            guard let text = KaiFileReader.read(url, maxCharacters: maxFileCharacters) else { report.skipped += 1; continue }
+            seen.insert(id)
+            let title = (ext == "md" || ext == "markdown" ? markdownTitle(text) : nil) ?? url.deletingPathExtension().lastPathComponent
+            report.record(try store.upsert(KaiKnowledgeDocument(source: source, sourceID: id, title: title,
                                                                 text: text, modified: modified, fingerprint: fingerprint)))
+            indexed += 1
         }
-        report.removed = try store.removeMissing(source: folderSource, keeping: seen)
-        return report
+        return indexed
     }
 
     /// The first "# Heading" line, if there is one.

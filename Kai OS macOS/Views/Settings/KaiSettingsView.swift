@@ -397,6 +397,8 @@ struct KaiSettingsView: View {
 
                 if page == .knowledge { manualNoteCard }
 
+                if page == .knowledge { knowledgeFoldersCard }
+
                 if page == .knowledge {
                 // ── Slack ──
                 settingsCard {
@@ -440,7 +442,7 @@ struct KaiSettingsView: View {
                     SectionHeader(title: "Knowledge base")
 
                     Text(appState.knowledgeDocumentCount == 0
-                         ? "Nothing indexed yet. Kai searches the Markdown and text files in your knowledge folder, plus Notes, Calendar and Mail subjects for the sources you've connected. It all stays on this Mac."
+                         ? "Nothing indexed yet. Kai searches the files in your knowledge folder and the folders you add above (text, Word, PDF, pictures with text), plus Notes, Calendar and Mail subjects for the sources you've connected. It all stays on this Mac."
                          : appState.knowledgeCounts.sorted { $0.key < $1.key }
                             .map { "\(AppState.knowledgeSourceNames[$0.key] ?? $0.key): \($0.value)" }
                             .joined(separator: " · "))
@@ -691,6 +693,84 @@ struct KaiSettingsView: View {
     @State private var manualMessage: String?
     @State private var manualOK = true
     @State private var manualSaving = false
+
+    @State private var dropTargeted = false
+
+    /// Folders for Kai to read and files to hand it. A file is copied into the knowledge folder's Uploads; a folder stays where it is.
+    private var knowledgeFoldersCard: some View {
+        settingsCard {
+            SectionHeader(title: "Folders and files")
+            Text("Give Kai folders to read, or drop files in. It reads text and Markdown, Word and RTF, PDFs (scanned ones too), web pages and pictures with text. Pictures are read on this Mac. Nothing leaves it. Build folders, hidden files and anything named like a password or key are skipped.")
+                .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+
+            VStack(spacing: 6) {
+                Image(systemName: "tray.and.arrow.down").font(.system(size: 22)).foregroundStyle(dropTargeted ? KaiColor.cyan : KaiColor.textSecondary)
+                Text("Drop files or folders here").font(.callout.weight(.medium))
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 18)
+            .background(RoundedRectangle(cornerRadius: 14).fill(Color.white.opacity(dropTargeted ? 0.1 : 0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(dropTargeted ? KaiColor.cyan : Color.white.opacity(0.18), style: StrokeStyle(lineWidth: 1, dash: [6, 4])))
+            .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
+                let lock = NSLock()
+                var urls: [URL] = []
+                let group = DispatchGroup()
+                for provider in providers {
+                    group.enter()
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                        if let url { lock.lock(); urls.append(url); lock.unlock() }
+                        group.leave()
+                    }
+                }
+                group.notify(queue: .main) { appState.addKnowledgeItems(urls) }
+                return true
+            }
+
+            HStack {
+                Button("Add folder…") { chooseKnowledgeItems(folders: true) }
+                Button("Add files…") { chooseKnowledgeItems(folders: false) }
+                Spacer()
+            }
+            .controlSize(.small)
+
+            ForEach(appState.knowledgeFolders) { folder in
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "folder").foregroundStyle(KaiColor.cyan)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(folder.name).fontWeight(.medium)
+                        Text(folder.path).font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary).lineLimit(1).truncationMode(.middle)
+                        Text(folderStatus(folder)).font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(get: { folder.enabled }, set: { appState.setKnowledgeFolder(folder.id, enabled: $0) }))
+                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                    Button { appState.removeKnowledgeFolder(folder.id) } label: { Image(systemName: "xmark.circle") }
+                        .buttonStyle(.plain).help("Stop reading this folder and forget what Kai learned from it")
+                }
+            }
+            if appState.knowledgeFolders.isEmpty {
+                Text("No folders yet. Files you drop in are copied to Uploads inside your knowledge folder.").font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
+            }
+            if let message = appState.knowledgeAddMessage, !message.isEmpty {
+                Text(message).font(KaiFont.caption).foregroundStyle(KaiColor.cyan)
+            }
+        }
+    }
+
+    private func folderStatus(_ folder: KaiKnowledgeFolder) -> String {
+        if !folder.enabled { return "Off. Kai has forgotten what it read here." }
+        guard let result = appState.knowledgeFolderResults[folder.id] else { return "Waiting to be read. Press Index now." }
+        if !result.available { return "Can't find this folder. Is the drive connected? What Kai learned from it is kept." }
+        return "\(result.indexed) file\(result.indexed == 1 ? "" : "s") read" + (result.skipped > 0 ? ", \(result.skipped) skipped (too big, no text, or looks like a secret)" : "")
+    }
+
+    private func chooseKnowledgeItems(folders: Bool) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = folders
+        panel.canChooseFiles = !folders
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Add"
+        if panel.runModal() == .OK { appState.addKnowledgeItems(panel.urls) }
+    }
 
     private var manualNoteCard: some View {
         settingsCard {

@@ -73,6 +73,7 @@ public enum KaiProfilePrompt {
         switch document.source {
         case KaiKnowledgeIndexer.folderSource:
             return document.sourceID.hasPrefix(KaiManualNote.folderName + "/") ? 0 : 1
+        case KaiKnowledgeIndexer.extraFoldersSource: return 1
         case KaiKnowledgeIndexer.notesSource: return 2
         case KaiKnowledgeIndexer.calendarSource: return 3
         case "slack": return 4

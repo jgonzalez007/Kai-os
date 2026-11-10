@@ -193,6 +193,10 @@ final class AppState: ObservableObject {
     @Published var notesState = KaiSourceState.disconnected
     @Published var calendarConnected = false
     @Published var knowledgeCounts: [String: Int] = [:]
+    /// Folders the person added for Kai to read, what the last pass found in each, and the line shown after a drop.
+    @Published var knowledgeFolders: [KaiKnowledgeFolder] = KaiKnowledgeFolderList.standard.load()
+    @Published var knowledgeFolderResults: [String: KaiFolderResult] = [:]
+    @Published var knowledgeAddMessage: String?
     @Published var knowledgeState = KaiSourceState.disconnected
     @Published var isIndexingKnowledge = false
     /// What Kai knows about the person, written by the local model from the knowledge base.

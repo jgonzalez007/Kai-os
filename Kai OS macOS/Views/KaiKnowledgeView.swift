@@ -353,6 +353,7 @@ struct KaiKnowledgeView: View {
     static func label(for source: String) -> String {
         switch source {
         case KaiKnowledgeIndexer.folderSource: return "Files"
+        case KaiKnowledgeIndexer.extraFoldersSource: return "Folders"
         case KaiKnowledgeIndexer.notesSource: return "Notes"
         case KaiKnowledgeIndexer.calendarSource: return "Calendar"
         case KaiKnowledgeIndexer.mailSource: return "Mail"

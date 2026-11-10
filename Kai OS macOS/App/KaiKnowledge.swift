@@ -12,7 +12,7 @@ import KaiKnowledge
 import KaiShared
 
 extension AppState {
-    static let knowledgeSourceNames = ["files": "Files", "notes": "Notes", "calendar": "Calendar", "mail": "Mail", "slack": "Slack"]
+    static let knowledgeSourceNames = ["files": "Files", "folder": "Folders", "notes": "Notes", "calendar": "Calendar", "mail": "Mail", "slack": "Slack"]
 
     var knowledgeFolder: URL { KaiKnowledgeIndexer.defaultFolder() }
 
@@ -34,6 +34,60 @@ extension AppState {
     func refreshKnowledgeCounts() {
         guard let store = openKnowledgeStore() else { return }
         knowledgeCounts = (try? store.counts()) ?? [:]
+    }
+
+    // MARK: Folders and files the person gives Kai
+
+    private func saveKnowledgeFolders() {
+        do { try KaiKnowledgeFolderList.standard.save(knowledgeFolders) } catch {
+            knowledgeAddMessage = "Couldn't save the folder list: \(error.localizedDescription)"
+        }
+    }
+
+    /// Adds a folder to read, then reads it. Returns why it can't be added, or nil.
+    @discardableResult
+    func addKnowledgeFolder(_ url: URL) -> String? {
+        if let problem = KaiKnowledgeFolders.problem(adding: url, to: knowledgeFolders) { return problem }
+        knowledgeFolders.append(KaiKnowledgeFolder(path: url.resolvingSymlinksInPath().standardizedFileURL.path))
+        saveKnowledgeFolders()
+        indexKnowledge()
+        return nil
+    }
+
+    func removeKnowledgeFolder(_ id: String) {
+        knowledgeFolders.removeAll { $0.id == id }
+        knowledgeFolderResults[id] = nil
+        saveKnowledgeFolders()
+        indexKnowledge()
+    }
+
+    func setKnowledgeFolder(_ id: String, enabled: Bool) {
+        guard let index = knowledgeFolders.firstIndex(where: { $0.id == id }) else { return }
+        knowledgeFolders[index].enabled = enabled
+        saveKnowledgeFolders()
+        indexKnowledge()
+    }
+
+    /// Files and folders dropped on Kai or picked in a dialog. A folder joins the list; a file is copied into Uploads.
+    func addKnowledgeItems(_ urls: [URL]) {
+        var files: [URL] = []
+        var lines: [String] = []
+        for url in urls {
+            var isDirectory: ObjCBool = false
+            FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            if isDirectory.boolValue {
+                if let problem = addKnowledgeFolder(url) { lines.append("\(url.lastPathComponent): \(problem)") } else { lines.append("Added the folder “\(url.lastPathComponent)”.") }
+            } else {
+                files.append(url)
+            }
+        }
+        if !files.isEmpty {
+            let result = KaiKnowledgeFolders.upload(files, into: knowledgeFolder)
+            if !result.copied.isEmpty { lines.append("Added \(result.copied.count) file\(result.copied.count == 1 ? "" : "s"): \(result.copied.prefix(3).joined(separator: ", "))\(result.copied.count > 3 ? "…" : "").") }
+            lines += result.rejected
+            if !result.copied.isEmpty { Task { _ = await indexKnowledgeNow(sources: [.files]) } }
+        }
+        knowledgeAddMessage = lines.joined(separator: "\n")
     }
 
     func openKnowledgeFolder() {
@@ -76,7 +130,22 @@ extension AppState {
             do { report.merge(try await work()) } catch { failures.append("\(name): \(error.localizedDescription)") }
         }
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        if sources.files { await attempt("Files") { try KaiKnowledgeIndexer.indexFolder(folder, into: store) } }
+        if sources.files {
+            let folders = knowledgeFolders
+            var results: [String: KaiFolderResult] = [:]
+            await attempt("Files") {
+                // Reading PDFs and pictures takes a while, so it never runs on the main thread.
+                let outcome = try await Task.detached(priority: .utility) { () -> (KaiIndexReport, [String: KaiFolderResult]) in
+                    var report = try KaiKnowledgeIndexer.indexFolder(folder, into: store)
+                    let extra = try KaiKnowledgeIndexer.indexFolders(folders, into: store)
+                    report.merge(extra.report)
+                    return (report, extra.results)
+                }.value
+                results = outcome.1
+                return outcome.0
+            }
+            knowledgeFolderResults = results
+        }
         if sources.calendar { await attempt("Calendar") { try KaiKnowledgeIndexer.indexCalendar(into: store) } }
         if sources.notes { await attempt("Notes") { try await KaiKnowledgeIndexer.indexNotes(into: store) } }
         if sources.mail { await attempt("Mail") { try await KaiKnowledgeIndexer.indexMail(into: store, since: window.since()) } }
@@ -89,13 +158,13 @@ extension AppState {
         let counts = (try? store.counts()) ?? [:]
         func result(_ source: KaiNightShiftSource, name: String, key: String, connected: Bool, none: String) -> KaiNightShiftRecord.SourceResult? {
             guard chosen.contains(source) else { return nil }
-            let count = counts[key] ?? 0
+            let count = (counts[key] ?? 0) + (key == "files" ? (counts["folder"] ?? 0) : 0)
             if !connected { return .init(name: name, count: count, note: "Not connected. Allow it on the Permissions page, or connect it in Preferences.") }
             if let failure = failures.first(where: { $0.hasPrefix(name + ":") }) { return .init(name: name, count: count, note: String(failure.dropFirst(name.count + 2))) }
             return .init(name: name, count: count, note: count == 0 ? none : nil)
         }
         let results = [
-            result(.files, name: "Files", key: "files", connected: true, none: "No Markdown or text files in your knowledge folder yet."),
+            result(.files, name: "Files", key: "files", connected: true, none: "No readable files in your knowledge folder or your added folders yet."),
             result(.calendar, name: "Calendar", key: "calendar", connected: sources.calendar || !calendarWanted(chosen), none: "No events in the last 30 or next 90 days."),
             result(.notes, name: "Notes", key: "notes", connected: sources.notes || !notesConnectedWanted(chosen), none: "Apple Notes has no notes on this Mac."),
             result(.mail, name: "Mail", key: "mail", connected: sources.mail || !mailConnectedWanted(chosen), none: "No mail in the chosen time window."),
@@ -117,11 +186,16 @@ extension AppState {
         guard ((try? store.count()) ?? 0) > 0 else {
             return "The knowledge base is empty. Tell the user to click Index now under Knowledge base in Settings."
         }
-        guard let hits = try? store.search(query, limit: 8), !hits.isEmpty else { return "Nothing in the knowledge base matched." }
-        return hits.map { hit in
+        guard let hits = try? store.search(query, limit: 8), !hits.isEmpty else {
+            return "Nothing in the knowledge base matched. Say that you could not find it in the user's files and notes. Do not guess or make it up."
+        }
+        let folders = knowledgeFolders
+        let found = hits.map { hit in
             let source = Self.knowledgeSourceNames[hit.source] ?? hit.source
             let date = hit.modified.map { " (\($0.formatted(date: .abbreviated, time: .omitted)))" } ?? ""
-            return "[\(source)] \(hit.title)\(date)\n\(hit.snippet)"
+            let place = KaiKnowledgeCitation.label(source: hit.source, sourceID: hit.sourceID, folders: folders)
+            return "[\(source)] \(hit.title)\(date)" + (place.isEmpty ? "" : "\nFile: \(place)") + "\n\(hit.snippet)"
         }.joined(separator: "\n\n")
+        return found + "\n\nWhen you use any of this, say which source it came from (its title or file). If it does not answer the question, say you could not find it instead of guessing."
     }
 }
