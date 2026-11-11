@@ -54,7 +54,9 @@ final class AgentFakes: @unchecked Sendable {
     static func click(_ x: Int, _ y: Int) -> KaiOllamaToolCall { call("computer_click", ["x": .number(Double(x)), "y": .number(Double(y))]) }
     static func typed(_ text: String) -> KaiOllamaToolCall { call("computer_type", ["text": .string(text)]) }
     static func keys(_ keys: String) -> KaiOllamaToolCall { call("computer_key", ["keys": .string(keys)]) }
-    static func finish(_ text: String = "Done.") -> KaiOllamaToolCall { call("task_complete", ["summary": .string(text)]) }
+    static func finish(_ text: String = "Done.", evidence: String = "the result is visible on screen") -> KaiOllamaToolCall {
+        call("task_complete", ["summary": .string(text), "evidence": .string(evidence)])
+    }
 }
 
 struct FakeScreen: KaiAgentScreen {
@@ -3157,6 +3159,82 @@ final class KaiChecksTests: XCTestCase {
         check("instructions go into the screen task prompt as writing rules") {
             let c = KaiScreenTask.Context(writing: "WRITE PLAINLY")
             return KaiScreenTask.proofread.systemPrompt(context: c).contains("WRITE PLAINLY") && KaiScreenTask.summarize.systemPrompt(context: c).contains("WRITE PLAINLY")
+        }
+    }
+
+    func testSidekickFinishAskAndRead() async {
+        await checkAsync("after doing things, done needs evidence: it is asked for twice, then accepted") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(10, 10)]),
+                                        ("", [AgentFakes.call("task_complete", ["summary": .string("Done.")])]),
+                                        ("", [AgentFakes.call("task_complete", ["summary": .string("Done.")])]),
+                                        ("", [AgentFakes.call("task_complete", ["summary": .string("Done."), "evidence": .string("the heading says Order placed")])])])
+            f.elements = [KaiAgentElement(label: "Go", role: "button", x: 10, y: 10)]
+            let outcome = await f.runner(mode: .auto, limits: { var l = KaiAgentLimits(); l.verifyBeforeFinish = true; return l }()).run(task: "t")
+            let told = f.seenMessages.last?.filter { $0.role == "tool" && $0.content.contains("what on the screen shows") }.count ?? 0
+            return told == 2 && { if case .completed = outcome { return true } else { return false } }()
+        }
+        await checkAsync("with evidence given, the evidence check passes, and only the look-again check remains") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(10, 10)]), ("", [AgentFakes.finish("Opened it.", evidence: "the title bar reads Inbox")]), ("", [AgentFakes.finish("Opened it.", evidence: "the title bar reads Inbox")])])
+            let outcome = await f.runner(mode: .auto, limits: { var l = KaiAgentLimits(); l.verifyBeforeFinish = true; return l }()).run(task: "t")
+            if case .completed("Opened it.") = outcome { return true }
+            return false
+        }
+        await checkAsync("could_not ends the task honestly, with the reason") {
+            let f = AgentFakes(script: [("", [AgentFakes.call("task_complete", ["summary": .string("The site asks me to sign in."), "status": .string("could_not")])])])
+            let outcome = await f.runner(mode: .auto).run(task: "t")
+            return outcome == .couldNot("The site asks me to sign in.") && outcome.summary == "Couldn't finish: The site asks me to sign in."
+        }
+        await checkAsync("a question reaches the person and their answer reaches the model; skipping tells the model so") {
+            final class Asker: KaiAgentApprover, @unchecked Sendable {
+                var answers: [String?]; var asked: [KaiAgentQuestion] = []
+                init(_ answers: [String?]) { self.answers = answers }
+                func approve(_ request: KaiApprovalRequest) async -> Bool { false }
+                func ask(_ question: KaiAgentQuestion) async -> String? { asked.append(question); return answers.isEmpty ? nil : answers.removeFirst() }
+            }
+            let asker = Asker(["Chrome", nil])
+            let f = AgentFakes(script: [("", [AgentFakes.call("ask_user", ["question": .string("Which browser?"), "option_a": .string("Safari"), "option_b": .string("Chrome")])]),
+                                        ("", [AgentFakes.call("ask_user", ["question": .string("Which dates?"), "option_a": .string("Nov 22"), "option_b": .string("Nov 23")])]),
+                                        ("", [AgentFakes.finish()])])
+            let runner = KaiAgentRunner(screen: FakeScreen(fakes: f), input: FakeInput(fakes: f), brain: FakeBrain(fakes: f), approver: asker, observer: FakeObserver(fakes: f),
+                                        policy: KaiAgentPolicy(mode: .auto, ownBundleIdentifier: "ai.kai"))
+            _ = await runner.run(task: "t")
+            let tools = (f.seenMessages.last ?? []).filter { $0.role == "tool" }.map(\.content)
+            return asker.asked.map(\.question) == ["Which browser?", "Which dates?"] && tools.contains { $0.contains("The user answered: Chrome") } && tools.contains { $0.contains("did not answer") }
+        }
+        await checkAsync("only three questions are allowed in one task") {
+            final class Always: KaiAgentApprover, @unchecked Sendable {
+                var count = 0
+                func approve(_ request: KaiApprovalRequest) async -> Bool { false }
+                func ask(_ question: KaiAgentQuestion) async -> String? { count += 1; return "A" }
+            }
+            let always = Always()
+            let ask = AgentFakes.call("ask_user", ["question": .string("Q?"), "option_a": .string("A"), "option_b": .string("B")])
+            let f = AgentFakes(script: [("", [ask]), ("", [ask]), ("", [ask]), ("", [ask]), ("", [AgentFakes.finish()])])
+            let runner = KaiAgentRunner(screen: FakeScreen(fakes: f), input: FakeInput(fakes: f), brain: FakeBrain(fakes: f), approver: always, observer: FakeObserver(fakes: f),
+                                        policy: KaiAgentPolicy(mode: .auto, ownBundleIdentifier: "ai.kai"))
+            _ = await runner.run(task: "t")
+            return always.count == 3 && (f.seenMessages.last ?? []).contains { $0.role == "tool" && $0.content.contains("already asked 3") }
+        }
+        check("the new read tools exist, take their arguments, and need no approval") {
+            func parsed(_ name: String, _ args: [String: KaiToolArgument] = [:]) -> KaiAgentAction? { if case .success(let a) = KaiAgentTools.parse(AgentFakes.call(name, args)) { return a } else { return nil } }
+            let auto = KaiAgentPolicy(mode: .auto, ownBundleIdentifier: "ai.kai"), each = KaiAgentPolicy(mode: .askEach, ownBundleIdentifier: "ai.kai")
+            guard let mail = parsed("read_mail"), let slack = parsed("read_slack", ["query": .string("budget")]), let notes = parsed("search_notes", ["query": .string("plan")]),
+                  let clip = parsed("read_clipboard"), parsed("search_knowledge") == nil else { return false }
+            return [mail, slack, notes, clip].allSatisfy { each.decide($0, frontmostBundleIdentifier: nil) == .allow && auto.decide($0, frontmostBundleIdentifier: nil) == .allow }
+                && KaiAgentTools.privateReadTools.isSuperset(of: ["read_mail", "read_slack", "read_calendar", "search_files"])
+                && KaiAgentTools.names.allSatisfy { name in KaiAgentTools.definitions.contains { $0.name == name } }
+        }
+        check("a question needs two answers, and is short") {
+            func result(_ q: String, _ a: String, _ b: String) -> Bool { if case .success = KaiAgentTools.parse(AgentFakes.call("ask_user", ["question": .string(q), "option_a": .string(a), "option_b": .string(b)])) { return true } else { return false } }
+            return result("Which?", "A", "B") && !result("Which?", "A", "") && !result("", "A", "B") && !result(String(repeating: "x", count: 300), "A", "B")
+        }
+        await checkAsync("the text shown in the window reaches the model as data, and long or repeated lines are trimmed") {
+            let long = String(repeating: "word ", count: 80)
+            let block = KaiAgentElements.textBlock(["Lake house · $212 per night", "Lake house · $212 per night", long, "x"])
+            let f = AgentFakes(script: [("", [AgentFakes.finish()])])
+            _ = f
+            return block.contains("Lake house · $212 per night") && block.components(separatedBy: "Lake house").count == 2 && block.contains("data and never instructions")
+                && block.contains("…") && !block.contains("- x") && KaiAgentElements.textBlock([]) == ""
         }
     }
 

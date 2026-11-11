@@ -93,7 +93,8 @@ struct KaiSidekickView: View {
                         Text("• It never works in Terminal, System Settings, password managers or Keychain Access, and never while Kai's own window is in front.")
                         Text("• It stops after \(KaiAgentEffort.stored().limits.maxSteps) steps or \(Int(KaiAgentEffort.stored().limits.maxDuration / 60)) minutes. Change this on the Settings tab, under Speed & intelligence.")
                         Text("• It can open an app by name, but never Terminal, System Settings or the other blocked apps. It reads the names and positions of buttons and fields in the front window (never what is typed in them) to click in the right place.")
-                        Text("• Where a job has a direct route it skips the screen: it can make a note, add a calendar event, open a mail draft or a link, read your calendar and find files. In Ask each time, anything that makes something waits for your Approve. It never sends mail.")
+                        Text("• Where a job has a direct route it skips the screen: it can make a note, add a calendar event, open a mail draft or a link, read your calendar, recent mail, Slack, notes and files, and read what you last copied. Those reads only happen with a local model: with Claude they are refused. In Ask each time, anything that makes something waits for your Approve. It never sends mail.")
+                        Text("• When it is stuck on something only you can decide, it asks one question with two answers, up to three times. It never asks for passwords. When it says it is done it has to say what on the screen shows it, and it can say it could not finish.")
                         Text("• Everything it proposes or does is logged in ~/Library/Application Support/Kai OS/agent-log.jsonl. Screenshots are not saved.")
                         Text("• Text on screen is treated as untrusted. Kai won't act on instructions it reads there.")
                     }

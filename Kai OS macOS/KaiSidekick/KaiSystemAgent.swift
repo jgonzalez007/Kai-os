@@ -53,11 +53,11 @@ struct KaiSystemScreen: KaiAgentScreen {
         let bounds = CGDisplayBounds(display)
         // The clickable items of the front window, found through Accessibility. If that fails or the app is
         // off limits, the model simply gets the picture alone.
-        let elements = await Task.detached(priority: .userInitiated) {
+        let read = await Task.detached(priority: .userInitiated) {
             KaiAXElements.collect(bounds: bounds, pixelWidth: width, pixelHeight: height, ownBundleIdentifier: Bundle.main.bundleIdentifier)
         }.value
-        let marked = KaiMarks.draw(on: data, elements: elements, pixelWidth: width, pixelHeight: height)
-        return KaiAgentFrame(jpeg: marked, pixelWidth: width, pixelHeight: height, screenWidth: bounds.width, screenHeight: bounds.height, elements: elements)
+        let marked = KaiMarks.draw(on: data, elements: read.elements, pixelWidth: width, pixelHeight: height)
+        return KaiAgentFrame(jpeg: marked, pixelWidth: width, pixelHeight: height, screenWidth: bounds.width, screenHeight: bounds.height, elements: read.elements, texts: read.texts)
     }
 }
 

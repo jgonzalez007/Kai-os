@@ -120,6 +120,27 @@ struct KaiAgentBanner: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
 
+            if let asked = controller.question {
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Kai has a question").font(.subheadline.weight(.semibold))
+                    Text(asked.question).font(.callout)
+                    HStack {
+                        Button(asked.optionA) { controller.answer(asked.optionA) }.kaiProminent()
+                        Button(asked.optionB) { controller.answer(asked.optionB) }
+                        Spacer()
+                        Button("Skip") { controller.answer(nil) }.foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        TextField("Or type your own answer", text: $controller.typedAnswer)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { controller.answer(controller.typedAnswer) }
+                        Button("Send") { controller.answer(controller.typedAnswer) }
+                            .disabled(controller.typedAnswer.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+            }
+
             if let request = controller.pending {
                 Divider()
                 VStack(alignment: .leading, spacing: 6) {

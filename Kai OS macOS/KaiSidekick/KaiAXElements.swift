@@ -3,8 +3,9 @@
 //  Kai OS macOS
 //
 //  Reads the clickable items of the front app's window through Accessibility, so the agent can be told
-//  exactly where to click. It reads names and positions only: never the contents of a text field, and
-//  never a password field. Apps the agent may not operate are skipped entirely.
+//  exactly where to click, and the text the window shows (headings, labels, prices, messages) so it can read
+//  the page as a person does. It never reads what is typed into a text field, and never a password field.
+//  Apps the agent may not operate are skipped entirely.
 //
 
 import AppKit
@@ -16,16 +17,18 @@ enum KaiAXElements {
         "AXButton", "AXCheckBox", "AXRadioButton", "AXTextField", "AXTextArea", "AXComboBox", "AXPopUpButton",
         "AXMenuButton", "AXMenuItem", "AXMenuBarItem", "AXLink", "AXTabGroup", "AXSlider", "AXDisclosureTriangle",
     ]
-    private static let maxNodes = 350
-    private static let maxDepth = 8
-    private static let timeBudget: TimeInterval = 0.8
+    private static let maxNodes = 600
+    private static let maxDepth = 12
+    private static let timeBudget: TimeInterval = 1.0
+    /// Shown text, never typed text: static labels and headings only.
+    private static let readable: Set<String> = ["AXStaticText", "AXHeading"]
 
-    static func collect(bounds: CGRect, pixelWidth: Int, pixelHeight: Int, ownBundleIdentifier: String?) -> [KaiAgentElement] {
+    static func collect(bounds: CGRect, pixelWidth: Int, pixelHeight: Int, ownBundleIdentifier: String?) -> (elements: [KaiAgentElement], texts: [String]) {
         guard AXIsProcessTrusted(), bounds.width > 0, bounds.height > 0,
               let front = NSWorkspace.shared.frontmostApplication,
               let identifier = front.bundleIdentifier,
               identifier != ownBundleIdentifier,
-              !KaiAgentPolicy.blockedBundleIdentifiers.contains(identifier) else { return [] }
+              !KaiAgentPolicy.blockedBundleIdentifiers.contains(identifier) else { return ([], []) }
 
         let app = AXUIElementCreateApplication(front.processIdentifier)
         AXUIElementSetMessagingTimeout(app, 0.3)
@@ -33,18 +36,27 @@ enum KaiAXElements {
         let scaleX = Double(pixelWidth) / bounds.width
         let scaleY = Double(pixelHeight) / bounds.height
 
-        var roots: [AXUIElement] = []
-        if let window = elementValue(app, kAXFocusedWindowAttribute) ?? elementValue(app, kAXMainWindowAttribute) { roots.append(window) }
-        if let menuBar = elementValue(app, kAXMenuBarAttribute) { roots.append(menuBar) }
+        // The window comes first, so its items are numbered before the menu bar's. Only the window's text is read.
+        var roots: [(element: AXUIElement, isWindow: Bool)] = []
+        if let window = elementValue(app, kAXFocusedWindowAttribute) ?? elementValue(app, kAXMainWindowAttribute) { roots.append((window, true)) }
+        if let menuBar = elementValue(app, kAXMenuBarAttribute) { roots.append((menuBar, false)) }
 
         var found: [KaiAgentElement] = []
+        var shown: [(y: Int, x: Int, text: String)] = []
         var visited = 0
-        func walk(_ element: AXUIElement, depth: Int) {
+        func walk(_ element: AXUIElement, depth: Int, inWindow: Bool) {
             guard visited < maxNodes, depth <= maxDepth, Date() < deadline else { return }
             visited += 1
             let role = stringValue(element, kAXRoleAttribute) ?? ""
             let subrole = stringValue(element, kAXSubroleAttribute) ?? ""
             if subrole == "AXSecureTextField" || role == "AXSecureTextField" { return }
+            if inWindow, readable.contains(role), let center = center(of: element), shown.count < 120 {
+                let x = Int(((center.x - bounds.minX) * scaleX).rounded())
+                let y = Int(((center.y - bounds.minY) * scaleY).rounded())
+                if x >= 0, y >= 0, x < pixelWidth, y < pixelHeight, let text = stringValue(element, kAXValueAttribute) ?? stringValue(element, kAXTitleAttribute) {
+                    shown.append((y, x, text))
+                }
+            }
             if clickable.contains(role), let center = center(of: element) {
                 let x = Int(((center.x - bounds.minX) * scaleX).rounded())
                 let y = Int(((center.y - bounds.minY) * scaleY).rounded())
@@ -54,10 +66,11 @@ enum KaiAXElements {
             }
             // A menu's items are only worth listing while it is open, so menus are not opened to read them.
             if role == "AXMenuBarItem" { return }
-            for child in children(of: element) { walk(child, depth: depth + 1) }
+            for child in children(of: element) { walk(child, depth: depth + 1, inWindow: inWindow) }
         }
-        for root in roots { walk(root, depth: 0) }
-        return found
+        for root in roots { walk(root.element, depth: 0, inWindow: root.isWindow) }
+        let texts = shown.sorted { ($0.y, $0.x) < ($1.y, $1.x) }.map(\.text)
+        return (found, texts)
     }
 
     private static func friendly(_ role: String) -> String {

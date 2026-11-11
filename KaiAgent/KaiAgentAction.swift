@@ -14,6 +14,10 @@ public enum KaiAgentAction: Equatable, Sendable {
     /// A direct tool: it does the job without the screen (make a note, add an event, look something up).
     case tool(name: String, arguments: [String: String])
     case finish(String)
+    /// The agent says it could not finish, and why. A way out that is honest, instead of calling a failure "done".
+    case couldNot(String)
+    /// A question for the person with two ready answers, for a fact or a choice the agent can't make itself.
+    case ask(question: String, optionA: String, optionB: String)
 
     public var summary: String {
         switch self {
@@ -30,6 +34,8 @@ public enum KaiAgentAction: Equatable, Sendable {
         case .openApp(let name): return "Open \(name)"
         case .tool(let name, let arguments): return KaiAgentTools.summary(name: name, arguments: arguments)
         case .finish(let text): return "Finish: \(text)"
+        case .couldNot(let text): return "Could not finish: \(text)"
+        case .ask(let question, _, _): return "Ask you: \(question)"
         }
     }
 }
@@ -98,9 +104,12 @@ public enum KaiAgentTools {
     public static let maxWaitSeconds = 10.0
 
     /// Tools that only read, so they run without asking. The rest make something, so each one asks first.
-    public static let readOnlyTools: Set<String> = ["read_calendar", "search_files"]
-    public static let directToolNames = ["open_url", "create_note", "add_calendar_event", "compose_mail_draft", "read_calendar", "search_files"]
-    public static let names = ["computer_click", "computer_type", "computer_key", "computer_scroll", "computer_wait", "computer_open_app", "computer_new_tab", "computer_new_window", "computer_address_bar"] + directToolNames + ["task_complete"]
+    public static let readOnlyTools: Set<String> = ["read_calendar", "search_files", "read_mail", "read_slack", "search_knowledge", "search_notes", "read_clipboard"]
+    /// These read the user's own mail, messages, notes and files. They only run with a local model, never one in the cloud.
+    public static let privateReadTools: Set<String> = readOnlyTools
+    public static let directToolNames = ["open_url", "create_note", "add_calendar_event", "compose_mail_draft", "read_calendar", "search_files",
+                                         "read_mail", "read_slack", "search_knowledge", "search_notes", "read_clipboard"]
+    public static let names = ["computer_click", "computer_type", "computer_key", "computer_scroll", "computer_wait", "computer_open_app", "computer_new_tab", "computer_new_window", "computer_address_bar"] + directToolNames + ["ask_user", "task_complete"]
 
     /// The text of a note as HTML for Apple Notes, with the title as its heading. Characters that mean something in HTML
     /// are escaped, so a title or body can't add markup of its own.
@@ -125,6 +134,11 @@ public enum KaiAgentTools {
         case "compose_mail_draft": return "Open a mail draft to \(short(a["to"])) about “\(short(a["subject"]))”"
         case "read_calendar": return "Read your calendar for the next \(a["days"] ?? "3") days"
         case "search_files": return "Search your files for “\(short(a["query"]))”"
+        case "read_mail": return a["query"].map { "Look through your mail for “\(short($0))”" } ?? "Read your recent unread mail"
+        case "read_slack": return a["query"].map { "Search Slack for “\(short($0))”" } ?? "Read your recent Slack messages"
+        case "search_knowledge": return "Search what Kai knows for “\(short(a["query"]))”"
+        case "search_notes": return "Search your notes for “\(short(a["query"]))”"
+        case "read_clipboard": return "Read what you last copied"
         default: return name
         }
     }
@@ -175,8 +189,25 @@ public enum KaiAgentTools {
                       parameters: [.init(name: "days", type: "integer", description: "How many days, 1 to 14. Defaults to 3.", required: false)]),
         KaiOllamaTool(name: "search_files", description: "Find files on this Mac by name or content, using Spotlight. Returns names and paths.",
                       parameters: [.init(name: "query", type: "string", description: "Words to look for", required: true)]),
-        KaiOllamaTool(name: "task_complete", description: "Call this when the task is done, or when you cannot continue. Say what happened.",
-                      parameters: [.init(name: "summary", type: "string", description: "What was done, or why you stopped", required: true)]),
+        KaiOllamaTool(name: "read_mail", description: "Read the user's recent unread mail (senders and subjects), or look through their mail for some words. Use it instead of opening Mail to read.",
+                      parameters: [.init(name: "query", type: "string", description: "Words to look for. Leave out for recent unread mail.", required: false)]),
+        KaiOllamaTool(name: "read_slack", description: "Read the user's recent Slack messages, or search Slack for some words. Use it instead of opening Slack to read.",
+                      parameters: [.init(name: "query", type: "string", description: "Words to search for. Leave out for recent messages.", required: false)]),
+        KaiOllamaTool(name: "search_knowledge", description: "Search the user's own files and notes that Kai has read, for facts about them, their work and their projects.",
+                      parameters: [.init(name: "query", type: "string", description: "What to look for", required: true)]),
+        KaiOllamaTool(name: "search_notes", description: "Search the user's Apple Notes.",
+                      parameters: [.init(name: "query", type: "string", description: "What to look for", required: true)]),
+        KaiOllamaTool(name: "read_clipboard", description: "Read the text the user last copied.", parameters: []),
+        KaiOllamaTool(name: "ask_user", description: "Ask the user one question when a specific fact or choice you cannot decide blocks the task, such as which of two options they want. Give two short answers. Never ask for a password or anything private, and do not ask about small choices you can make yourself.",
+                      parameters: [
+                        .init(name: "question", type: "string", description: "One short, concrete question", required: true),
+                        .init(name: "option_a", type: "string", description: "The first answer", required: true),
+                        .init(name: "option_b", type: "string", description: "The second answer", required: true)]),
+        KaiOllamaTool(name: "task_complete", description: "Call this when the task is done, or when you cannot finish it. Say what happened. When it is done, give evidence: what you can see on the screen that shows it.",
+                      parameters: [
+                        .init(name: "summary", type: "string", description: "What was done, or why you stopped", required: true),
+                        .init(name: "status", type: "string", description: "done, or could_not when you could not finish. Defaults to done.", required: false),
+                        .init(name: "evidence", type: "string", description: "For done: what on the screen shows the task is finished, such as the page title or text you can read", required: false)]),
     ]
 
     public static func parse(_ call: KaiOllamaToolCall) -> Result<KaiAgentAction, KaiAgentParseError> {
@@ -267,8 +298,26 @@ public enum KaiAgentTools {
             guard let query = string("query")?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else { return .failure(.missing("query")) }
             guard query.count <= 200 else { return .failure(.invalid("Keep the search under 200 characters.")) }
             return .success(.tool(name: call.name, arguments: ["query": query]))
+        case "read_mail", "read_slack":
+            let query = string("query")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard query.count <= 200 else { return .failure(.invalid("Keep the search under 200 characters.")) }
+            return .success(.tool(name: call.name, arguments: query.isEmpty ? [:] : ["query": query]))
+        case "search_knowledge", "search_notes":
+            guard let query = string("query")?.trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else { return .failure(.missing("query")) }
+            guard query.count <= 200 else { return .failure(.invalid("Keep the search under 200 characters.")) }
+            return .success(.tool(name: call.name, arguments: ["query": query]))
+        case "read_clipboard":
+            return .success(.tool(name: call.name, arguments: [:]))
+        case "ask_user":
+            guard let question = string("question")?.trimmingCharacters(in: .whitespacesAndNewlines), !question.isEmpty else { return .failure(.missing("question")) }
+            guard let a = string("option_a")?.trimmingCharacters(in: .whitespacesAndNewlines), !a.isEmpty,
+                  let b = string("option_b")?.trimmingCharacters(in: .whitespacesAndNewlines), !b.isEmpty else { return .failure(.missing("option_a and option_b")) }
+            guard question.count <= 240, a.count <= 80, b.count <= 80 else { return .failure(.invalid("Keep the question short and the two answers shorter.")) }
+            return .success(.ask(question: question, optionA: a, optionB: b))
         case "task_complete":
-            return .success(.finish(string("summary") ?? "Done."))
+            let summary = string("summary") ?? "Done."
+            if string("status")?.lowercased().replacingOccurrences(of: " ", with: "_") == "could_not" { return .success(.couldNot(summary)) }
+            return .success(.finish(summary))
         default:
             return .failure(.unknownTool(call.name))
         }

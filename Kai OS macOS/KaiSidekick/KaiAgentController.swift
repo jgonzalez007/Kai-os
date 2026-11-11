@@ -31,6 +31,9 @@ final class KaiAgentController: ObservableObject {
     @Published private(set) var isRunning = false
     @Published private(set) var lines: [Line] = []
     @Published private(set) var pending: KaiApprovalRequest?
+    /// A question from the agent, waiting for the person's answer.
+    @Published private(set) var question: KaiAgentQuestion?
+    @Published var typedAnswer = ""
     @Published private(set) var outcome: KaiAgentOutcome?
     @Published var message: String?
 
@@ -44,6 +47,7 @@ final class KaiAgentController: ObservableObject {
     private var runModel = ""
     private var stopSwitch = KaiAgentStopSwitch()
     private var approval: CheckedContinuation<Bool, Never>?
+    private var answerContinuation: CheckedContinuation<String?, Never>?
     private let input = KaiSystemInput()
     private var overlay: KaiAgentOverlay?
 
@@ -79,7 +83,7 @@ final class KaiAgentController: ObservableObject {
                 message = "Sidekick needs a local Ollama model that can read images. Start Ollama and run: ollama pull gemma4:e4b"
                 return
             }
-            begin(task: trimmed, model: model, brain: KaiOllamaAgentBrain(client: KaiOllamaClient(), model: model))
+            begin(task: trimmed, model: model, brain: KaiOllamaAgentBrain(client: KaiOllamaClient(), model: model), appState: appState)
         }
     }
 
@@ -100,10 +104,11 @@ final class KaiAgentController: ObservableObject {
         let brain = KaiClaudeCodeBrain(executable: path, alias: KaiClaudeCode.alias(from: choice)) {
             await MainActor.run { KaiClaudeCode.sensitiveAppName(bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) }
         }
-        begin(task: task, model: local, brain: brain)
+        begin(task: task, model: local, brain: brain, appState: appState)
     }
 
-    private func begin(task: String, model: String, brain: KaiAgentBrain) {
+    private func begin(task: String, model: String, brain: KaiAgentBrain, appState: AppState) {
+        let isCloudBrain = brain is KaiClaudeCodeBrain
         stopSwitch = KaiAgentStopSwitch()
         let overlay = KaiAgentOverlay(controller: self)
         self.overlay = overlay
@@ -122,7 +127,7 @@ final class KaiAgentController: ObservableObject {
             limits: KaiAgentEffort.stored().limits,
             stop: stopSwitch,
             userInstructions: KaiInstructions.stored(),
-            tools: KaiAgentDirectTools(),
+            tools: KaiAgentDirectTools(assistant: { call in await appState.runTool(call) }, privateReads: !isCloudBrain),
             lessons: KaiAgentLessons.promptSection(lessons, task: task)
         )
         runModel = model
@@ -141,6 +146,7 @@ final class KaiAgentController: ObservableObject {
         guard isRunning else { return }
         stopSwitch.stop()
         resolve(false)
+        answer(nil)
         message = "Stopping…"
     }
 
@@ -221,6 +227,24 @@ final class KaiAgentController: ObservableObject {
         return await withCheckedContinuation { approval = $0 }
     }
 
+    func requestAnswer(_ asked: KaiAgentQuestion) async -> String? {
+        guard !stopSwitch.isStopped else { return nil }
+        typedAnswer = ""
+        question = asked
+        overlay?.refreshSize()
+        return await withCheckedContinuation { answerContinuation = $0 }
+    }
+
+    /// Only the answer buttons, the text box and Skip call this.
+    func answer(_ text: String?) {
+        let clean = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        question = nil
+        typedAnswer = ""
+        answerContinuation?.resume(returning: (clean?.isEmpty ?? true) ? nil : String(clean!.prefix(300)))
+        answerContinuation = nil
+        overlay?.refreshSize()
+    }
+
     /// Only the Approve and Decline buttons call this.
     func resolve(_ approved: Bool) {
         pending = nil
@@ -250,6 +274,7 @@ final class KaiAgentController: ObservableObject {
 private struct KaiControllerApprover: KaiAgentApprover {
     let controller: KaiAgentController
     func approve(_ request: KaiApprovalRequest) async -> Bool { await controller.requestApproval(request) }
+    func ask(_ question: KaiAgentQuestion) async -> String? { await controller.requestAnswer(question) }
 }
 
 private struct KaiControllerObserver: KaiAgentObserver {

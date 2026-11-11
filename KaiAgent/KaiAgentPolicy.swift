@@ -84,7 +84,7 @@ public struct KaiAgentPolicy: Sendable {
 
     public func decide(_ action: KaiAgentAction, frontmostBundleIdentifier: String?, targetLabel: String? = nil) -> KaiAgentDecision {
         switch action {
-        case .finish, .wait:
+        case .finish, .wait, .couldNot, .ask:
             return .allow
         default: break
         }

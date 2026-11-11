@@ -158,6 +158,7 @@ public enum KaiAgentLessons {
             case .finished(let outcome):
                 switch outcome {
                 case .completed: lines.append("result: finished")
+                case .couldNot: lines.append("result: could not finish")
                 case .failed(let why), .limitReached(let why): lines.append("result: did not finish (" + String(why.prefix(100)) + ")")
                 case .stopped, .interrupted: lines.append("result: the user stopped it")
                 }
