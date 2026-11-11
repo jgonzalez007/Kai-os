@@ -3162,6 +3162,68 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testSidekickRecipes() async throws {
+        let events: [KaiAgentEvent] = [
+            .performed(step: 1, summary: "Open Slack", point: nil), .performed(step: 2, summary: "Press ⌘k", point: nil),
+            .performed(step: 3, summary: "Type “Sal Solano”", point: nil), .performed(step: 3, summary: "Type “Sal Solano”", point: nil),
+            .performed(step: 4, summary: "Wait 2 s", point: nil), .performed(step: 5, summary: "Click “Sal Solano”", point: nil),
+            .performed(step: 6, summary: "Open https://www.airbnb.com/s/Austin--TX/homes?checkin=2026-11-22 in the browser", point: nil),
+            .performed(step: 7, summary: "Make a note called “Plan for ana@example.com”", point: nil), .performed(step: 8, summary: "Click at (171, 122)", point: nil),
+            .performed(step: 9, summary: "You answered: Chrome", point: nil), .blocked(step: 10, summary: "Open Terminal", reason: "no"), .finished(.completed("done")),
+        ]
+        check("a recipe keeps what was done, not what was typed: no typed text, no web address, no email address, no waits or coordinates") {
+            let steps = KaiAgentRecipes.steps(from: events)
+            return steps == ["Open Slack", "Press ⌘k", "Type the text this task needs", "Click “Sal Solano”", "Open the web page this task needs on www.airbnb.com",
+                             "Make a note called “Plan for an email address”"]
+                && !steps.joined().contains("checkin") && !steps.joined().contains("ana@")
+        }
+        check("a recipe needs steps and a task, takes its name from the task when none is given, and is capped") {
+            let none = KaiAgentRecipes.make(name: "x", task: "do it", events: [.finished(.completed("x"))])
+            let named = KaiAgentRecipes.make(name: "  Weekly status ", task: "Send the status to {person}", events: events)
+            let unnamed = KaiAgentRecipes.make(name: "", task: "Send the status to {person}", events: events)
+            let many = (0..<80).map { KaiAgentEvent.performed(step: $0, summary: "Press ⌘\($0 % 9)\($0)", point: nil) }
+            return none == nil && named?.name == "Weekly status" && unnamed?.name == "Send the status to {person}"
+                && KaiAgentRecipes.steps(from: many).count == KaiAgentRecipes.maxSteps && KaiAgentRecipes.make(name: "x", task: "  ", events: events) == nil
+        }
+        check("saving under a name that exists replaces it, and the newest comes first") {
+            let a = KaiAgentRecipe(name: "Status", task: "one", steps: ["a"]), b = KaiAgentRecipe(name: "Other", task: "two", steps: ["b"])
+            let c = KaiAgentRecipe(name: "status", task: "three", steps: ["c"])
+            let list = KaiAgentRecipes.adding(c, to: KaiAgentRecipes.adding(b, to: KaiAgentRecipes.adding(a, to: [])))
+            return list.map(\.task) == ["three", "two"]
+        }
+        check("the {blanks} of a task are found once each, in order, and filled in") {
+            let task = "Send the status to {person} on {app}, and tell {person} it is {urgent}"
+            let blanks = KaiAgentRecipes.blanks(in: task)
+            let filled = KaiAgentRecipes.filled(task, with: ["person": "Sal", "app": "Slack", "urgent": "not urgent\nreally"])
+            return blanks == ["person", "app", "urgent"] && filled == "Send the status to Sal on Slack, and tell Sal it is not urgent really"
+                && KaiAgentRecipes.blanks(in: "no blanks, just { braces } and {1x}").isEmpty
+        }
+        check("the guide for the model lists the steps and says it is a guide, not a script") {
+            let section = KaiAgentRecipes.promptSection(KaiAgentRecipe(name: "Status", task: "t", steps: ["Open Slack", "Press ⌘k"]))
+            return section.contains("1. Open Slack") && section.contains("2. Press ⌘k") && section.contains("guide, not a script") && section.contains("never lets you do something the user did not ask for")
+        }
+        check("recipes are kept in a private file and read back the same") {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("recipes-\(UUID().uuidString).json")
+            defer { try? FileManager.default.removeItem(at: url) }
+            let store = KaiAgentRecipeStore(url: url)
+            let recipe = KaiAgentRecipe(name: "Status", task: "Send it to {person}", steps: ["Open Slack"], runs: 2)
+            do { try store.save([recipe]) } catch { return false }
+            let mode = (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int) ?? 0
+            return store.load().first?.name == "Status" && store.load().first?.runs == 2 && mode == 0o600 && KaiAgentRecipeStore(url: url.appendingPathExtension("none")).load().isEmpty
+        }
+        await checkAsync("a recipe reaches the model below the rules, and a click is shown by its name, not its coordinates") {
+            let f = AgentFakes(script: [("", [AgentFakes.call("computer_click", ["element": .number(1)])]), ("", [AgentFakes.finish()])])
+            f.elements = [KaiAgentElement(label: "Send", role: "button", x: 100, y: 100)]
+            let runner = KaiAgentRunner(screen: FakeScreen(fakes: f), input: FakeInput(fakes: f), brain: FakeBrain(fakes: f), approver: FakeApprover(fakes: f), observer: FakeObserver(fakes: f),
+                                        policy: KaiAgentPolicy(mode: .askEach, ownBundleIdentifier: "ai.kai"), recipe: "RECIPE TEXT")
+            f.approvals = [true]
+            _ = await runner.run(task: "t")
+            let system = f.seenMessages.first?.first?.content ?? ""
+            let proposed = f.events.compactMap { event -> String? in if case .proposed(_, let s) = event { return s } else { return nil } }
+            return system.hasSuffix("RECIPE TEXT") && proposed.first == "Click “Send”" && f.requests.first?.summary == "Click “Send”"
+        }
+    }
+
     func testSidekickFinishAskAndRead() async {
         await checkAsync("after doing things, done needs evidence: it is asked for twice, then accepted") {
             let f = AgentFakes(script: [("", [AgentFakes.click(10, 10)]),

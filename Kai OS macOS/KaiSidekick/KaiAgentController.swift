@@ -42,6 +42,17 @@ final class KaiAgentController: ObservableObject {
     @Published private(set) var isLearning = false
     static let modelKey = "kai.sidekick.model"
 
+    /// Tasks that worked, saved under a name to run again. See KaiAgentRecipes.
+    @Published private(set) var recipes: [KaiAgentRecipe] = KaiAgentRecipeStore.standard.load()
+    /// The recipe picked to run next, if any. Its steps go to the model as a guide.
+    @Published private(set) var pendingRecipe: KaiAgentRecipe?
+    /// Values for the {blanks} of the task, by name.
+    @Published var blankValues: [String: String] = [:]
+    /// True after a task that worked, until it is saved or the next task starts.
+    @Published private(set) var canSaveRecipe = false
+    @Published var recipeName = ""
+    private var runTemplate = ""
+
     private var runEvents: [KaiAgentEvent] = []
     private var runTask = ""
     private var runModel = ""
@@ -59,6 +70,13 @@ final class KaiAgentController: ObservableObject {
         let trimmed = task.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !isRunning, !trimmed.isEmpty else { return }
         message = nil
+        canSaveRecipe = false
+        let blanks = KaiAgentRecipes.blanks(in: trimmed)
+        if let empty = blanks.first(where: { (blankValues[$0] ?? "").trimmingCharacters(in: .whitespaces).isEmpty }) {
+            message = "Fill in “\(empty)” first."
+            return
+        }
+        runTemplate = trimmed
         guard AXIsProcessTrusted() else {
             message = "Sidekick needs Accessibility permission to use the mouse and keyboard. Turn it on in System Settings → Privacy & Security → Accessibility, then try again."
             return
@@ -71,11 +89,12 @@ final class KaiAgentController: ObservableObject {
         lines = []
         outcome = nil
         runEvents = []
-        runTask = trimmed
+        runTask = KaiAgentRecipes.filled(trimmed, with: blankValues)
+        let filledTask = runTask
         Task {
             let picked = UserDefaults.standard.string(forKey: Self.modelKey) ?? ""
             if KaiClaudeCode.isClaudeChoice(picked) {
-                await startWithClaude(task: trimmed, choice: picked, appState: appState)
+                await startWithClaude(task: filledTask, choice: picked, appState: appState)
                 return
             }
             guard let model = await chooseModel(appState: appState) else {
@@ -83,7 +102,7 @@ final class KaiAgentController: ObservableObject {
                 message = "Sidekick needs a local Ollama model that can read images. Start Ollama and run: ollama pull gemma4:e4b"
                 return
             }
-            begin(task: trimmed, model: model, brain: KaiOllamaAgentBrain(client: KaiOllamaClient(), model: model), appState: appState)
+            begin(task: filledTask, model: model, brain: KaiOllamaAgentBrain(client: KaiOllamaClient(), model: model), appState: appState)
         }
     }
 
@@ -128,7 +147,8 @@ final class KaiAgentController: ObservableObject {
             stop: stopSwitch,
             userInstructions: KaiInstructions.stored(),
             tools: KaiAgentDirectTools(assistant: { call in await appState.runTool(call) }, privateReads: !isCloudBrain),
-            lessons: KaiAgentLessons.promptSection(lessons, task: task)
+            lessons: KaiAgentLessons.promptSection(lessons, task: task),
+            recipe: pendingRecipe.map(KaiAgentRecipes.promptSection)
         )
         runModel = model
         // Load the model into memory while Kai steps aside, so the first step doesn't wait for it.
@@ -153,6 +173,11 @@ final class KaiAgentController: ObservableObject {
     private func finish(_ result: KaiAgentOutcome) {
         runEvents.append(.finished(result))
         learnFromRun()
+        if case .completed = result, !KaiAgentRecipes.steps(from: runEvents).isEmpty {
+            canSaveRecipe = true
+            recipeName = pendingRecipe?.name ?? KaiAgentRecipes.cleanName("", task: runTemplate)
+            if let id = pendingRecipe?.id { noteRecipeRun(id) }
+        }
         isRunning = false
         outcome = result
         message = nil
@@ -175,6 +200,60 @@ final class KaiAgentController: ObservableObject {
             return chosen
         }
         return appState.modelInfo.first { $0.supportsVision }?.name
+    }
+
+    // MARK: Recipes
+
+    private func saveRecipes(_ updated: [KaiAgentRecipe]) {
+        recipes = updated
+        try? KaiAgentRecipeStore.standard.save(updated)
+    }
+
+    /// Keeps the task that just worked under a name. Typed text and web addresses are not kept.
+    func saveRecipe() {
+        guard canSaveRecipe, var recipe = KaiAgentRecipes.make(name: recipeName, task: runTemplate, events: runEvents) else { return }
+        if let existing = recipes.first(where: { $0.name.caseInsensitiveCompare(recipe.name) == .orderedSame }) {
+            recipe.id = existing.id; recipe.runs = existing.runs; recipe.lastRun = existing.lastRun
+        }
+        saveRecipes(KaiAgentRecipes.adding(recipe, to: recipes))
+        canSaveRecipe = false
+        message = "Saved as “\(recipe.name)”."
+    }
+
+    /// Loads a recipe into the task box. Its blanks get their own boxes, and its steps guide the next run.
+    func useRecipe(_ recipe: KaiAgentRecipe) {
+        guard !isRunning else { return }
+        pendingRecipe = recipe
+        task = recipe.task
+        blankValues = Dictionary(uniqueKeysWithValues: KaiAgentRecipes.blanks(in: recipe.task).map { ($0, "") })
+        canSaveRecipe = false
+        message = nil
+    }
+
+    func clearRecipe() {
+        pendingRecipe = nil
+        blankValues = [:]
+    }
+
+    func deleteRecipe(_ id: String) {
+        if pendingRecipe?.id == id { clearRecipe() }
+        saveRecipes(recipes.filter { $0.id != id })
+    }
+
+    /// Saves new wording for the task of the recipe in use (to add or change a {blank}).
+    func updatePendingRecipeTask() {
+        guard var recipe = pendingRecipe else { return }
+        let text = String(task.trimmingCharacters(in: .whitespacesAndNewlines).prefix(KaiAgentRecipes.maxTaskLength))
+        guard !text.isEmpty else { return }
+        recipe.task = text
+        saveRecipes(recipes.map { $0.id == recipe.id ? recipe : $0 })
+        pendingRecipe = recipe
+        let kept = blankValues
+        blankValues = Dictionary(uniqueKeysWithValues: KaiAgentRecipes.blanks(in: text).map { ($0, kept[$0] ?? "") })
+    }
+
+    private func noteRecipeRun(_ id: String) {
+        saveRecipes(recipes.map { var r = $0; if r.id == id { r.runs += 1; r.lastRun = Date() }; return r })
     }
 
     // MARK: Lessons

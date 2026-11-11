@@ -4,6 +4,8 @@ Unit tests pass for everything below, but none of it has been tried on a real sc
 
 Use a throwaway document, a test Slack channel (or a DM to yourself) and a mailbox where nothing important can be lost.
 
+**Done so far:** 1 (permission tests), 2 (Rewrite in Slack, find and replace), 3 (Today). **Still to do:** 2 in Chrome and the review of changes, 4 to 10, and the new sections 11 to 14 at the end.
+
 ## 0. Before you start
 
 - [ ] Kai OS is running from `~/Applications/Kai OS.app` (menu bar icon is there).
@@ -92,3 +94,37 @@ Switch to **Run on its own**, then use a throwaway Slack DM to yourself and a Te
 ## What to send me when something fails
 
 The step number, the app you were in, and the exact message shown. For Sidekick, also the last lines of the Sidekick event log.
+
+## 11. Cobalt Plasma look (new default)
+
+- [ ] Settings → Appearance → **Look**: switch to Classic, then back to Cobalt Plasma. The window redraws and you stay on the same page.
+- [ ] Cobalt: cards are deep blue with a glowing cyan edge, toggles are neon switches, sliders glow, main buttons have a cyan edge.
+- [ ] Open the notch: the slim bar has room around the input, and the chips do not touch. If the bar is tight, the shortcut icons fold into a **⋯** menu.
+- [ ] Open **Today** and a reply card: both have the plasma edge and are readable.
+- Tell me anything that is hard to read or looks off, with the screen it was on.
+
+## 12. Replies that use context
+
+- [ ] In Mail, select an email that asks for a time (for example "can you do Tuesday at 2?"). Double tap your shortcut key.
+- [ ] The panel says what it used ("Written using your calendar, …"), and the reply agrees with your real calendar.
+- [ ] Press **No, politely**, then **Yes**: the draft changes each time.
+- [ ] A draft with a `[decision]` in brackets waits for you and shows "This reply needs your decision".
+- [ ] In a Slack DM, the same: the panel names what it used.
+
+## 13. Sidekick: new behaviour
+
+Use "Ask me before every action" first.
+- [ ] Task: "Open Safari and go to apple.com". Safari ends up in front with a window. The Sidekick panel is at the **bottom left**, not over the address bar.
+- [ ] Task: "Open Chrome and look for airbnb houses near Austin for Nov 22 to 24". It does not loop on "Open Chrome".
+- [ ] A task with a real choice ("find me a restaurant in Austin"): it may ask you a question with two answers. Pick one: it carries on with it.
+- [ ] When it finishes, the message says what it saw. A task it can't do ends with "Couldn't finish: …".
+- [ ] "What's in my unread mail?" uses the mail tool, not clicking around Mail.
+- [ ] Switch the model to Claude: the same mail question is refused with "doesn't read your mail to a model in the cloud".
+
+## 14. Sidekick recipes
+
+- [ ] After a task that worked, a card says "That worked. Keep it to run again". Name it and press **Save recipe**.
+- [ ] The recipe shows under **Recipes** with its step count.
+- [ ] Press **Use**: the task loads, with the recipe's steps guiding the run. Edit the wording to add a `{blank}`, such as `{person}`, press **Keep this wording**, and a box for it appears.
+- [ ] Run it again with a different value in the blank. It follows the same path faster.
+- [ ] Saved steps never contain what you typed, or a web address's search part.

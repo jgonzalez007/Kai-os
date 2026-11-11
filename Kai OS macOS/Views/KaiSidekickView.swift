@@ -41,6 +41,71 @@ struct KaiSidekickView: View {
         }
     }
 
+    /// One box for each {blank} in the task, when a recipe is picked.
+    @ViewBuilder private var recipeBlanks: some View {
+        if let recipe = agent.pendingRecipe {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("Recipe: \(recipe.name)", systemImage: "list.bullet.rectangle").font(KaiFont.captionStrong)
+                    Spacer()
+                    if agent.task.trimmingCharacters(in: .whitespacesAndNewlines) != recipe.task {
+                        Button("Keep this wording") { agent.updatePendingRecipeTask() }.controlSize(.small).disabled(agent.isRunning)
+                    }
+                    Button("Not this recipe") { agent.clearRecipe() }.controlSize(.small).disabled(agent.isRunning)
+                }
+                ForEach(KaiAgentRecipes.blanks(in: agent.task), id: \.self) { name in
+                    HStack {
+                        Text(name).font(KaiFont.caption).frame(width: 110, alignment: .leading)
+                        TextField("", text: Binding(get: { agent.blankValues[name] ?? "" }, set: { agent.blankValues[name] = $0 }))
+                            .textFieldStyle(.roundedBorder).disabled(agent.isRunning)
+                    }
+                }
+                Text("Put a part that changes in curly brackets, like {person}, and Kai asks for it each time. The steps that worked last time guide the run; each one is still checked on the screen.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .background(KaiColor.surfaceBg, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    /// After a task that worked: keep it under a name.
+    @ViewBuilder private var saveCard: some View {
+        if agent.canSaveRecipe, !agent.isRunning {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                Text("That worked. Keep it to run again:").font(KaiFont.caption)
+                TextField("Name", text: $agent.recipeName).textFieldStyle(.roundedBorder).frame(maxWidth: 240)
+                Button("Save recipe") { agent.saveRecipe() }.kaiProminent()
+            }
+            .padding(10)
+            .background(KaiColor.surfaceBg, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    @ViewBuilder private var recipesList: some View {
+        if !agent.recipes.isEmpty {
+            GroupBox("Recipes") {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(agent.recipes) { recipe in
+                        HStack(spacing: 8) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(recipe.name).fontWeight(.medium).lineLimit(1)
+                                Text("\(recipe.steps.count) steps" + (recipe.runs > 0 ? " · run \(recipe.runs) time\(recipe.runs == 1 ? "" : "s")" : "")
+                                     + (KaiAgentRecipes.blanks(in: recipe.task).isEmpty ? "" : " · asks for " + KaiAgentRecipes.blanks(in: recipe.task).joined(separator: ", ")))
+                                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            Button("Use") { agent.useRecipe(recipe) }.controlSize(.small).disabled(agent.isRunning)
+                            Button { agent.deleteRecipe(recipe.id) } label: { Image(systemName: "trash") }
+                                .buttonStyle(.plain).foregroundStyle(.secondary).disabled(agent.isRunning).help("Delete this recipe")
+                        }
+                    }
+                }
+                .padding(4)
+            }
+        }
+    }
+
     private var taskPage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -59,6 +124,8 @@ struct KaiSidekickView: View {
                                 .foregroundStyle(.tertiary).padding(12).allowsHitTesting(false)
                         }
                     }
+
+                recipeBlanks
 
                 Picker("Control", selection: $agent.mode) {
                     Text("Ask me before every action").tag(KaiAgentMode.askEach)
@@ -86,6 +153,9 @@ struct KaiSidekickView: View {
                 if let message = agent.message {
                     Text(message).font(KaiFont.caption).foregroundStyle(.orange)
                 }
+
+                saveCard
+                recipesList
 
                 GroupBox("Safety") {
                     VStack(alignment: .leading, spacing: 4) {

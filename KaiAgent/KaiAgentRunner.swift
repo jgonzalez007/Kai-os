@@ -331,6 +331,8 @@ public struct KaiAgentRunner: Sendable {
     public let tools: KaiAgentToolRunner?
     /// What earlier tasks taught Kai (KaiAgentLessons.promptSection), added below the safety rules.
     public let lessons: String?
+    /// The steps of a saved recipe being run (KaiAgentRecipes.promptSection), added below the lessons.
+    public let recipe: String?
 
     public init(
         screen: KaiAgentScreen, input: KaiAgentInput, brain: KaiAgentBrain, approver: KaiAgentApprover,
@@ -339,6 +341,7 @@ public struct KaiAgentRunner: Sendable {
         userInstructions: String = "",
         tools: KaiAgentToolRunner? = nil,
         lessons: String? = nil,
+        recipe: String? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         sleep: @escaping @Sendable (Duration) async -> Void = { try? await Task.sleep(for: $0) }
     ) {
@@ -353,6 +356,7 @@ public struct KaiAgentRunner: Sendable {
         self.userInstructions = userInstructions
         self.tools = tools
         self.lessons = lessons
+        self.recipe = recipe
         self.now = now
         self.sleep = sleep
     }
@@ -387,7 +391,7 @@ public struct KaiAgentRunner: Sendable {
         observer.event(.started(task: task, mode: policy.mode))
         let deadline = now().addingTimeInterval(limits.maxDuration)
         var history: [KaiOllamaMessage] = [
-            KaiOllamaMessage(role: "system", content: Self.systemPrompt + (KaiInstructions.promptSection(userInstructions).map { "\n\n" + $0 } ?? "") + (lessons.map { "\n\n" + $0 } ?? "")),
+            KaiOllamaMessage(role: "system", content: Self.systemPrompt + (KaiInstructions.promptSection(userInstructions).map { "\n\n" + $0 } ?? "") + (lessons.map { "\n\n" + $0 } ?? "") + (recipe.map { "\n\n" + $0 } ?? "")),
             KaiOllamaMessage(role: "user", content: "Task: \(task)"),
         ]
         var problems = 0
@@ -471,6 +475,8 @@ public struct KaiAgentRunner: Sendable {
 
                 // What is being clicked, by its label, so a button that sends or deletes can ask even in automatic mode.
                 var targetLabel: String?
+                // The name of what is clicked, for the person to read and for a recipe: "Click “Send”", not "Click at (171, 122)".
+                var clickedName: String?
                 // A numbered item becomes the point it was drawn at in the latest screenshot.
                 if case .clickElement(let number, let double, let right) = action {
                     let list = KaiAgentElements.numbered(frame.elements, pixelWidth: frame.pixelWidth, pixelHeight: frame.pixelHeight)
@@ -481,11 +487,20 @@ public struct KaiAgentRunner: Sendable {
                         return .stopBatch
                     }
                     targetLabel = list[number - 1].label
+                    clickedName = KaiAgentElements.cleanLabel(list[number - 1].label)
                     action = .click(x: list[number - 1].x, y: list[number - 1].y, double: double, right: right)
                 } else if case .click(let x, let y, _, _) = action {
                     // A point instead of a number: any listed control within a thumb's width of it counts.
-                    targetLabel = frame.elements.filter { abs($0.x - x) <= 40 && abs($0.y - y) <= 40 }
-                        .compactMap { KaiAgentPolicy.riskyClickReason(label: $0.label) == nil ? nil : $0.label }.first
+                    let near = frame.elements.filter { abs($0.x - x) <= 40 && abs($0.y - y) <= 40 }
+                    targetLabel = near.compactMap { KaiAgentPolicy.riskyClickReason(label: $0.label) == nil ? nil : $0.label }.first
+                    clickedName = near.min { abs($0.x - x) + abs($0.y - y) < abs($1.x - x) + abs($1.y - y) }.map { KaiAgentElements.cleanLabel($0.label) }
+                }
+                // What the person and the log see for this action.
+                func shown(_ action: KaiAgentAction) -> String {
+                    if case .click(_, _, let double, let right) = action, let name = clickedName, !name.isEmpty {
+                        return "\(right ? "Right-click" : double ? "Double-click" : "Click") “\(name)”"
+                    }
+                    return action.summary
                 }
 
                 if case .couldNot(let why) = action {
@@ -546,7 +561,7 @@ public struct KaiAgentRunner: Sendable {
                     answer("Not done. Clicks and scrolling must be the first action of a reply, because the screen may have changed. Do it next, with the new screenshot.")
                     return .stopBatch
                 }
-                observer.event(.proposed(step: step, summary: action.summary))
+                observer.event(.proposed(step: step, summary: shown(action)))
 
                 if case .wait(let seconds) = action {
                     await sleep(.milliseconds(Int(seconds * 1000)))
@@ -564,7 +579,7 @@ public struct KaiAgentRunner: Sendable {
                     if problems >= limits.maxConsecutiveProblems { return .done(.failed("Kai was blocked \(problems) times in a row: \(reason)")) }
                     return .stopBatch
                 case .needsApproval(let reason):
-                    let granted = await approver.approve(KaiApprovalRequest(step: step, summary: action.summary, reason: reason, application: app))
+                    let granted = await approver.approve(KaiApprovalRequest(step: step, summary: shown(action), reason: reason, application: app))
                     await input.clearInterruption()
                     if stop.isStopped { return .done(.stopped) }
                     guard granted else {
@@ -647,8 +662,8 @@ public struct KaiAgentRunner: Sendable {
                     return .done(.failed(error.localizedDescription))
                 }
                 problems = 0
-                observer.event(.performed(step: step, summary: action.summary, point: Self.point(of: placed)))
-                doneLog.append(action.summary)
+                observer.event(.performed(step: step, summary: shown(action), point: Self.point(of: placed)))
+                doneLog.append(shown(action))
                 // After opening an app, say where things stand: in front or not, with a window or not.
                 if case .openApp = action, let state = await input.stateNote() { openNote += " " + state }
                 answer("Done." + openNote)
