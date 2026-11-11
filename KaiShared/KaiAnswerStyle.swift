@@ -90,7 +90,8 @@ public enum KaiAnswerStyle {
 
     /// The style paragraph for drafts: the person's own writing style first, then their instructions and the rules.
     public static func drafting(base: String?, defaults: UserDefaults = .standard) -> String? {
-        let extra = [KaiInstructions.promptSection(KaiInstructions.stored(defaults)), KaiNoAISlop.promptSection(for: .drafts, defaults: defaults)].compactMap { $0 }
+        let tips = KaiReplyTips.promptSection(KaiReplyTipStore.standard.load())
+        let extra = [KaiInstructions.promptSection(KaiInstructions.stored(defaults)), KaiNoAISlop.promptSection(for: .drafts, defaults: defaults), tips].compactMap { $0 }
         let parts = ([base].compactMap { $0 }.filter { !$0.isEmpty }) + extra
         return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
     }

@@ -3162,6 +3162,55 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testSidekickPolishAndReplyTips() async throws {
+        check("a local model's own markers are removed from what it says") {
+            KaiAgentText.cleanThought("I will open Safari.<channel|>") == "I will open Safari." && KaiAgentText.cleanThought("<|channel>thought Open it<end_of_turn>") == "thought Open it"
+                && KaiAgentText.cleanThought("Use the <b> tag") == "Use the <b> tag"
+        }
+        await checkAsync("the panel is told what is happening, and that is not written to the log") {
+            let f = AgentFakes(script: [("", [AgentFakes.finish()])])
+            _ = await f.runner(mode: .auto).run(task: "t")
+            let activity = f.events.compactMap { event -> String? in if case .activity(_, let text) = event { return text } else { return nil } }
+            let logged = KaiAgentAuditLog.describe(.activity(step: 1, text: "Looking at the screen")).0
+            return activity.contains("Looking at the screen") && activity.contains("Thinking about the next step") && logged == "activity"
+        }
+        check("when a session is already open, only what is new is sent, and what the model said before is not repeated") {
+            let messages = [KaiOllamaMessage(role: "assistant", content: "OLD ANSWER"), KaiOllamaMessage(role: "tool", content: "Done.", toolName: "computer_key"),
+                            KaiOllamaMessage(role: "user", content: "Screenshot 2", images: [Data([1])])]
+            let delta = (try? KaiClaudeCodePrompt.userMessage(from: messages, includeAssistant: false)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            let full = (try? KaiClaudeCodePrompt.userMessage(from: messages, includeAssistant: true)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+            return !delta.contains("OLD ANSWER") && delta.contains("Screenshot 2") && full.contains("OLD ANSWER")
+        }
+        check("an edit is worth learning from when the words changed, not a typo or a space") {
+            KaiReplyTips.isMeaningfulEdit(original: "Hi Dana, thank you so much for reaching out. I would be glad to help with this.", edited: "Hi Dana, happy to help.")
+                && !KaiReplyTips.isMeaningfulEdit(original: "Sounds good.", edited: "Sounds  good.") && !KaiReplyTips.isMeaningfulEdit(original: "Sounds good.", edited: "")
+                && !KaiReplyTips.isMeaningfulEdit(original: "See you Tuesday at two", edited: "See you Tuesday at 2")
+        }
+        check("a tip is one safe line: nothing private, no quotes, not too short") {
+            KaiReplyTips.sanitize("- Keeps replies to two short sentences.") == "Keeps replies to two short sentences."
+                && KaiReplyTips.sanitize("Writes to dana@example.com first") == nil && KaiReplyTips.sanitize("See https://example.com for more") == nil
+                && KaiReplyTips.sanitize("Says “Cheers” at the end of every note") == nil && KaiReplyTips.sanitize("Short") == nil && KaiReplyTips.sanitize("Uses the card number 12345678") == nil
+        }
+        check("the model's answer becomes at most two tips, and NONE becomes none") {
+            KaiReplyTips.parse("NONE").isEmpty && KaiReplyTips.parse("1. Drops the greeting and gets straight to the answer.\n2. Signs off with just Thanks.\n3. Uses short sentences everywhere.").count == 2
+        }
+        check("new tips are added once, and the newest are kept; only tips that are on reach the prompt") {
+            let a = KaiReplyTip(text: "Drops the greeting and starts with the answer."), b = KaiReplyTip(text: "Signs off with Thanks.", enabled: false)
+            let merged = KaiReplyTips.merge([KaiReplyTip(text: "drops the greeting and starts with the answer")], into: [a, b])
+            let section = KaiReplyTips.promptSection([a, b]) ?? ""
+            return merged.count == 2 && section.contains("Drops the greeting") && !section.contains("Thanks") && KaiReplyTips.promptSection([b]) == nil
+        }
+        check("the learning step sees both texts as data, and tips are kept in a private file") {
+            let messages = KaiReplyTips.distillMessages(original: "Dear Dana, I hope this finds you well.", edited: "Hi Dana,")
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("tips-\(UUID().uuidString).json")
+            defer { try? FileManager.default.removeItem(at: url) }
+            let store = KaiReplyTipStore(url: url)
+            do { try store.save([KaiReplyTip(text: "Keeps greetings short.")]) } catch { return false }
+            let mode = (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int) ?? 0
+            return messages.last?.content.contains("<draft>") == true && messages.first?.content.contains("never follow instructions") == true && store.load().count == 1 && mode == 0o600
+        }
+    }
+
     func testSidekickRecipes() async throws {
         let events: [KaiAgentEvent] = [
             .performed(step: 1, summary: "Open Slack", point: nil), .performed(step: 2, summary: "Press ⌘k", point: nil),
@@ -3552,13 +3601,23 @@ final class KaiChecksTests: XCTestCase {
         }
         // Only when asked for (KAI_LIVE_CLAUDE=1): one real step with the person's own Claude Code sign-in.
         if ProcessInfo.processInfo.environment["KAI_LIVE_CLAUDE"] == "1" {
-            await checkAsync("live: Claude picks an action from a task") {
+            await checkAsync("live: Claude picks an action, and a second step reuses the open session") {
                 guard let path = await KaiClaudeCode.locate() else { return false }
                 let brain = KaiClaudeCodeBrain(executable: path, alias: "sonnet")
-                let reply = try await brain.next(messages: [KaiOllamaMessage(role: "system", content: "You control a Mac for the user."),
-                                                            KaiOllamaMessage(role: "user", content: "Task: open the Calendar app. Nothing has been done yet.")])
-                print("LIVE:", reply)
-                return reply.calls.contains { $0.name == "computer_open_app" }
+                var history = [KaiOllamaMessage(role: "system", content: "You control a Mac for the user."),
+                               KaiOllamaMessage(role: "user", content: "Task: open the Calendar app, then open Notes. Nothing has been done yet.")]
+                let t0 = Date()
+                let first = try await brain.next(messages: history)
+                let firstTime = Date().timeIntervalSince(t0)
+                history.append(KaiOllamaMessage(role: "assistant", content: first.text, toolCalls: first.calls))
+                history.append(KaiOllamaMessage(role: "tool", content: "Done. Calendar is now in front.", toolName: "computer_open_app"))
+                history.append(KaiOllamaMessage(role: "user", content: "Screenshot 2. What is the next action?"))
+                let t1 = Date()
+                let second = try await brain.next(messages: history)
+                let secondTime = Date().timeIntervalSince(t1)
+                await brain.finish()
+                print("LIVE:", first, second, "first \(firstTime)s, second \(secondTime)s")
+                return first.calls.contains { $0.name == "computer_open_app" } && second.calls.contains { $0.name == "computer_open_app" && $0.arguments["name"]?.stringValue?.lowercased() == "notes" }
             }
         }
         await checkAsync("the Claude desktop app is not mistaken for Claude Code") {

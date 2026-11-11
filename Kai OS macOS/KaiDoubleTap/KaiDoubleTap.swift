@@ -117,6 +117,9 @@ final class KaiDoubleTapController: ObservableObject {
     /// What the person chose to say with a button.
     @Published private(set) var intent: KaiReplyIntent?
     private var background: KaiReplyBackground?
+    /// The draft as Kai wrote it, to see later what the person changed.
+    private var originalDraft = ""
+    private var learnedFromThisDraft = false
     #if DEBUG
     /// Used by the self-test in place of the model, to force a specific draft.
     var scriptedDrafts: [String] = []
@@ -270,6 +273,8 @@ final class KaiDoubleTapController: ObservableObject {
             // A decision left in brackets means the draft can't be written as it is: it waits for the person.
             needsDecision = KaiReplyBackground.hasPlaceholder(draft)
             if needsDecision { writesAutomatically = false }
+            originalDraft = draft
+            learnedFromThisDraft = false
             if draft.isEmpty {
                 phase = .failed("The model returned an empty draft. Try again.")
             } else {
@@ -341,6 +346,7 @@ final class KaiDoubleTapController: ObservableObject {
     /// Writes the draft into the email. It stays unsent there for the user to review.
     func writeDraft() {
         guard canWrite else { return }
+        learnFromEdit()
         if destination == .mailReply, case .mail(let reference, let source) = context {
             writeMailReply(reference: reference, source: source)
         } else {
@@ -434,8 +440,31 @@ final class KaiDoubleTapController: ObservableObject {
         }
     }
 
+    /// When the person used a draft they had changed, a local model writes up what they changed, as tips about how they write.
+    /// It runs once per draft, never with a model in the cloud, and the tips are shown in Settings to review.
+    private func learnFromEdit() {
+        guard !learnedFromThisDraft, KaiReplyTips.isLearning(), !appState.useCloud, !originalDraft.isEmpty,
+              KaiReplyTips.isMeaningfulEdit(original: originalDraft, edited: trimmedDraft), !appState.selectedModel.isEmpty else { return }
+        learnedFromThisDraft = true
+        let messages = KaiReplyTips.distillMessages(original: originalDraft, edited: trimmedDraft)
+        let model = KaiModelTag.name(from: appState.selectedModel)
+        Task {
+            var answer = ""
+            do {
+                for try await event in KaiOllamaClient().stream(model: model, messages: messages, tools: [], temperature: 0.1) {
+                    if case .text(let delta) = event { answer += delta }
+                }
+            } catch { return }
+            let fresh = KaiReplyTips.parse(answer)
+            guard !fresh.isEmpty else { return }
+            let store = KaiReplyTipStore.standard
+            try? store.save(KaiReplyTips.merge(fresh, into: store.load()))
+        }
+    }
+
     func copyDraft() {
         guard canCopy else { return }
+        learnFromEdit()
         pasteboard.clearContents()
         pasteboard.setString(trimmedDraft, forType: .string)
     }

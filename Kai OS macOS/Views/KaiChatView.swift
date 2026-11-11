@@ -47,8 +47,17 @@ struct KaiChatView: View {
 
             Spacer()
             VStack(spacing: 16) {
-                KaiLogoMark(size: 88)
-                    .padding(.bottom, 6)
+                ZStack {
+                    if KaiTheme.isCobalt {
+                        // Plasma light behind the mark: a cobalt halo and a thin cyan ring.
+                        Circle().fill(RadialGradient(colors: [KaiCobalt.primary.opacity(0.55), KaiCobalt.plasmaCyan.opacity(0.12), .clear], center: .center, startRadius: 4, endRadius: 100))
+                            .frame(width: 200, height: 200)
+                        Circle().strokeBorder(LinearGradient(colors: [KaiCobalt.plasmaCyan.opacity(0.7), KaiCobalt.primary.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1.5)
+                            .frame(width: 124, height: 124).shadow(color: KaiCobalt.plasmaCyan.opacity(0.5), radius: 10)
+                    }
+                    KaiLogoMark(size: 88)
+                }
+                .padding(.bottom, 6)
                 Text("What can I do for you?").font(.system(size: 28, weight: .semibold))
                 Text("Your Mac's context is already here. Ask from anywhere.").font(.callout).foregroundStyle(.secondary)
                 HStack(spacing: 10) {
@@ -71,8 +80,7 @@ struct KaiChatView: View {
             Label(title, systemImage: symbol)
                 .font(.system(size: 13, weight: .medium))
                 .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Capsule().fill(Color.white.opacity(0.07)))
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5))
+                .kaiChip()
                 .foregroundStyle(.white.opacity(0.88))
         }
         .buttonStyle(.plain)
@@ -156,7 +164,7 @@ struct KaiChatView: View {
                             .font(.system(size: 12, weight: .bold))
                             .foregroundStyle(canSend ? Color.black : Color.white.opacity(0.4))
                             .frame(width: 28, height: 28)
-                            .background(Circle().fill(canSend ? Color.white : Color.white.opacity(0.12)))
+                            .background(Circle().fill(canSend ? (KaiTheme.isCobalt ? KaiCobalt.plasmaCyan : Color.white) : Color.white.opacity(0.12)))
                     }
                     .buttonStyle(.plain)
                     .disabled(!canSend)
@@ -164,9 +172,13 @@ struct KaiChatView: View {
                 }
             }
             .padding(.horizontal, 18).padding(.vertical, 14)
-            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.black.opacity(0.55)))
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(KaiTheme.isCobalt ? KaiCobalt.panelFill : Color.black.opacity(0.55)))
             .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(
-                LinearGradient(colors: [Color.white.opacity(0.22), Color.white.opacity(0.07)], startPoint: .top, endPoint: .bottom), lineWidth: 1))
+                KaiTheme.isCobalt
+                    ? LinearGradient(colors: [KaiCobalt.plasmaCyan.opacity(0.7), KaiCobalt.primary.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    : LinearGradient(colors: [Color.white.opacity(0.22), Color.white.opacity(0.07)], startPoint: .top, endPoint: .bottom),
+                lineWidth: KaiTheme.isCobalt ? 1.5 : 1))
+            .shadow(color: KaiTheme.isCobalt ? KaiCobalt.primary.opacity(0.4) : .clear, radius: 14)
             .frame(maxWidth: 820)
 
             Text("Private by default. Local first.").font(.system(size: 10)).foregroundStyle(.white.opacity(0.35))

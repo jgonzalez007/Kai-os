@@ -257,6 +257,8 @@ struct KaiSettingsView: View {
 
                 if page == .ai { answerStyleCard }
 
+                if page == .ai { KaiReplyTipsCard() }
+
                 if page == .ai {
                 // ── AI ──
                 settingsCard {

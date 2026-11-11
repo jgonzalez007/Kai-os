@@ -62,7 +62,10 @@ final class KaiAgentController: ObservableObject {
     private let input = KaiSystemInput()
     private var overlay: KaiAgentOverlay?
 
-    var statusLine: String { lines.last { $0.kind != .thought }?.text ?? "Starting…" }
+    /// What it is doing at this moment, in plain words. Cleared when an action is shown.
+    @Published private(set) var activity: String?
+
+    var statusLine: String { activity ?? lines.last { $0.kind != .thought }?.text ?? "Starting…" }
 
     // MARK: Start and stop
 
@@ -334,10 +337,16 @@ final class KaiAgentController: ObservableObject {
 
     func handle(_ event: KaiAgentEvent) {
         switch event {
-        case .thought, .started, .finished: break
+        case .thought, .started, .finished, .activity: break
         default: runEvents.append(event)
         }
         switch event {
+        case .activity(_, let text): activity = text
+        case .proposed, .performed, .blocked, .declined, .finished: activity = nil
+        default: break
+        }
+        switch event {
+        case .activity: break
         case .thought(_, let text): lines.append(Line(kind: .thought, text: text))
         case .proposed(_, let summary): lines.append(Line(kind: .proposed, text: summary))
         case .performed(_, let summary, let point):

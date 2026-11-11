@@ -17,6 +17,7 @@ public final class KaiAgentAuditLog: KaiAgentObserver, @unchecked Sendable {
     }
 
     public func event(_ event: KaiAgentEvent) {
+        if case .activity = event { return }
         let (kind, detail) = Self.describe(event)
         append(["time": ISO8601DateFormatter().string(from: Date()), "event": kind, "detail": detail])
     }
@@ -31,6 +32,7 @@ public final class KaiAgentAuditLog: KaiAgentObserver, @unchecked Sendable {
         case .approved(let step, let summary): return ("approved", "step \(step): \(summary)")
         case .performed(let step, let summary, _): return ("performed", "step \(step): \(summary)")
         case .finished(let outcome): return ("finished", outcome.summary)
+        case .activity(_, let text): return ("activity", text)
         }
     }
 

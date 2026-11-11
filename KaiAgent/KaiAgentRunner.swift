@@ -163,6 +163,12 @@ public extension KaiAgentInput {
 
 public protocol KaiAgentBrain: Sendable {
     func next(messages: [KaiOllamaMessage]) async throws -> (text: String, calls: [KaiOllamaToolCall])
+    /// Called when the task is over, so a brain that keeps something open (a session) can close it.
+    func finish() async
+}
+
+public extension KaiAgentBrain {
+    func finish() async {}
 }
 
 public struct KaiApprovalRequest: Equatable, Sendable {
@@ -200,6 +206,16 @@ public enum KaiAgentEvent: Equatable, Sendable {
     case approved(step: Int, summary: String)
     case performed(step: Int, summary: String, point: KaiPlacedPoint?)
     case finished(KaiAgentOutcome)
+    /// What the agent is doing right now, in plain words, for the panel ("Looking at the screen"). Not logged.
+    case activity(step: Int, text: String)
+}
+
+public enum KaiAgentText {
+    /// Local models sometimes leak their own markers into what they say ("<channel|>", "<end_of_turn>"). They mean nothing to the person.
+    public static func cleanThought(_ text: String) -> String {
+        text.replacingOccurrences(of: #"</?\|?(channel|think|thinking|thought|start_of_turn|end_of_turn|turn)\|?>"#, with: "", options: [.regularExpression, .caseInsensitive])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 public struct KaiPlacedPoint: Equatable, Sendable {
@@ -383,6 +399,7 @@ public struct KaiAgentRunner: Sendable {
 
     public func run(task: String) async -> KaiAgentOutcome {
         let outcome = await loop(task: task)
+        await brain.finish()
         observer.event(.finished(outcome))
         return outcome
     }
@@ -414,6 +431,7 @@ public struct KaiAgentRunner: Sendable {
             if await input.userInterrupted() { return .interrupted }
 
             let frame: KaiAgentFrame
+            observer.event(.activity(step: step, text: "Looking at the screen"))
             do { frame = try await screen.capture(maxLongEdge: limits.screenshotLongEdge) } catch { return .failed(error.localizedDescription) }
 
             history = Self.dropOldImages(history)
@@ -440,9 +458,11 @@ public struct KaiAgentRunner: Sendable {
                 images: [frame.jpeg]
             ))
 
-            let reply: (text: String, calls: [KaiOllamaToolCall])
+            var reply: (text: String, calls: [KaiOllamaToolCall])
+            observer.event(.activity(step: step, text: "Thinking about the next step"))
             do { reply = try await brain.next(messages: history) } catch { return .failed(error.localizedDescription) }
             if stop.isStopped { return .stopped }
+            reply.text = KaiAgentText.cleanThought(reply.text)
 
             let thought = reply.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !thought.isEmpty { observer.event(.thought(step: step, text: thought)) }

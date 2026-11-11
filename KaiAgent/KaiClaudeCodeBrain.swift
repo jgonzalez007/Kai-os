@@ -4,7 +4,8 @@
 //
 //  An optional way to run Sidekick on Claude through the person's own Claude Code command line tool, which
 //  signs in with their Claude subscription. Kai never sees or copies the sign-in: it starts the official
-//  `claude` program for each step and reads its answer. That program is given no tools (it can't read files,
+//  `claude` program once per task and keeps it open between steps, so each step only sends what is new and the
+//  answer comes back sooner. That program is given no tools (it can't read files,
 //  run commands or browse), so all it can do is reply with the next action, which Kai's own safety rules and
 //  approvals then check like any other. Unlike the local model, each screenshot is sent to Anthropic.
 //
@@ -123,13 +124,14 @@ public enum KaiClaudeCodePrompt {
     }
 
     /// One stream-json user message: the conversation as text, with each screenshot as an image where it was taken.
-    public static func userMessage(from messages: [KaiOllamaMessage]) throws -> Data {
+    /// `includeAssistant` is false when the session already holds what the model said, so only what is new is sent.
+    public static func userMessage(from messages: [KaiOllamaMessage], includeAssistant: Bool = true) throws -> Data {
         var blocks: [[String: Any]] = []
         var text = ""
         func flush() {
             if !text.isEmpty { blocks.append(["type": "text", "text": text]); text = "" }
         }
-        for message in messages where message.role != "system" {
+        for message in messages where message.role != "system" && (includeAssistant || message.role != "assistant") {
             switch message.role {
             case "assistant":
                 var line = "[You]\n\(message.content)"
@@ -242,11 +244,80 @@ enum KaiClaudeCodeProcess {
     }
 }
 
-public struct KaiClaudeCodeBrain: KaiAgentBrain {
+/// One long-running `claude` process for one task. It keeps the conversation, so a step sends only what is new.
+actor KaiClaudeCodeSession {
+    private var process: Process?
+    private var stdin: FileHandle?
+    private var lines: AsyncLineSequence<FileHandle.AsyncBytes>.AsyncIterator?
+    private var timedOut = false
+    /// How many of the runner's messages this session already holds.
+    private(set) var sent = 0
+
+    var isRunning: Bool { process?.isRunning == true }
+
+    func start(executable: String, arguments: [String], environment: [String: String]) throws {
+        close()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        process.environment = environment
+        process.currentDirectoryURL = FileManager.default.temporaryDirectory
+        let input = Pipe(), output = Pipe()
+        process.standardInput = input
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { throw KaiClaudeCodeError.notFound }
+        self.process = process
+        stdin = input.fileHandleForWriting
+        lines = output.fileHandleForReading.bytes.lines.makeAsyncIterator()
+        sent = 0
+    }
+
+    /// Sends one message and reads until its answer arrives. Returns the answer, or throws. A slow answer ends the process.
+    func send(_ message: Data, count: Int, timeout: TimeInterval) async throws -> String {
+        guard let process, process.isRunning, let stdin else { throw KaiClaudeCodeError.failed("the session is not running") }
+        timedOut = false
+        do { try stdin.write(contentsOf: message) } catch { close(); throw KaiClaudeCodeError.failed("the session closed") }
+        let timer = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(timeout))
+            if !Task.isCancelled { await self?.endBecauseSlow() }
+        }
+        defer { timer.cancel() }
+        guard var iterator = lines else { throw KaiClaudeCodeError.failed("the session is not running") }
+        defer { lines = iterator }
+        while let line = try? await iterator.next() {
+            guard line.contains("\"type\":\"result\"") || line.contains("\"type\": \"result\"") else { continue }
+            let answer = try KaiClaudeCodePrompt.result(fromStream: Data((line + "\n").utf8))
+            sent = count
+            return answer
+        }
+        // The process ended before it answered: too slow, or it stopped.
+        let slow = timedOut
+        close()
+        throw slow ? KaiClaudeCodeError.timedOut : KaiClaudeCodeError.failed("the session ended")
+    }
+
+    private func endBecauseSlow() {
+        timedOut = true
+        process?.terminate()
+    }
+
+    func close() {
+        try? stdin?.close()
+        if process?.isRunning == true { process?.terminate() }
+        process = nil
+        stdin = nil
+        lines = nil
+        sent = 0
+    }
+}
+
+public final class KaiClaudeCodeBrain: KaiAgentBrain, @unchecked Sendable {
     public let executable: String
     public let alias: String
     /// Returns the name of a password app (or similar) that is in front, so that screen is not sent. Checked before every step.
     public let screenGuard: @Sendable () async -> String?
+    private let session = KaiClaudeCodeSession()
 
     public init(executable: String, alias: String, screenGuard: @escaping @Sendable () async -> String? = { nil }) {
         self.executable = executable
@@ -257,17 +328,34 @@ public struct KaiClaudeCodeBrain: KaiAgentBrain {
     public func next(messages: [KaiOllamaMessage]) async throws -> (text: String, calls: [KaiOllamaToolCall]) {
         if let app = await screenGuard() { throw KaiClaudeCodeError.sensitiveScreen(app) }
         let system = (messages.first { $0.role == "system" }?.content ?? "") + "\n\n" + KaiClaudeCodePrompt.toolSection(KaiAgentTools.definitions)
-        let input = try KaiClaudeCodePrompt.userMessage(from: messages)
-        // No tools, no settings, hooks, skills or MCP servers from the person's setup, and no saved session. A key in the
+        // No tools, no settings, hooks, skills or MCP servers from the person's setup, and no saved session on disk. A key in the
         // environment is left out so the subscription is what is used.
         var environment = ProcessInfo.processInfo.environment
         for key in ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"] { environment[key] = nil }
         let arguments = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                          "--tools", "", "--no-session-persistence", "--disable-slash-commands", "--strict-mcp-config",
                          "--setting-sources", "", "--model", alias, "--system-prompt", system]
-        let output = try await KaiClaudeCodeProcess.run(executable: executable, arguments: arguments, input: input,
-                                                        environment: environment, timeout: KaiClaudeCode.timeout)
-        guard !output.isEmpty else { throw KaiClaudeCodeError.timedOut }
-        return KaiClaudeCodePrompt.parseReply(try KaiClaudeCodePrompt.result(fromStream: output))
+
+        var fresh = false
+        if !(await session.isRunning) {
+            try await session.start(executable: executable, arguments: arguments, environment: environment)
+            fresh = true
+        }
+        // A new session gets everything so far; a running one already holds it, so it gets only what came after.
+        let already = fresh ? 0 : await session.sent
+        let delta = already > 0 && already <= messages.count ? Array(messages[already...]) : messages
+        let input = try KaiClaudeCodePrompt.userMessage(from: delta, includeAssistant: already == 0)
+        do {
+            let answer = try await session.send(input, count: messages.count, timeout: KaiClaudeCode.timeout)
+            return KaiClaudeCodePrompt.parseReply(answer)
+        } catch KaiClaudeCodeError.failed where !fresh {
+            // The open session ended on its own. Start again and send the whole conversation once.
+            try await session.start(executable: executable, arguments: arguments, environment: environment)
+            let all = try KaiClaudeCodePrompt.userMessage(from: messages)
+            return KaiClaudeCodePrompt.parseReply(try await session.send(all, count: messages.count, timeout: KaiClaudeCode.timeout))
+        }
     }
+
+    /// Ends the open session when the task is over.
+    public func finish() async { await session.close() }
 }

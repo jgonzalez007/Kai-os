@@ -21,8 +21,8 @@ struct KaiSidekickView: View {
             HStack {
                 Text("Sidekick").font(.system(size: 26, weight: .semibold))
                 Spacer()
-                Picker("", selection: $tab) { ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-                    .pickerStyle(.segmented).labelsHidden().frame(width: 180)
+                KaiThemedSegmented(options: Tab.allCases.map { ($0, $0.rawValue) }, selection: $tab)
+                    .frame(width: KaiTheme.isCobalt ? nil : 180)
             }
             .padding(.horizontal, 28).padding(.top, 6).padding(.bottom, 10)
 
@@ -116,7 +116,7 @@ struct KaiSidekickView: View {
                     .font(.body)
                     .frame(minHeight: 70, maxHeight: 110)
                     .padding(6)
-                    .background(KaiColor.surfaceBg, in: RoundedRectangle(cornerRadius: 8))
+                    .kaiTextBox()
                     .disabled(agent.isRunning)
                     .overlay(alignment: .topLeading) {
                         if agent.task.isEmpty {
@@ -127,12 +127,20 @@ struct KaiSidekickView: View {
 
                 recipeBlanks
 
-                Picker("Control", selection: $agent.mode) {
-                    Text("Ask me before every action").tag(KaiAgentMode.askEach)
-                    Text("Run on its own").tag(KaiAgentMode.auto)
+                if KaiTheme.isCobalt {
+                    HStack(spacing: 12) {
+                        Text("Control").font(KaiFont.captionStrong)
+                        KaiThemedSegmented(options: [(KaiAgentMode.askEach, "Ask me before every action"), (KaiAgentMode.auto, "Run on its own")], selection: $agent.mode)
+                    }
+                    .disabled(agent.isRunning)
+                } else {
+                    Picker("Control", selection: $agent.mode) {
+                        Text("Ask me before every action").tag(KaiAgentMode.askEach)
+                        Text("Run on its own").tag(KaiAgentMode.auto)
+                    }
+                    .pickerStyle(.radioGroup)
+                    .disabled(agent.isRunning)
                 }
-                .pickerStyle(.radioGroup)
-                .disabled(agent.isRunning)
 
                 Text(agent.mode == .askEach
                      ? "Every click, keystroke and shortcut waits for your Approve."

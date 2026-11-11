@@ -349,3 +349,62 @@ struct KaiThemePicker: View {
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(selected ? KaiCobalt.plasmaCyan : Color.white.opacity(0.12), lineWidth: selected ? 1.5 : 1))
     }
 }
+
+// MARK: - Segmented choice
+
+/// A row of choices in the look in use: plasma pills in Cobalt Plasma, the system segmented control in Classic.
+struct KaiThemedSegmented<Value: Hashable>: View {
+    let options: [(value: Value, title: String)]
+    @Binding var selection: Value
+
+    var body: some View {
+        if KaiTheme.isCobalt {
+            HStack(spacing: 4) {
+                ForEach(options.indices, id: \.self) { index in
+                    let option = options[index]
+                    let selected = option.value == selection
+                    Button { selection = option.value } label: {
+                        Text(option.title).font(.system(size: 12, weight: selected ? .semibold : .regular))
+                            .lineLimit(1).fixedSize()
+                            .padding(.horizontal, 14).padding(.vertical, 6)
+                            .foregroundStyle(selected ? Color.white : KaiCobalt.textSecondary)
+                            .background(Capsule().fill(selected
+                                ? AnyShapeStyle(LinearGradient(colors: [KaiCobalt.primary.opacity(0.6), KaiCobalt.plasmaCyan.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                : AnyShapeStyle(Color.clear)))
+                            .overlay(Capsule().strokeBorder(selected ? KaiCobalt.plasmaCyan : Color.clear, lineWidth: 1))
+                            .shadow(color: selected ? KaiCobalt.plasmaCyan.opacity(0.35) : .clear, radius: 5)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(3)
+            .background(Capsule().fill(KaiCobalt.panelFill))
+            .overlay(Capsule().strokeBorder(KaiCobalt.plasmaCyan.opacity(0.25), lineWidth: 1))
+            .animation(.easeInOut(duration: 0.15), value: selection)
+        } else {
+            Picker("", selection: $selection) {
+                ForEach(options.indices, id: \.self) { Text(options[$0].title).tag(options[$0].value) }
+            }
+            .pickerStyle(.segmented).labelsHidden()
+        }
+    }
+}
+
+/// A text box in the look in use. The system's own grey is hidden in Cobalt Plasma.
+struct KaiTextBoxStyle: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if KaiTheme.isCobalt {
+            content
+                .scrollContentBackground(.hidden)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(KaiCobalt.panelFill))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(KaiCobalt.plasmaCyan.opacity(0.35), lineWidth: 1))
+        } else {
+            content.background(KaiColor.surfaceBg, in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+}
+
+extension View {
+    func kaiTextBox() -> some View { modifier(KaiTextBoxStyle()) }
+}
