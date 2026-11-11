@@ -76,8 +76,47 @@ public final class KaiFocusedText {
     /// Reads the focused text field of the frontmost app (never Kai's own windows). Nil when there is
     /// no Accessibility permission, no text field in focus, or nothing written in it.
     public static func capture(maxLength: Int = 12_000) async -> KaiFocusedText? {
-        if let found = captureFromField(maxLength: maxLength) { return found }
-        return await captureBySelection(maxLength: maxLength)
+        trace("capture: front=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "none") target=\(targetApp()?.localizedName ?? "none") trusted=\(AXIsProcessTrusted())")
+        // Kai's bar is a panel that doesn't take over the front app, but a menu or a click can still make it the key
+        // window, and then a copy goes to Kai and not to the app the text is in. Hand the keyboard back first.
+        trace("capture: kai active=\(NSApp.isActive) key=\(NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? "none")")
+        if NSApp.isActive || NSApp.keyWindow != nil, let target = targetApp() {
+            await handKeyboardBack(to: target)
+            trace("capture: after handing back, kai active=\(NSApp.isActive) key=\(NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? "none")")
+        }
+        // Twice: right after a menu closes the app in front may not have taken the keyboard back yet.
+        for attempt in 1...2 {
+            if let found = captureFromField(maxLength: maxLength) { trace("capture: field ok (\(found.original.count) chars, selection=\(found.isSelection))"); return found }
+            if let found = await captureBySelection(maxLength: maxLength) { trace("capture: copy ok (\(found.original.count) chars)"); return found }
+            trace("capture: attempt \(attempt) found nothing")
+            if attempt == 1 { try? await Task.sleep(for: .milliseconds(400)) }
+        }
+        return nil
+    }
+
+    /// Makes the other app the one that gets the keys. Kai's panels don't take over as the front app, but they can
+    /// hold the keyboard, and then a copy or a paste would go to Kai and not to the app the text is in.
+    private static func handKeyboardBack(to app: NSRunningApplication) async {
+        NSApp.keyWindow?.resignKey()
+        NSApp.deactivate()
+        app.activate()
+        try? await Task.sleep(for: .milliseconds(300))
+    }
+
+    /// A short log of what was tried, never the text itself, so a failure can be understood. Kept private to the person.
+    private static func trace(_ line: String) {
+        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Kai OS", isDirectory: true).appendingPathComponent("capture-debug.log")
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let entry = "\(ISO8601DateFormatter().string(from: Date())) \(line)\n"
+        if let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data(entry.utf8))
+        } else {
+            try? Data(entry.utf8).write(to: url, options: .atomic)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        }
     }
 
     /// Many apps (Chrome, Slack, Teams, Notion) don't give out the text of a field through Accessibility. If the
@@ -101,7 +140,7 @@ public final class KaiFocusedText {
         }
         try? await Task.sleep(for: .milliseconds(220))
         // Nothing selected means nothing was copied, and the clipboard is untouched.
-        guard board.changeCount != before else { return nil }
+        guard board.changeCount != before else { trace("copy: clipboard did not change in \(app.localizedName ?? "?") (front now \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "none"))"); return nil }
         let copied = board.string(forType: .string)
         saved.restore(to: board)
         guard let copied, !copied.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, copied.count <= maxLength else { return nil }
@@ -113,11 +152,16 @@ public final class KaiFocusedText {
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
+        var status = AXUIElementCopyAttributeValue(appElement, kAXFocusedUIElementAttribute as CFString, &focused)
+        if status != .success || focused == nil {
+            // Some apps only answer when asked through the system.
+            status = AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(), kAXFocusedUIElementAttribute as CFString, &focused)
+        }
+        guard status == .success, let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { trace("field: no focused element (AX status \(status.rawValue))"); return nil }
         let element = focused as! AXUIElement
         var role: CFTypeRef?
         AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+        trace("field: focused role=\((role as? String) ?? "none")")
         guard let roleName = role as? String, ["AXTextArea", "AXTextField", "AXComboBox", "AXWebArea"].contains(roleName) else { return nil }
         // A password field is never read.
         var subrole: CFTypeRef?
@@ -176,9 +220,12 @@ public final class KaiFocusedText {
 
     /// Brings the app and field back, selects the old text if it was the whole field, and pastes over it.
     private func pasteReplacing(_ text: String) async throws {
-        NSRunningApplication(processIdentifier: pid)?.activate()
+        guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { throw KaiFocusedTextError.failed }
+        Self.trace("replace: kai active=\(NSApp.isActive) key=\(NSApp.keyWindow.map { String(describing: type(of: $0)) } ?? "none") front=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "none")")
+        await Self.handKeyboardBack(to: app)
         if let element { AXUIElementSetAttributeValue(element, kAXFocusedAttribute as CFString, kCFBooleanTrue) }
-        try? await Task.sleep(for: .milliseconds(250))
+        try? await Task.sleep(for: .milliseconds(100))
+        Self.trace("replace: after handing back front=\(NSWorkspace.shared.frontmostApplication?.localizedName ?? "none") kai key=\(NSApp.keyWindow != nil)")
         guard NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else { throw KaiFocusedTextError.failed }
         if !isSelection {
             Self.post(key: kVK_ANSI_A)
