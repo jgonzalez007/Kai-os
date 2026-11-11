@@ -72,7 +72,7 @@ struct KaiForYouView: View {
                 detail: "Turn on Calendar or Apple Mail, and Kai OS will prepare cards each morning."
             ) {
                 Button("Open Permissions") { appState.openPreferences(.permissions) }
-                    .buttonStyle(.borderedProminent)
+                    .kaiProminent()
                     .buttonBorderShape(.roundedRectangle)
             }
         } else if controller.activeCards.isEmpty {
@@ -212,7 +212,7 @@ private struct KaiMorningCardRow: View {
             EmptyView()
         case .reply(let mail):
             Button("Draft Reply") { KaiNotchWindowController.shared.startReply(to: mail) }
-                .buttonStyle(.borderedProminent)
+                .kaiProminent()
                 .buttonBorderShape(.roundedRectangle)
                 .controlSize(.small)
         case .action(let actionCard):
@@ -220,7 +220,7 @@ private struct KaiMorningCardRow: View {
             case .pending:
                 HStack(spacing: 10) {
                     Button("Approve") { controller.approve(card.id) }
-                        .buttonStyle(.borderedProminent)
+                        .kaiProminent()
                         .buttonBorderShape(.roundedRectangle)
                         .controlSize(.small)
                         .tint(KaiColor.success)

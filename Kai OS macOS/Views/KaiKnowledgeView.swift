@@ -87,7 +87,7 @@ struct KaiKnowledgeView: View {
             Text("Kai fills this from your knowledge folder, Notes, Calendar, Mail and Slack, and from notes you type in. Add a note, or index what is connected.")
                 .foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 420)
             HStack {
-                Button("Add a note") { appState.openPreferences(.knowledge) }.buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue)
+                Button("Add a note") { appState.openPreferences(.knowledge) }.kaiProminent().tint(KaiColor.liquidBlue)
                 Button("Index now") { Task { _ = await appState.indexKnowledgeNow(); await load() } }
             }
         }

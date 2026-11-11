@@ -527,7 +527,7 @@ struct KaiCalendarView: View {
                     Button { NSWorkspace.shared.open(link) } label: {
                         Label("Join the call", systemImage: "video.fill").frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.large)
+                    .kaiProminent().tint(KaiColor.liquidBlue).controlSize(.large)
                     Text(link.host ?? "").font(.caption).foregroundStyle(.secondary)
                 }
 
@@ -738,7 +738,7 @@ struct KaiFindTimeSheet: View {
                     Text("\(chosen.start.formatted(date: .abbreviated, time: .shortened)) for \(minutes) minutes").font(.callout).foregroundStyle(.secondary)
                     Spacer()
                     Button(busy ? "Adding…" : "Approve and add") { add(chosen) }
-                        .buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small)
+                        .kaiProminent().tint(KaiColor.liquidBlue).controlSize(.small)
                         .disabled(busy || title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }

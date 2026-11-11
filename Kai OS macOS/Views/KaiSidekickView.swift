@@ -77,7 +77,7 @@ struct KaiSidekickView: View {
                         Button("Stop") { agent.stop() }.tint(.red)
                     } else {
                         Button("Start") { agent.start(appState: appState) }
-                            .buttonStyle(.borderedProminent)
+                            .kaiProminent()
                             .disabled(agent.task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     if agent.isRunning { ProgressView().controlSize(.small) }

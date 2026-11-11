@@ -44,7 +44,7 @@ struct KaiAboutYouView: View {
                 } else if editing {
                     Button("Cancel") { editing = false }.controlSize(.small)
                     Button("Save") { appState.saveProfileEdit(draft); editing = false }
-                        .controlSize(.small).buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue)
+                        .controlSize(.small).kaiProminent().tint(KaiColor.liquidBlue)
                 } else {
                     if appState.profile != nil {
                         Button { draft = appState.profile?.markdown ?? ""; editing = true } label: { Label("Correct", systemImage: "pencil") }.controlSize(.small)
@@ -99,7 +99,7 @@ struct KaiAboutYouView: View {
             Text("Tell Kai who you are and what matters to you on the Knowledge setup page, and connect Notes, Calendar or Mail. Night Shift then writes a portrait here every night. Chat and your morning list use it to tell what is urgent for you.")
                 .foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: 440)
             HStack {
-                Button("Tell Kai about you") { appState.openPreferences(.knowledge) }.buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue)
+                Button("Tell Kai about you") { appState.openPreferences(.knowledge) }.kaiProminent().tint(KaiColor.liquidBlue)
                 if documentCount > 0 { Button("Build it now") { Task { await appState.rebuildProfileNow() } } }
             }
         }

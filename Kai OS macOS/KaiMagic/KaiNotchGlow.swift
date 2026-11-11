@@ -10,9 +10,12 @@ import SwiftUI
 
 enum KaiSpectrum {
     /// Cyan, liquid blue, violet and magenta from the brand palette, looping back to cyan.
-    static let colors: [Color] = [
-        KaiColor.cyan, KaiColor.liquidBlue, KaiColor.violet, KaiColor.magenta, KaiColor.violet, KaiColor.cyan
-    ]
+    static var colors: [Color] {
+        // Cobalt Plasma has no violet or magenta: the ring runs from cyan through cobalt and electric blue and back.
+        KaiTheme.isCobalt
+            ? [KaiCobalt.plasmaCyan, KaiCobalt.primary, KaiCobalt.electricBlue, KaiCobalt.plasmaCyan, KaiCobalt.primary, KaiCobalt.plasmaCyan]
+            : [KaiColor.cyan, KaiColor.liquidBlue, KaiColor.violet, KaiColor.magenta, KaiColor.violet, KaiColor.cyan]
+    }
 }
 
 struct KaiNotchGlow: View {

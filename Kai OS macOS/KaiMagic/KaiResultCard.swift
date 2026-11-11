@@ -396,9 +396,9 @@ struct KaiResultCard: View {
                 .padding(.horizontal, 22).padding(.vertical, 9)
         }
         .foregroundStyle(.white)
-        .background(RoundedRectangle(cornerRadius: 22).fill(Color.black))
-        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 22))
+        .kaiPanelChrome(radius: 22)
+        .kaiThemeRoot()
         .environment(\.colorScheme, .dark)
     }
 

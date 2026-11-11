@@ -153,7 +153,7 @@ struct KaiClipboardPanel: View {
                     Text("Clipboard history is off").font(.callout)
                     Text("When on, Kai OS remembers your last 50 text copies on this Mac. It skips password managers, terminals and dictation, and anything an app marks as secret.")
                         .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    Button("Turn on") { desk.clipboardEnabled = true }.buttonStyle(.borderedProminent)
+                    Button("Turn on") { desk.clipboardEnabled = true }.kaiProminent()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -209,7 +209,7 @@ struct KaiClaudePanel: View {
                     Text("Claude Code is not connected").font(.callout)
                     Text("Approve or deny Claude Code's permission requests here, see when a task is done and which helper agents are running. Setup is in Settings → Desk.")
                         .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                    Button("Start listening") { desk.hooksEnabled = true }.buttonStyle(.borderedProminent)
+                    Button("Start listening") { desk.hooksEnabled = true }.kaiProminent()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
@@ -276,7 +276,7 @@ struct KaiApprovalCard: View {
                 }
                 Spacer()
                 Button("Deny") { desk.decide(approval, .deny) }
-                Button("Allow") { desk.decide(approval, .allow) }.buttonStyle(.borderedProminent)
+                Button("Allow") { desk.decide(approval, .allow) }.kaiProminent()
             }
         }
     }

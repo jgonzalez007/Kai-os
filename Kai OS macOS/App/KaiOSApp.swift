@@ -841,15 +841,21 @@ final class KaiAppDelegate: NSObject, NSApplicationDelegate {
 
 struct KaiMainView: View {
     @EnvironmentObject var appState: AppState
+    @AppStorage(KaiTheme.key) private var theme = KaiTheme.default.rawValue
 
     var body: some View {
         // Preferences use the whole window, with their own navigation and a Home button.
-        if appState.activeSidebar == "Settings" {
-            KaiSettingsView()
-                .environmentObject(appState)
-        } else {
-            shell
+        Group {
+            if appState.activeSidebar == "Settings" {
+                KaiSettingsView()
+                    .environmentObject(appState)
+            } else {
+                shell
+            }
         }
+        .kaiThemeRoot()
+        // Changing the look redraws the whole window.
+        .id(theme)
     }
 
     /// Black with light from the top, a bar across the top, and the page below it.

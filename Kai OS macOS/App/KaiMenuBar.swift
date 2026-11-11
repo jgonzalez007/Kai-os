@@ -80,12 +80,12 @@ struct KaiMenuBarContent: View {
                     HStack {
                         Text("Notch").font(.system(size: 11, weight: .semibold))
                         Spacer()
-                        Toggle("", isOn: $notchEnabled).labelsHidden().toggleStyle(.switch).tint(KaiColor.cyan).scaleEffect(0.75)
+                        Toggle("", isOn: $notchEnabled).labelsHidden().kaiSwitch().tint(KaiColor.cyan).scaleEffect(0.75)
                             .onChange(of: notchEnabled) { _, _ in notch.applyEnabledPreference() }
                     }
                     Divider().overlay(Color.white.opacity(0.1))
                     Text("Glow intensity").font(.system(size: 10)).foregroundStyle(.gray)
-                    Slider(value: $glow, in: 0.2...1).tint(KaiColor.cyan)
+                    KaiThemedSlider(value: $glow, range: 0.2...1)
                 }
                 card(KaiColor.magenta) {
                     Text("Stats bar").font(.system(size: 11, weight: .semibold))
@@ -118,7 +118,7 @@ struct KaiMenuBarContent: View {
                         Text("Wings beside the notch while Kai works").font(.system(size: 10)).foregroundStyle(.gray)
                     }
                     Spacer()
-                    Toggle("", isOn: $alerts).labelsHidden().toggleStyle(.switch).tint(KaiColor.magenta).scaleEffect(0.75)
+                    Toggle("", isOn: $alerts).labelsHidden().kaiSwitch().tint(KaiColor.magenta).scaleEffect(0.75)
                         .onChange(of: alerts) { _, _ in notch.preferencesChanged() }
                 }
             }

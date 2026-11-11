@@ -89,6 +89,7 @@ struct KaiSettingsView: View {
     /// Debug snapshots start on a chosen page.
     static var startPage = Page.ai
     @State private var page = KaiSettingsView.startPage
+    @AppStorage(KaiTheme.key) private var theme = KaiTheme.default.rawValue
 
     var body: some View {
         HStack(spacing: 0) {
@@ -98,6 +99,10 @@ struct KaiSettingsView: View {
         }
         .background(KaiAmbientBackground())
         .environment(\.colorScheme, .dark)
+        .kaiThemeRoot()
+        // A new look redraws the window, and it comes back to the page you were on.
+        .id(theme)
+        .onChange(of: page) { _, newPage in KaiSettingsView.startPage = newPage }
         .preferredColorScheme(.dark)
         // The next visit starts on the first page, unless something asks for another.
         .onDisappear { KaiSettingsView.startPage = .ai }
@@ -229,6 +234,13 @@ struct KaiSettingsView: View {
 
                 if page == .appearance {
                 // ── Appearance ──
+                settingsCard {
+                    SectionHeader(title: "Look")
+                    KaiThemePicker()
+                    Text("Cobalt Plasma is the new look. Classic keeps the one from before. The change applies at once.")
+                        .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
+                }
+
                 settingsCard {
                     SectionHeader(title: "Appearance")
 
@@ -431,7 +443,7 @@ struct KaiSettingsView: View {
                             SecureField("xoxp-…", text: $appState.slackTokenDraft).kaiInput()
                         }
                         Button(appState.slackState == .loading ? "Checking…" : "Connect") { appState.connectSlack() }
-                            .buttonStyle(.borderedProminent).controlSize(.small)
+                            .kaiProminent().controlSize(.small)
                             .disabled(appState.slackState == .loading)
                         Text("Create a Slack app for your workspace with read-only user scopes, install it, and paste its User OAuth Token here. Steps and scopes are in BUILD.md. Company workspaces may need an admin to approve the app. The token is kept in your Keychain.")
                             .font(KaiFont.caption2Strong).foregroundStyle(KaiColor.textTertiary)
@@ -462,7 +474,7 @@ struct KaiSettingsView: View {
 
                     HStack {
                         Button(appState.isIndexingKnowledge ? "Indexing…" : "Index now") { appState.indexKnowledge() }
-                            .buttonStyle(.borderedProminent)
+                            .kaiProminent()
                             .disabled(appState.isIndexingKnowledge)
                         Button("Open folder") { appState.openKnowledgeFolder() }
                     }
@@ -755,7 +767,7 @@ struct KaiSettingsView: View {
                         .font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
                 }
                 Spacer()
-                Toggle("", isOn: $noSlop).labelsHidden().toggleStyle(.switch).tint(.green)
+                Toggle("", isOn: $noSlop).labelsHidden().kaiSwitch().tint(.green)
             }
             if noSlop {
                 ForEach(KaiNoAISlop.Scope.allCases, id: \.self) { scope in
@@ -763,7 +775,7 @@ struct KaiSettingsView: View {
                         get: { UserDefaults.standard.object(forKey: KaiNoAISlop.key(scope)) as? Bool ?? true },
                         set: { UserDefaults.standard.set($0, forKey: KaiNoAISlop.key(scope)); appState.objectWillChange.send() }
                     ))
-                    .toggleStyle(.switch).controlSize(.small).font(.callout)
+                    .kaiSwitch().controlSize(.small).font(.callout)
                 }
             }
             Text("Proofread also gets two buttons, Remove AI slop and Find AI slop, whether or not this is on. Based on the No AI Slop skill by Peter Yang (MIT licence).")
@@ -847,7 +859,7 @@ struct KaiSettingsView: View {
                     .labelsHidden().frame(width: 130).controlSize(.small)
                     .help("My own files describe you. Reference is other people's material: Kai searches it but never uses it to describe you.")
                     Toggle("", isOn: Binding(get: { folder.enabled }, set: { appState.setKnowledgeFolder(folder.id, enabled: $0) }))
-                        .labelsHidden().toggleStyle(.switch).controlSize(.small)
+                        .labelsHidden().kaiSwitch().controlSize(.small)
                     Button { appState.removeKnowledgeFolder(folder.id) } label: { Image(systemName: "xmark.circle") }
                         .buttonStyle(.plain).help("Stop reading this folder and forget what Kai learned from it")
                 }
@@ -873,7 +885,7 @@ struct KaiSettingsView: View {
             switch appState.meaningState {
             case .off:
                 Button("Download the model and turn on") { appState.enableMeaningSearch() }
-                    .buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small)
+                    .kaiProminent().tint(KaiColor.liquidBlue).controlSize(.small)
             case .downloading(let fraction):
                 ProgressView(value: fraction)
                 Text("Downloading… \(Int(fraction * 100))%").font(KaiFont.caption).foregroundStyle(KaiColor.textSecondary)
@@ -962,7 +974,7 @@ struct KaiSettingsView: View {
                         manualSaving = false
                     }
                 }
-                .buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small)
+                .kaiProminent().tint(KaiColor.liquidBlue).controlSize(.small)
                 .disabled(manualSaving || manualText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button("Open the folder") { appState.openKnowledgeFolder() }.controlSize(.small)
                 Spacer()
@@ -994,7 +1006,7 @@ struct KaiSettingsView: View {
                 }
                 HStack(spacing: 10) {
                     Button("See the cards") { appState.activeSidebar = "ForYou" }
-                        .buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small)
+                        .kaiProminent().tint(KaiColor.liquidBlue).controlSize(.small)
                     Button("Open the log") {
                         NSWorkspace.shared.open(FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Kai OS/night-shift.log"))
                     }
@@ -1040,7 +1052,7 @@ struct KaiSettingsView: View {
                             braveDraft = ""
                             askingForKey = !braveSaved
                         }
-                        .buttonStyle(.borderedProminent)
+                        .kaiProminent()
                         .controlSize(.small)
                         .disabled(braveDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                         Button("Cancel") { useBrave = false; braveDraft = ""; askingForKey = false }
@@ -1153,7 +1165,7 @@ struct KaiSettingsView: View {
                 SectionHeader(title: "Notch customization")
                 HStack {
                     Text("Glow strength")
-                    Slider(value: $glowStrength, in: 0.2...1).tint(KaiColor.cyan)
+                    KaiThemedSlider(value: $glowStrength, range: 0.2...1)
                     Text("\(Int(glowStrength * 100))%").font(.caption).foregroundStyle(.secondary).frame(width: 40, alignment: .trailing)
                 }
                 Text("How bright the colored edge is around the open notch.")
@@ -1299,7 +1311,7 @@ struct KaiSettingsView: View {
                     .controlSize(.small)
             } else {
                 Button("Connect") { action() }
-                    .buttonStyle(.borderedProminent)
+                    .kaiProminent()
                     .buttonBorderShape(.roundedRectangle)
                     .controlSize(.small)
             }

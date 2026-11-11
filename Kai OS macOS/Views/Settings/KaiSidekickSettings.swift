@@ -37,11 +37,11 @@ struct KaiSidekickSettingsView: View {
                     }
                     Divider().overlay(Color.white.opacity(0.08))
                     settingRow("Open Kai by clicking the notch", "Turn off to leave notch clicks to other apps. You can still open Kai with your shortcut key.") {
-                        Toggle("", isOn: $clickOpens).labelsHidden().toggleStyle(.switch).tint(.green)
+                        Toggle("", isOn: $clickOpens).labelsHidden().kaiSwitch().tint(.green)
                     }
                     Divider().overlay(Color.white.opacity(0.08))
                     settingRow("Compact notch mode", "Keep a short status beside the notch while Kai works, and a peek when something finishes.") {
-                        Toggle("", isOn: $notchPeeks).labelsHidden().toggleStyle(.switch).tint(.green)
+                        Toggle("", isOn: $notchPeeks).labelsHidden().kaiSwitch().tint(.green)
                             .onChange(of: notchPeeks) { _, _ in KaiNotchWindowController.shared.preferencesChanged() }
                     }
                 }
@@ -82,8 +82,7 @@ struct KaiSidekickSettingsView: View {
                 Text("Speed & intelligence").font(.title3).fontWeight(.semibold)
                 Text("Choose how much thought goes into computer tasks.").foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 12) {
-                    Slider(value: Binding(get: { Double(effort) }, set: { effort = Int($0.rounded()) }), in: 0...2, step: 1)
-                        .tint(Color(red: 0.55, green: 0.35, blue: 0.9))
+                    KaiThemedSlider(value: Binding(get: { Double(effort) }, set: { effort = Int($0.rounded()) }), range: 0...2, step: 1)
                     HStack {
                         ForEach(KaiAgentEffort.allCases, id: \.rawValue) { level in
                             Text(level.title)
@@ -126,7 +125,7 @@ struct KaiSidekickSettingsView: View {
                 .font(.callout)
             Label("At every step, a screenshot of your screen is sent to Anthropic. Anything open can be in it. Kai won't send the screen while a password app or System Settings is in front, but that is the only check.", systemImage: "exclamationmark.triangle.fill")
                 .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-            Toggle("I understand, and I want Sidekick to use Claude", isOn: $claudeConsent).toggleStyle(.switch).tint(.green)
+            Toggle("I understand, and I want Sidekick to use Claude", isOn: $claudeConsent).kaiSwitch().tint(.green)
             HStack(spacing: 8) {
                 if !claudeChecked {
                     ProgressView().controlSize(.small)
@@ -187,7 +186,7 @@ private struct KaiLessonsCard: View {
                     }
                     Spacer()
                     if agent.isLearning { ProgressView().controlSize(.small) }
-                    Toggle("", isOn: $learn).labelsHidden().toggleStyle(.switch).tint(.green)
+                    Toggle("", isOn: $learn).labelsHidden().kaiSwitch().tint(.green)
                 }
                 Divider().overlay(Color.white.opacity(0.08))
                 if agent.lessons.isEmpty {
@@ -196,7 +195,7 @@ private struct KaiLessonsCard: View {
                 ForEach(agent.lessons.sorted { $0.createdAt > $1.createdAt }) { lesson in
                     HStack(alignment: .top, spacing: 8) {
                         Toggle("", isOn: Binding(get: { lesson.enabled }, set: { agent.setLesson(lesson.id, enabled: $0) }))
-                            .labelsHidden().toggleStyle(.switch).controlSize(.mini)
+                            .labelsHidden().kaiSwitch().controlSize(.mini)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(lesson.text).font(.callout).foregroundStyle(lesson.enabled ? .primary : .secondary)
                             Text((lesson.app ?? "Any app") + (lesson.learned ? " · learned" : " · added by you")).font(.caption2).foregroundStyle(.secondary)

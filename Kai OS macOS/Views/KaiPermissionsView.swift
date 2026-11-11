@@ -155,7 +155,7 @@ struct KaiPermissionsView: View {
                     KaiPermissionsModel.markOnboarded()
                     appState.activeSidebar = "Chat"
                 }
-                .buttonStyle(.borderedProminent)
+                .kaiProminent()
                 .tint(KaiColor.liquidBlue)
             }
             .padding(.horizontal, 40).padding(.vertical, 14)

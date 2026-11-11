@@ -109,13 +109,13 @@ struct KaiWelcomeView: View {
             Spacer()
             if step < titles.count - 1 {
                 if step > 0 { Button("Skip for now") { step += 1 } }
-                Button("Continue") { step += 1 }.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                Button("Continue") { step += 1 }.kaiProminent().keyboardShortcut(.defaultAction)
             } else {
                 Button("Start using Kai") {
                     KaiPermissionsModel.markOnboarded()
                     appState.activeSidebar = "Chat"
                 }
-                .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                .kaiProminent().keyboardShortcut(.defaultAction)
             }
         }
         .padding()
@@ -170,10 +170,10 @@ struct KaiWelcomeView: View {
         case .notInstalled:
             Text("Ollama runs the AI on your Mac. Download and install it, open it once, then come back here. Kai notices on its own.")
                 .font(.callout).foregroundStyle(.secondary)
-            Button("Download Ollama") { model.downloadOllama() }.buttonStyle(.borderedProminent)
+            Button("Download Ollama") { model.downloadOllama() }.kaiProminent()
         case .notRunning:
             Text("Ollama is installed but not running.").font(.callout).foregroundStyle(.secondary)
-            Button("Start Ollama") { model.startOllama() }.buttonStyle(.borderedProminent)
+            Button("Start Ollama") { model.startOllama() }.kaiProminent()
         case .noModel:
             Text("Ollama is running. It needs a model, a one-time download of several gigabytes.")
                 .font(.callout).foregroundStyle(.secondary)
@@ -187,7 +187,7 @@ struct KaiWelcomeView: View {
                 Button("Cancel") { model.cancelPull() }.controlSize(.small)
             } else {
                 Button("Download \(KaiOllamaSetup.recommendedModel)") { model.pull(appState: appState) }
-                    .buttonStyle(.borderedProminent)
+                    .kaiProminent()
             }
             if let error = model.pullError {
                 Label(error, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)

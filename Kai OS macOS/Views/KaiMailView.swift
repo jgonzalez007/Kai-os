@@ -499,7 +499,7 @@ struct KaiMailView: View {
                 Text("Only these messages, nothing else. Nothing is deleted.").font(.caption).foregroundStyle(.secondary)
             }
             HStack {
-                Button("Approve") { approve(plan) }.buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue).controlSize(.small).disabled(cleanBusy)
+                Button("Approve") { approve(plan) }.kaiProminent().tint(KaiColor.liquidBlue).controlSize(.small).disabled(cleanBusy)
                 Button("Cancel") { pending = nil }.controlSize(.small)
                 if cleanBusy { ProgressView().controlSize(.small); Text("Working in Mail…").font(.caption).foregroundStyle(.secondary) }
             }
@@ -665,7 +665,7 @@ struct KaiMailView: View {
             card(title: "Draft reply", symbol: "arrowshape.turn.up.left", tint: KaiColor.magenta, text: text) {
                 HStack(spacing: 8) {
                     Button("Copy") { copy(text) }.controlSize(.small)
-                    Button("Open reply in Mail") { openReply(message, draft: text) }.controlSize(.small).buttonStyle(.borderedProminent).tint(KaiColor.liquidBlue)
+                    Button("Open reply in Mail") { openReply(message, draft: text) }.controlSize(.small).kaiProminent().tint(KaiColor.liquidBlue)
                     if let replyNote { Text(replyNote).font(.caption).foregroundStyle(.secondary) }
                 }
             }

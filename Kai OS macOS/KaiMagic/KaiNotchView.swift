@@ -21,6 +21,7 @@ struct KaiNotchView: View {
     @State private var dropTargeted = false
     @AppStorage(KaiMotion.key) private var motion = true
     @AppStorage(KaiNotchPreferences.glowKey) private var glowStrength = 0.9
+    @AppStorage(KaiTheme.key) private var theme = KaiTheme.default.rawValue
 
     private var size: CGSize {
         model.shapeFrame?.size ?? .zero
@@ -64,6 +65,8 @@ struct KaiNotchView: View {
             }
         }
         .frame(width: size.width, height: size.height)
+        .kaiThemeRoot()
+        .id(theme)
         .contentShape(Rectangle())
         .onTapGesture { if !isExpanded && KaiNotchPreferences.clickOpens { controller.expand() } }
         // Dropping files, links or text on the notch puts them on the Shelf.
@@ -269,7 +272,7 @@ private struct KaiNotchReplyContent: View {
                     Button { doubleTap.choose(choice) } label: {
                         Text(choice.title).font(.system(size: 11, weight: .medium))
                             .padding(.horizontal, 10).padding(.vertical, 4)
-                            .background(Capsule().fill(doubleTap.intent == choice ? Color.accentColor.opacity(0.55) : Color.white.opacity(0.09)))
+                            .kaiChip(selected: doubleTap.intent == choice)
                             .foregroundStyle(.white.opacity(0.9))
                     }
                     .buttonStyle(.plain)
@@ -316,7 +319,7 @@ private struct KaiNotchReplyContent: View {
             }
             // No keyboard shortcut: pressing Return in the instruction field must only redraft.
             Button(doubleTap.writeButtonTitle) { doubleTap.writeDraft() }
-                .buttonStyle(.borderedProminent)
+                .kaiProminent()
                 .disabled(!doubleTap.canWrite)
         }
     }
@@ -649,8 +652,7 @@ private struct KaiNotchBarContent: View {
             } label: {
                 Text("Rewrite ▾").font(.system(size: 11, weight: .medium))
                     .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(Color.white.opacity(0.09)))
-                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5))
+                    .kaiChip()
                     .foregroundStyle(.white.opacity(0.85))
             }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
@@ -671,8 +673,7 @@ private struct KaiNotchBarContent: View {
         Button(action: action) {
             Text(title).font(.system(size: 11, weight: .medium))
                 .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(Capsule().fill(Color.white.opacity(0.09)))
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5))
+                .kaiChip()
                 .foregroundStyle(.white.opacity(0.85))
         }
         .buttonStyle(.plain)
@@ -714,11 +715,16 @@ private struct KaiNotchBarContent: View {
         .padding(.bottom, 12)
     }
 
+    @ViewBuilder
     private func shortcut(_ symbol: String, _ help: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) { Image(systemName: symbol).font(.system(size: 12)) }
-            .buttonStyle(.plain)
-            .foregroundStyle(.white.opacity(0.6))
-            .help(help)
+        if KaiTheme.isCobalt {
+            KaiStatusIconButton(symbol: symbol, help: help, action: action)
+        } else {
+            Button(action: action) { Image(systemName: symbol).font(.system(size: 12)) }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.6))
+                .help(help)
+        }
     }
 
     private func send() {

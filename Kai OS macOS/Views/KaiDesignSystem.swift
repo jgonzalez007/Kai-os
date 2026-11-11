@@ -11,36 +11,39 @@ import SwiftUI
 // MARK: - Colors
 
 struct KaiColor {
-    // Brand colors (brand_color_system): electric cyan, liquid blue, deep violet, neon magenta.
-    static let cyan = Color(red: 0.0, green: 0.878, blue: 1.0)            // #00E0FF (asset package)
-    static let liquidBlue = Color(red: 0.227, green: 0.525, blue: 1.0)    // #3A86FF
-    static let violet = Color(red: 0.439, green: 0.0, blue: 1.0)          // #7000FF
-    static let magenta = Color(red: 1.0, green: 0.0, blue: 0.498)         // #FF007F (asset package)
+    private static var cobalt: Bool { KaiTheme.isCobalt }
 
-    static let primary = liquidBlue
-    static let primaryLight = cyan
-    static let primaryDark = violet
-    static let secondary = cyan
-    static let accent = magenta
-    
+    // Brand colors. Classic: electric cyan, liquid blue, deep violet, neon magenta. Cobalt Plasma: plasma cyan, cobalt,
+    // electric blue, and cyan again where the accent used to be magenta.
+    static var cyan: Color { KaiCobalt.plasmaCyan }                                                              // #00E0FF in both looks
+    static var liquidBlue: Color { cobalt ? KaiCobalt.primary : Color(red: 0.227, green: 0.525, blue: 1.0) }     // #0066FF | #3A86FF
+    static var violet: Color { cobalt ? KaiCobalt.electricBlue : Color(red: 0.439, green: 0.0, blue: 1.0) }      // #1A8CFF | #7000FF
+    static var magenta: Color { cobalt ? KaiCobalt.plasmaCyan : Color(red: 1.0, green: 0.0, blue: 0.498) }       // #00E0FF | #FF007F
+
+    static var primary: Color { liquidBlue }
+    static var primaryLight: Color { cyan }
+    static var primaryDark: Color { violet }
+    static var secondary: Color { cyan }
+    static var accent: Color { magenta }
+
     static let card = Color.white.opacity(0.7)
     static let cardDark = Color.black.opacity(0.3)
-    static let border = Color.white.opacity(0.18)
+    static var border: Color { cobalt ? KaiCobalt.plasmaCyan.opacity(0.28) : Color.white.opacity(0.18) }
     static let textPrimary = Color(nsColor: .textColor)
-    static let textSecondary = Color(nsColor: .secondaryLabelColor)
-    static let textTertiary = Color(nsColor: .tertiaryLabelColor)
+    static var textSecondary: Color { cobalt ? KaiCobalt.textSecondary : Color(nsColor: .secondaryLabelColor) }
+    static var textTertiary: Color { cobalt ? KaiCobalt.textSecondary.opacity(0.75) : Color(nsColor: .tertiaryLabelColor) }
     static let success = Color(red: 0.0, green: 0.722, blue: 0.580)
     static let warning = Color(red: 0.988, green: 0.796, blue: 0.431)
     static let error = Color(red: 0.882, green: 0.439, blue: 0.333)
-    
+
     static let surface = Color(nsColor: .controlBackgroundColor)
     static let surfaceLight = Color(nsColor: .textBackgroundColor)
-    
-    // Kai OS is always dark now: cards are a faint lift on the near-black window.
-    static var cardBg: Color { Color.white.opacity(0.05) }
-    static var surfaceBg: Color { Color.white.opacity(0.05) }
-    static let windowBg = Color(red: 0.016, green: 0.016, blue: 0.027)   // near black, #040407
-    static let panelBg = Color(red: 0.176, green: 0.227, blue: 0.310)    // #2D3A4F
+
+    // Kai OS is always dark: cards are a faint lift on the near-black window (Classic) or deep blue glass on the sheet (Cobalt Plasma).
+    static var cardBg: Color { cobalt ? KaiCobalt.panelFill : Color.white.opacity(0.05) }
+    static var surfaceBg: Color { cobalt ? KaiCobalt.panelFill : Color.white.opacity(0.05) }
+    static var windowBg: Color { cobalt ? KaiCobalt.sheet : Color(red: 0.016, green: 0.016, blue: 0.027) }      // #050B14 | #040407
+    static var panelBg: Color { cobalt ? KaiCobalt.panel : Color(red: 0.176, green: 0.227, blue: 0.310) }       // #0D1B2A | #2D3A4F
     static let textBase = Color(red: 0.878, green: 0.878, blue: 0.878)   // #E0E0E0
 }
 
@@ -284,9 +287,13 @@ struct KaiPrimaryButton: View {
     var action: () -> Void
     
     var body: some View {
-        Button(title, action: action)
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.roundedRectangle)
+        if KaiTheme.isCobalt {
+            Button(title, action: action).buttonStyle(KaiPlasmaButtonStyle())
+        } else {
+            Button(title, action: action)
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.roundedRectangle)
+        }
     }
 }
 
@@ -437,7 +444,16 @@ struct KaiGlass: ViewModifier {
     var radius: CGFloat = 18
     var fill: Double = 0.06
 
+    @ViewBuilder
     func body(content: Content) -> some View {
+        if KaiTheme.isCobalt {
+            content.cobaltPlasmaCard(radius: radius)
+        } else {
+            classic(content)
+        }
+    }
+
+    private func classic(_ content: Content) -> some View {
         content
             .background(
                 ZStack {
@@ -473,6 +489,26 @@ extension View {
 /// has something to frost.
 struct KaiAmbientBackground: View {
     var body: some View {
+        if KaiTheme.isCobalt { cobaltBody } else { classicBody }
+    }
+
+    /// Cobalt Plasma: the deep sheet blue with cobalt light from the top left, a cyan spark at the right and a low blue glow.
+    private var cobaltBody: some View {
+        ZStack {
+            KaiCobalt.sheet
+            GeometryReader { geo in
+                let w = geo.size.width, h = geo.size.height
+                ZStack {
+                    glow(KaiCobalt.primary, opacity: 0.38, diameter: w * 0.95).position(x: w * 0.12, y: -h * 0.08)
+                    glow(KaiCobalt.plasmaCyan, opacity: 0.20, diameter: w * 0.55).position(x: w * 0.92, y: -h * 0.06)
+                    glow(KaiCobalt.electricBlue, opacity: 0.14, diameter: w * 0.8).position(x: w * 0.55, y: h * 1.12)
+                }
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private var classicBody: some View {
         ZStack {
             KaiColor.windowBg
             GeometryReader { geo in
@@ -507,7 +543,16 @@ struct KaiLiquidGlassCard: ViewModifier {
     var radius: CGFloat = 16
     var glowStrength: Double = 0.35
 
+    @ViewBuilder
     func body(content: Content) -> some View {
+        if KaiTheme.isCobalt {
+            content.cobaltPlasmaCard(borderColor: accent == KaiColor.cyan ? KaiCobalt.plasmaCyan : accent, glowColor: KaiCobalt.primary, radius: radius)
+        } else {
+            classic(content)
+        }
+    }
+
+    private func classic(_ content: Content) -> some View {
         content
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .background(KaiColor.panelBg.opacity(0.75), in: RoundedRectangle(cornerRadius: radius, style: .continuous))

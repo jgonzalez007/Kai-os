@@ -239,7 +239,7 @@ struct KaiActionCardView: View {
                 Button("Approve") {
                     appState.approveAction(messageID: messageID)
                 }
-                .buttonStyle(.borderedProminent)
+                .kaiProminent()
                 .buttonBorderShape(.roundedRectangle)
                 .tint(KaiColor.success)
                 

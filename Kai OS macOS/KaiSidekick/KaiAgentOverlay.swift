@@ -131,7 +131,7 @@ struct KaiAgentBanner: View {
                     }
                     HStack {
                         Button("Approve") { controller.resolve(true) }
-                            .buttonStyle(.borderedProminent)
+                            .kaiProminent()
                         Button("Decline") { controller.resolve(false) }
                     }
                 }

@@ -183,9 +183,10 @@ struct KaiTodayCard: View {
             .padding(.horizontal, 22).padding(.vertical, 12)
         }
         .foregroundStyle(.white)
-        .background(RoundedRectangle(cornerRadius: 22).fill(Color.black))
-        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 22))
+        .kaiPanelChrome(radius: 22)
+        .padding(14)
+        .kaiThemeRoot()
         .environment(\.colorScheme, .dark)
         .onAppear { today.load(appState: appState) }
     }
@@ -219,7 +220,7 @@ struct KaiTodayCard: View {
             if let trailing { Text(trailing).font(.caption).foregroundStyle(.white.opacity(0.6)).multilineTextAlignment(.trailing) }
         }
         .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))
+        .background(RoundedRectangle(cornerRadius: 10).fill(KaiTheme.isCobalt ? KaiCobalt.panelFill : Color.white.opacity(0.06)))
         .opacity(dimmed ? 0.5 : 1)
     }
 
