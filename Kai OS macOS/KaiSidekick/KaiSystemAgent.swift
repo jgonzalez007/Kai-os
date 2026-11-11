@@ -193,9 +193,24 @@ final class KaiSystemInput: KaiAgentInput, @unchecked Sendable {
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
-        _ = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
-        try await Task.sleep(for: .milliseconds(700))
+        let app = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+        try await Task.sleep(for: .milliseconds(500))
+        // Opening is not the same as being in front with a window. Make sure of both, so the next screenshot shows the app.
+        guard await KaiScreenState.waitUntilFront(app) else { return }
+        if !(await KaiScreenState.waitForWindow(of: app, seconds: 1.5)), Self.opensWindowWithNew.contains(identifier ?? ""),
+           let code = KaiKeyCodes.code(for: "n") {
+            // A browser or Finder that is open with no window: a new window is harmless and is what the task needs.
+            try postKey(code, flags: KaiKeyCodes.flags([.command]), source: CGEventSource(stateID: .combinedSessionState))
+            _ = await KaiScreenState.waitForWindow(of: app, seconds: 2)
+        }
     }
+
+    /// Apps where ⌘N only opens an empty window.
+    static let opensWindowWithNew: Set<String> = [
+        "com.apple.Safari", "com.google.Chrome", "company.thebrowser.Browser", "com.brave.Browser", "com.microsoft.edgemac", "org.mozilla.firefox", "com.apple.finder",
+    ]
+
+    func stateNote() async -> String? { await MainActor.run { KaiScreenState.note() } }
 
     static func applicationURL(named name: String) -> URL? {
         var wanted = name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -212,7 +227,10 @@ final class KaiSystemInput: KaiAgentInput, @unchecked Sendable {
     }
 
     private func refuseOwnControls(_ point: CGPoint) async throws {
-        for frame in await protectedFrames() where frame.insetBy(dx: -8, dy: -8).contains(point) { throw KaiInputError.ownControls }
+        for frame in await protectedFrames() where frame.insetBy(dx: -8, dy: -8).contains(point) {
+            // Not fatal: the panel is invisible to the model, so tell it plainly and let it find another way to that spot.
+            throw KaiAgentActionProblem("Kai's own panel covers that spot, and it is not part of the app. Reach it another way: a keyboard shortcut or a different numbered item.")
+        }
     }
 
     private func post(mouse type: CGEventType, at point: CGPoint, source: CGEventSource?, button: CGMouseButton, clickState: Int64, move: Bool = false) throws {

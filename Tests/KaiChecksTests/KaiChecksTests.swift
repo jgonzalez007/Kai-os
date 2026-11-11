@@ -37,6 +37,9 @@ final class AgentFakes: @unchecked Sendable {
     var performError: Error?
     var elements: [KaiAgentElement] = []
     var openNote: String?
+    var state: String?
+    /// When set, each step gets the next one of these (the last one repeats), so a test can change the screen between steps.
+    var stateQueue: [String] = []
 
     init(script: [(String, [KaiOllamaToolCall])], frontmost: [String?] = ["com.apple.Safari"], approvals: [Bool] = [], interrupts: [Bool] = []) {
         self.script = script.map { (text: $0.0, calls: $0.1) }
@@ -78,6 +81,11 @@ struct FakeInput: KaiAgentInput {
     }
     func clearInterruption() async { fakes.lock.lock(); fakes.userInput = false; fakes.lock.unlock() }
     func runningNote(for appName: String) async -> String? { fakes.lock.lock(); defer { fakes.lock.unlock() }; return fakes.openNote }
+    func stateNote() async -> String? {
+        fakes.lock.lock(); defer { fakes.lock.unlock() }
+        if fakes.stateQueue.count > 1 { return fakes.stateQueue.removeFirst() }
+        return fakes.stateQueue.first ?? fakes.state
+    }
 }
 struct FakeBrain: KaiAgentBrain {
     let fakes: AgentFakes
@@ -3149,6 +3157,52 @@ final class KaiChecksTests: XCTestCase {
         check("instructions go into the screen task prompt as writing rules") {
             let c = KaiScreenTask.Context(writing: "WRITE PLAINLY")
             return KaiScreenTask.proofread.systemPrompt(context: c).contains("WRITE PLAINLY") && KaiScreenTask.summarize.systemPrompt(context: c).contains("WRITE PLAINLY")
+        }
+    }
+
+    func testSidekickKnowsWhereThingsStand() async {
+        await checkAsync("every step restates the task, where things stand, and what has been done") {
+            let f = AgentFakes(script: [("", [AgentFakes.call("computer_open_app", ["name": .string("Safari")])]), ("", [AgentFakes.finish()])])
+            f.state = "Front app: Safari, window “Airbnb”. Open but with no window on screen: Mail."
+            _ = await f.runner(mode: .auto).run(task: "find lake houses near Austin")
+            let second = f.seenMessages.last?.last { $0.role == "user" && $0.content.hasPrefix("Screenshot 2") }?.content ?? ""
+            return second.contains("find lake houses near Austin") && second.contains("Front app: Safari") && second.contains("Done so far: 1. Open Safari")
+        }
+        await checkAsync("the note for the app in front is given once, when that app comes to the front") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(10, 10)]), ("", [AgentFakes.click(20, 20)]), ("", [AgentFakes.finish()])], frontmost: ["com.apple.Safari"])
+            _ = await f.runner(mode: .auto).run(task: "t")
+            let users = (f.seenMessages.last ?? []).filter { $0.role == "user" && $0.content.hasPrefix("Screenshot") }
+            return users.first?.content.contains("How to work in Safari") == true && users.dropFirst().allSatisfy { !$0.content.contains("How to work in Safari") }
+        }
+        await checkAsync("when an action leaves the screen as it was, the model is told, and told more firmly the second time") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(10, 10)]), ("", [AgentFakes.click(30, 30)]), ("", [AgentFakes.click(50, 50)]), ("", [AgentFakes.finish()])])
+            f.state = "Front app: Safari."
+            _ = await f.runner(mode: .auto).run(task: "t")
+            let users = (f.seenMessages.last ?? []).filter { $0.role == "user" && $0.content.hasPrefix("Screenshot") }.map(\.content)
+            return users.count >= 4 && !users[0].contains("Nothing on the screen changed") && users[1].contains("Nothing on the screen changed after your last action")
+                && users[2].contains("last two actions") && users[3].contains("not changed for 3 actions")
+        }
+        await checkAsync("when the screen does change, the warning goes away") {
+            let f = AgentFakes(script: [("", [AgentFakes.click(10, 10)]), ("", [AgentFakes.click(30, 30)]), ("", [AgentFakes.finish()])])
+            f.stateQueue = ["Front app: Safari.", "Front app: Mail.", "Front app: Mail."]
+            _ = await f.runner(mode: .auto).run(task: "t")
+            let users = (f.seenMessages.last ?? []).filter { $0.role == "user" && $0.content.hasPrefix("Screenshot") }.map(\.content)
+            // Step 2 saw a new screen: no warning. Step 3 saw the same one again after an action: the first warning.
+            return users.count == 3 && !users[1].contains("Nothing on the screen changed") && users[2].contains("after your last action") && !users[2].contains("last two actions")
+        }
+        check("window items come before menu bar items, so a long menu bar never pushes the window's own items out") {
+            let menu = (0..<30).map { KaiAgentElement(label: "Menu \($0)", role: "menu", x: 10 + $0, y: 5) }
+            let window = (0..<30).map { KaiAgentElement(label: "Button \($0)", role: "button", x: 100, y: 100 + $0 * 10) }
+            let list = KaiAgentElements.numbered(menu + window, pixelWidth: 1000, pixelHeight: 800)
+            return list.prefix(30).allSatisfy { $0.role == "button" } && list.count == KaiAgentElements.maxCount
+        }
+        check("the notes for the common apps are there from the first run, and an unknown app has none") {
+            ["com.apple.Safari", "com.google.Chrome", "com.apple.mail", "com.tinyspeck.slackmacgap", "com.apple.finder"].allSatisfy { KaiAgentPlaybooks.tips(forBundle: $0) != nil }
+                && KaiAgentPlaybooks.tips(forBundle: "com.example.unknown") == nil && KaiAgentPlaybooks.tips(forBundle: nil) == nil
+                && KaiAgentPlaybooks.tips(forBundle: "com.tinyspeck.slackmacgap")?.contains("SENDS") == true
+        }
+        check("the prompt tells the model to trust the state line, wait on loading pages, and prefer tools, then shortcuts, then clicks") {
+            KaiAgentRunner.systemPrompt.contains("where things stand") && KaiAgentRunner.systemPrompt.contains("up to three times") && KaiAgentRunner.systemPrompt.contains("then a keyboard shortcut, then a click")
         }
     }
 

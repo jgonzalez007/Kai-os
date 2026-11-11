@@ -54,7 +54,9 @@ final class KaiAgentOverlay {
         DispatchQueue.main.async {
             let size = hosting.fittingSize
             let width = max(size.width, 460)
-            let frame = NSRect(x: screen.frame.midX - width / 2, y: screen.frame.maxY - size.height - 40, width: width, height: size.height)
+            // Bottom left, above the Dock: the top middle is where a browser's tabs and address bar are, and the agent can't click under the panel.
+            let visible = screen.visibleFrame
+            let frame = NSRect(x: visible.minX + 16, y: visible.minY + 16, width: width, height: size.height)
             panel.setFrame(frame, display: true)
         }
     }

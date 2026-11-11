@@ -20,7 +20,7 @@ public struct KaiAgentElement: Sendable, Equatable {
 }
 
 public enum KaiAgentElements {
-    public static let maxCount = 40
+    public static let maxCount = 48
     public static let maxLabel = 60
 
     /// A label as one safe line: control characters removed, spaces tidied, cut to length.
@@ -35,7 +35,8 @@ public enum KaiAgentElements {
     public static func numbered(_ elements: [KaiAgentElement], pixelWidth: Int, pixelHeight: Int) -> [KaiAgentElement] {
         let usable = elements
             .filter { $0.x >= 0 && $0.y >= 0 && $0.x < pixelWidth && $0.y < pixelHeight }
-            .sorted { ($0.y, $0.x) < ($1.y, $1.x) }
+            // The window's own items come first. Menu bar items go last, so they never push the window's items out of the list.
+            .sorted { (($0.role == "menu" ? 1 : 0), $0.y, $0.x) < (($1.role == "menu" ? 1 : 0), $1.y, $1.x) }
         var seen = Set<String>()
         var list: [KaiAgentElement] = []
         for element in usable {
@@ -129,11 +130,15 @@ public protocol KaiAgentInput: Sendable {
     func clearInterruption() async
     /// When the app is already running, a line saying so (and how many windows it has), for the model.
     func runningNote(for appName: String) async -> String?
+    /// Which app and window are in front, and which other apps are open, in one or two lines for the model. A screenshot
+    /// alone doesn't say that an app is open with no window, or that a window opened behind another.
+    func stateNote() async -> String?
 }
 
 public extension KaiAgentInput {
     func clearInterruption() async {}
     func runningNote(for appName: String) async -> String? { nil }
+    func stateNote() async -> String? { nil }
 }
 
 public protocol KaiAgentBrain: Sendable {
@@ -320,6 +325,8 @@ public struct KaiAgentRunner: Sendable {
     Coordinates are pixels in the latest screenshot. When numbered clickable items are given, click by element number: it is exact, and the same number is drawn on the screenshot. Use x and y only when the item you want has no number. \
     Use a direct tool whenever one fits, because it is much faster and exact: create_note, add_calendar_event, compose_mail_draft, open_url, read_calendar, search_files. \
     To start an app, use computer_open_app instead of looking for its icon. If the app was already open, it may hold the user's own work: in a browser start your task in a new tab with computer_new_tab (then computer_address_bar to type an address), in other apps use computer_new_window or make something new, and never close or reuse what was already there unless the user asked. To go to a website: if you know its address, use open_url; otherwise press computer_new_tab, then computer_address_bar, type the name or address, and press return. Never type until you can see a text field with the cursor in it, and never type the same text again if it did not appear. Prefer keyboard shortcuts when they are reliable, and click a text field before typing in it. \
+    Each step starts with where things stand: the app and window in front, and which other apps are open. Trust it. If the app you need is not in front, bring it forward with computer_open_app; if it is open with no window, make one (usually ⌘N). A blank page or a spinner is not a failure: use computer_wait and look again, up to three times, before you try anything else. \
+    Choose in this order: a direct tool if one covers the job, then a keyboard shortcut, then a click. If the answer is already in the task or the screenshot, say it with task_complete and do nothing else. \
     Finish one thing before starting the next: after each action, check on the new screenshot that it worked and that the page or app has finished loading before you move on. If something is still loading or opening, call computer_wait. \
     Give more than one action in a reply only for a single small step you are sure of, such as typing in a field you just clicked. Only the first action may be a click or a scroll, because the screen can change. \
     Never call task_complete in the same reply as an action: do the action, look at the new screenshot, and only then say it is done. \
@@ -348,6 +355,12 @@ public struct KaiAgentRunner: Sendable {
         var recentActions: [String] = []
         var performedCount = 0
         var verified = false
+        // What has been done so far, shown again at every step so a small model keeps hold of the task.
+        var doneLog: [String] = []
+        var lastTipsBundle: String?
+        var previousSignature: String?
+        var performedAtLastFrame = 0
+        var unchanged = 0
 
         for step in 1...limits.maxSteps {
             if stop.isStopped { return .stopped }
@@ -358,9 +371,24 @@ public struct KaiAgentRunner: Sendable {
             do { frame = try await screen.capture(maxLongEdge: limits.screenshotLongEdge) } catch { return .failed(error.localizedDescription) }
 
             history = Self.dropOldImages(history)
+            let state = await input.stateNote()
+            let frontBundle = await input.frontmostBundleIdentifier()
+            // The screen counts as unchanged when the front app and window and the numbered items are the same as before.
+            let signature = (state ?? "") + "|" + KaiAgentElements.numbered(frame.elements, pixelWidth: frame.pixelWidth, pixelHeight: frame.pixelHeight)
+                .map { "\($0.label)@\($0.x),\($0.y)" }.joined(separator: ";")
+            if performedCount > performedAtLastFrame, previousSignature == signature { unchanged += 1 } else if previousSignature != signature { unchanged = 0 }
+            previousSignature = signature
+            performedAtLastFrame = performedCount
+            var context = "\nThe task, as the user gave it: \(task)"
+            if !doneLog.isEmpty { context += "\nDone so far: " + doneLog.suffix(8).enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "; ") + "." }
+            if let state { context += "\n" + state }
+            if frontBundle != lastTipsBundle, let tips = KaiAgentPlaybooks.tips(forBundle: frontBundle) { context += "\n" + tips }
+            lastTipsBundle = frontBundle
+            let hint = KaiAgentPlaybooks.unchangedHint(count: unchanged)
+            if !hint.isEmpty { context += "\n" + hint }
             history.append(KaiOllamaMessage(
                 role: "user",
-                content: "Screenshot \(step), \(frame.pixelWidth) by \(frame.pixelHeight) pixels. What is the next action?"
+                content: "Screenshot \(step), \(frame.pixelWidth) by \(frame.pixelHeight) pixels. What is the next action?" + context
                     + KaiAgentElements.promptBlock(frame.elements, pixelWidth: frame.pixelWidth, pixelHeight: frame.pixelHeight),
                 images: [frame.jpeg]
             ))
@@ -492,6 +520,7 @@ public struct KaiAgentRunner: Sendable {
                         let result = try await tools.run(name: name, arguments: arguments)
                         problems = 0
                         observer.event(.performed(step: step, summary: action.summary, point: nil))
+                        doneLog.append(action.summary)
                         answer("Done. " + String(result.prefix(Self.maxToolResult)))
                         return .performed
                     } catch {
@@ -538,6 +567,9 @@ public struct KaiAgentRunner: Sendable {
                 }
                 problems = 0
                 observer.event(.performed(step: step, summary: action.summary, point: Self.point(of: placed)))
+                doneLog.append(action.summary)
+                // After opening an app, say where things stand: in front or not, with a window or not.
+                if case .openApp = action, let state = await input.stateNote() { openNote += " " + state }
                 answer("Done." + openNote)
                 return .performed
             }

@@ -19,8 +19,16 @@ struct KaiAgentDirectTools: KaiAgentToolRunner {
         switch name {
         case "open_url":
             guard let url = KaiWebURL.validate(a["url"] ?? "") else { throw KaiAgentActionProblem("That isn't a public web address.") }
-            guard await MainActor.run(body: { NSWorkspace.shared.open(url) }) else { throw KaiAgentActionProblem("macOS couldn't open the link.") }
-            return "Opened \(url.host ?? "the link") in the browser."
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            let browser: NSRunningApplication
+            do { browser = try await NSWorkspace.shared.open(url, configuration: configuration) } catch { throw KaiAgentActionProblem("macOS couldn't open the link.") }
+            // The page loads in the default browser, which may open behind the app in use. Bring it forward and say what happened.
+            let name = browser.localizedName ?? "the browser"
+            let inFront = await KaiScreenState.waitUntilFront(browser)
+            _ = await KaiScreenState.waitForWindow(of: browser, seconds: 2)
+            let state = await MainActor.run { KaiScreenState.note() } ?? ""
+            return "Opened \(url.host ?? "the link") in \(name)\(inFront ? ", which is now in front" : ", but it did not come to the front")." + " " + state + " The page may still be loading: look at the next screenshot, and use computer_wait if it is blank."
         case "create_note":
             return try await createNote(title: a["title"] ?? "", body: a["body"] ?? "")
         case "add_calendar_event":
