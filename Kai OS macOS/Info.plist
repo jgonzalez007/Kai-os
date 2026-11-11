@@ -46,6 +46,10 @@
     <string>Kai OS needs access to your calendar for proactive suggestions.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>Kai OS accesses your calendar events to understand your schedule.</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Kai OS lists the reminders that are due today so Today shows everything that needs you.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Kai OS lists the reminders that are due today or overdue, on this Mac only.</string>
     <key>NSDesktopFolderUsageDescription</key>
     <string>Kai OS accesses your desktop for file-based knowledge.</string>
     <key>NSDocumentsFolderUsageDescription</key>

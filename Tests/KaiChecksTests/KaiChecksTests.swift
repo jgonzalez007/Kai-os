@@ -3152,6 +3152,42 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testTodayLists() {
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "UTC")!
+        let noon = cal.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 12))!
+        func at(_ hour: Int, plusDays days: Int = 0) -> Date { cal.date(byAdding: .day, value: days, to: cal.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: hour))!)! }
+        func event(_ title: String, _ start: Date, _ end: Date, allDay: Bool = false, cancelled: Bool = false) -> KaiCalendarItem {
+            KaiCalendarItem(id: title, title: title, start: start, end: end, isAllDay: allDay, location: "", calendarName: "Work", isCancelled: cancelled)
+        }
+        check("the day's events are split into all day, now, later, finished and tomorrow, and cancelled ones are left out") {
+            let events = [event("Stand-up", at(9), at(10)), event("Lunch", at(12), at(13)), event("Review", at(15), at(16)), event("Holiday", at(0), at(23), allDay: true),
+                          event("Planning", at(10, plusDays: 1), at(11, plusDays: 1)), event("Cancelled", at(14), at(15), cancelled: true)]
+            let s = KaiToday.schedule(events: events, now: noon, calendar: cal)
+            return s.finished.map(\.title) == ["Stand-up"] && s.happeningNow.map(\.title) == ["Lunch"] && s.upcoming.map(\.title) == ["Review"]
+                && s.allDay.map(\.title) == ["Holiday"] && s.tomorrow.map(\.title) == ["Planning"] && !KaiToday.schedule(events: [], now: noon, calendar: cal).isEmpty == false
+        }
+        check("reminders: overdue first, then by time, then priority") {
+            let items = [
+                KaiTodayReminder(id: "a", title: "Later", due: at(17), list: "", priority: 0, isOverdue: false),
+                KaiTodayReminder(id: "b", title: "Overdue", due: at(9, plusDays: -2), list: "", priority: 0, isOverdue: true),
+                KaiTodayReminder(id: "c", title: "Morning", due: at(9), list: "", priority: 0, isOverdue: false),
+                KaiTodayReminder(id: "d", title: "Same time urgent", due: at(17), list: "", priority: 1, isOverdue: false),
+                KaiTodayReminder(id: "e", title: "No time", due: nil, list: "", priority: 0, isOverdue: false),
+            ]
+            return KaiToday.sorted(reminders: items).map(\.id) == ["b", "c", "d", "a", "e"]
+        }
+        check("mail: flagged first, then newest") {
+            func mail(_ id: String, _ date: Date, flagged: Bool) -> KaiBriefingMail {
+                KaiBriefingMail(reference: KaiMailMessageReference(id: id, mailbox: "INBOX", account: "A"), sender: "x", subject: id, date: date, isFlagged: flagged)
+            }
+            let ranked = KaiToday.ranked(mail: [mail("old", at(8), flagged: false), mail("new", at(11), flagged: false), mail("flag", at(7), flagged: true)])
+            return ranked.map(\.subject) == ["flag", "new", "old"]
+        }
+        check("an event's time reads as a range, or All day") {
+            KaiToday.timeRange(event("A", at(9), at(10), allDay: true)) == "All day" && KaiToday.timeRange(event("B", at(9), at(10))).contains("–")
+        }
+    }
+
     func testAutoModeHardening() {
         let auto = KaiAgentPolicy(mode: .auto, ownBundleIdentifier: "ai.kai")
         let mail = "com.apple.mail"
