@@ -360,6 +360,8 @@ final class KaiDeskController: ObservableObject {
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             guard flags == [.control, .option] else { return }
             let keyCode = event.keyCode
+            // Keys Sidekick (or anything else in Kai) pressed are never an answer from the person.
+            if event.cgEvent?.getIntegerValueField(.eventSourceUserData) == KaiSystemInput.tag { return }
             MainActor.assumeIsolated {
                 guard let self, let first = self.approvals.first else { return }
                 if keyCode == 16 { self.decide(first, .allow) }

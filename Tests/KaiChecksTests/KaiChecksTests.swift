@@ -3152,6 +3152,56 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testAutoModeHardening() {
+        let auto = KaiAgentPolicy(mode: .auto, ownBundleIdentifier: "ai.kai")
+        let mail = "com.apple.mail"
+        check("on its own, a button that sends, deletes, pays or allows still asks") {
+            ["Send", "Delete", "Buy now", "Place order", "Allow", "Empty Trash", "Submit"].allSatisfy {
+                if case .needsApproval = auto.decide(.click(x: 5, y: 5, double: false, right: false), frontmostBundleIdentifier: mail, targetLabel: $0) { return true }
+                return false
+            }
+        }
+        check("an ordinary button or no label is clicked without asking") {
+            ["Search", "Inbox", "Sender list", "", "Open"].allSatisfy {
+                auto.decide(.click(x: 5, y: 5, double: false, right: false), frontmostBundleIdentifier: mail, targetLabel: $0) == .allow
+            } && auto.decide(.click(x: 5, y: 5, double: false, right: false), frontmostBundleIdentifier: mail) == .allow
+        }
+        check("shortcuts that send mail or approve another tool ask") {
+            ["cmd+shift+d", "ctrl+option+y", "ctrl+option+n"].allSatisfy {
+                guard let combo = KaiKeyCombo.parse($0) else { return false }
+                if case .needsApproval = auto.decide(.key(combo), frontmostBundleIdentifier: mail) { return true }
+                return false
+            }
+        }
+        check("an address with a query, a login or a long path asks; a plain one doesn't") {
+            func decision(_ url: String) -> KaiAgentDecision { auto.decide(.tool(name: "open_url", arguments: ["url": url]), frontmostBundleIdentifier: nil) }
+            let plain = decision("https://www.apple.com/mac") == .allow
+            let query = decision("https://evil.example/?q=secret"), login = decision("https://me:pw@evil.example/"), fragment = decision("https://evil.example/#secret")
+            func asks(_ d: KaiAgentDecision) -> Bool { if case .needsApproval = d { return true } else { return false } }
+            return plain && asks(query) && asks(login) && asks(fragment) && asks(decision("https://evil.example/" + String(repeating: "a", count: 90)))
+        }
+        check("script, shortcut and code apps can't be opened or operated") {
+            KaiAgentPolicy.isBlockedAppName("Shortcuts") && KaiAgentPolicy.isBlockedAppName("Xcode") && KaiAgentPolicy.isBlockedAppName("Visual Studio Code")
+                && KaiAgentPolicy.blockedBundleIdentifiers.contains("com.apple.shortcuts") && !KaiAgentPolicy.isBlockedAppName("Safari")
+        }
+    }
+
+    func testAutoModeRunnerAsksBeforeSend() async {
+        await checkAsync("on its own, clicking a numbered Send button waits for approval, and a plain one does not") {
+            let send = AgentFakes(script: [("", [AgentFakes.call("computer_click", ["element": .number(1)])]), ("", [AgentFakes.finish()])], approvals: [false])
+            send.elements = [KaiAgentElement(label: "Send", role: "AXButton", x: 100, y: 100)]
+            _ = await send.runner(mode: .auto).run(task: "t")
+            let plain = AgentFakes(script: [("", [AgentFakes.call("computer_click", ["element": .number(1)])]), ("", [AgentFakes.finish()])])
+            plain.elements = [KaiAgentElement(label: "Inbox", role: "AXButton", x: 100, y: 100)]
+            _ = await plain.runner(mode: .auto).run(task: "t")
+            let nearPoint = AgentFakes(script: [("", [AgentFakes.click(110, 95)]), ("", [AgentFakes.finish()])], approvals: [false])
+            nearPoint.elements = [KaiAgentElement(label: "Delete", role: "AXButton", x: 100, y: 100)]
+            _ = await nearPoint.runner(mode: .auto).run(task: "t")
+            return send.requests.count == 1 && send.performed.isEmpty && plain.requests.isEmpty && !plain.performed.isEmpty
+                && nearPoint.requests.count == 1 && nearPoint.performed.isEmpty
+        }
+    }
+
     func testClaudeCodeBrain() async throws {
         check("a stored choice becomes a known model name and nothing else") {
             KaiClaudeCode.isClaudeChoice("claude-code:opus") && !KaiClaudeCode.isClaudeChoice("gemma4:e4b")

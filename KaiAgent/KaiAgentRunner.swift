@@ -398,6 +398,8 @@ public struct KaiAgentRunner: Sendable {
                     action = parsed
                 }
 
+                // What is being clicked, by its label, so a button that sends or deletes can ask even in automatic mode.
+                var targetLabel: String?
                 // A numbered item becomes the point it was drawn at in the latest screenshot.
                 if case .clickElement(let number, let double, let right) = action {
                     let list = KaiAgentElements.numbered(frame.elements, pixelWidth: frame.pixelWidth, pixelHeight: frame.pixelHeight)
@@ -407,7 +409,12 @@ public struct KaiAgentRunner: Sendable {
                         if problems >= limits.maxConsecutiveProblems { return .done(.failed("The model kept choosing item numbers that don't exist.")) }
                         return .stopBatch
                     }
+                    targetLabel = list[number - 1].label
                     action = .click(x: list[number - 1].x, y: list[number - 1].y, double: double, right: right)
+                } else if case .click(let x, let y, _, _) = action {
+                    // A point instead of a number: any listed control within a thumb's width of it counts.
+                    targetLabel = frame.elements.filter { abs($0.x - x) <= 40 && abs($0.y - y) <= 40 }
+                        .compactMap { KaiAgentPolicy.riskyClickReason(label: $0.label) == nil ? nil : $0.label }.first
                 }
 
                 if case .finish(let summary) = action {
@@ -440,7 +447,7 @@ public struct KaiAgentRunner: Sendable {
                 }
 
                 let app = await input.frontmostBundleIdentifier()
-                switch policy.decide(action, frontmostBundleIdentifier: app) {
+                switch policy.decide(action, frontmostBundleIdentifier: app, targetLabel: targetLabel) {
                 case .deny(let reason):
                     problems += 1
                     observer.event(.blocked(step: step, summary: action.summary, reason: reason))
