@@ -3152,6 +3152,78 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testClaudeCodeBrain() async throws {
+        check("a stored choice becomes a known model name and nothing else") {
+            KaiClaudeCode.isClaudeChoice("claude-code:opus") && !KaiClaudeCode.isClaudeChoice("gemma4:e4b")
+                && KaiClaudeCode.alias(from: "claude-code:opus") == "opus" && KaiClaudeCode.alias(from: "claude-code:--dangerous") == "sonnet"
+        }
+        check("the reply is read from JSON, with or without a code fence") {
+            let plain = KaiClaudeCodePrompt.parseReply(#"{"thought":"Open Safari","calls":[{"name":"computer_open_app","arguments":{"name":"Safari"}}]}"#)
+            let fenced = KaiClaudeCodePrompt.parseReply("```json\n{\"thought\":\"Click\",\"calls\":[{\"name\":\"computer_click\",\"arguments\":{\"element\":3}}]}\n```")
+            return plain.text == "Open Safari" && plain.calls.first?.name == "computer_open_app" && plain.calls.first?.arguments["name"]?.stringValue == "Safari"
+                && fenced.calls.first?.name == "computer_click" && fenced.calls.first?.arguments["element"]?.intValue == 3
+        }
+        check("an answer that isn't JSON gives text and no actions") {
+            let reply = KaiClaudeCodePrompt.parseReply("I can see the desktop.")
+            return reply.calls.isEmpty && reply.text == "I can see the desktop."
+        }
+        check("the request carries the screenshot as an image and the earlier steps as text") {
+            let messages = [
+                KaiOllamaMessage(role: "system", content: "RULES"),
+                KaiOllamaMessage(role: "user", content: "Task: open Safari"),
+                KaiOllamaMessage(role: "assistant", content: "Opening", toolCalls: [KaiOllamaToolCall(name: "computer_open_app", arguments: ["name": .string("Safari")])]),
+                KaiOllamaMessage(role: "tool", content: "Opened.", toolName: "computer_open_app"),
+                KaiOllamaMessage(role: "user", content: "Screen now", images: [Data([1, 2, 3])]),
+            ]
+            guard let data = try? KaiClaudeCodePrompt.userMessage(from: messages),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let message = object["message"] as? [String: Any], let blocks = message["content"] as? [[String: Any]] else { return false }
+            let text = blocks.compactMap { $0["text"] as? String }.joined()
+            let image = blocks.first { $0["type"] as? String == "image" }
+            let source = image?["source"] as? [String: Any]
+            return !text.contains("RULES") && text.contains("Task: open Safari") && text.contains("computer_open_app") && source?["data"] as? String == "AQID"
+        }
+        check("the tool list names every tool and says the reply is JSON") {
+            let section = KaiClaudeCodePrompt.toolSection(KaiAgentTools.definitions)
+            return KaiAgentTools.names.allSatisfy { section.contains($0) } && section.contains("ONLY one JSON object")
+        }
+        check("Claude Code's result line is read, and an error line is reported") {
+            let good = Data(("{\"type\":\"system\"}\n{\"type\":\"result\",\"is_error\":false,\"result\":\"{}\"}\n").utf8)
+            let bad = Data("{\"type\":\"result\",\"is_error\":true,\"result\":\"Not logged in. Run /login\"}\n".utf8)
+            let signedOut: Bool = { do { _ = try KaiClaudeCodePrompt.result(fromStream: bad); return false } catch { return (error as? KaiClaudeCodeError) == .notSignedIn } }()
+            return (try? KaiClaudeCodePrompt.result(fromStream: good)) == "{}" && signedOut
+        }
+        check("password apps and System Settings are never sent, other apps are") {
+            KaiClaudeCode.sensitiveAppName(bundleIdentifier: "com.1password.1password") == "1Password"
+                && KaiClaudeCode.sensitiveAppName(bundleIdentifier: "com.apple.Safari") == nil && KaiClaudeCode.sensitiveAppName(bundleIdentifier: nil) == nil
+        }
+        await checkAsync("a screen in front of a password app is refused before anything is run") {
+            let brain = KaiClaudeCodeBrain(executable: "/usr/bin/false", alias: "sonnet") { "1Password" }
+            do { _ = try await brain.next(messages: [KaiOllamaMessage(role: "user", content: "x")]); return false } catch { return (error as? KaiClaudeCodeError) == .sensitiveScreen("1Password") }
+        }
+        // Only when asked for (KAI_LIVE_CLAUDE=1): one real step with the person's own Claude Code sign-in.
+        if ProcessInfo.processInfo.environment["KAI_LIVE_CLAUDE"] == "1" {
+            await checkAsync("live: Claude picks an action from a task") {
+                guard let path = await KaiClaudeCode.locate() else { return false }
+                let brain = KaiClaudeCodeBrain(executable: path, alias: "sonnet")
+                let reply = try await brain.next(messages: [KaiOllamaMessage(role: "system", content: "You control a Mac for the user."),
+                                                            KaiOllamaMessage(role: "user", content: "Task: open the Calendar app. Nothing has been done yet.")])
+                print("LIVE:", reply)
+                return reply.calls.contains { $0.name == "computer_open_app" }
+            }
+        }
+        await checkAsync("the Claude desktop app is not mistaken for Claude Code") {
+            let home = FileManager.default.temporaryDirectory.appendingPathComponent("kai-cc-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: home.appendingPathComponent("bin"), withIntermediateDirectories: true)
+            let fake = home.appendingPathComponent(".local/bin/claude")
+            try? FileManager.default.createDirectory(at: fake.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? "#!/bin/sh\necho 5.1231.0\n".write(to: fake, atomically: true, encoding: .utf8)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fake.path)
+            let found = await KaiClaudeCode.locate(custom: "/nonexistent", home: home)
+            return found == nil
+        }
+    }
+
     func testDailyUse() async throws {
         // Diff
         check("a rewrite is broken into the changes it made, and taking all of them gives the suggestion back") {

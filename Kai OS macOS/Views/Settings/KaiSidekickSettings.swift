@@ -18,6 +18,9 @@ struct KaiSidekickSettingsView: View {
     @AppStorage(KaiInstructions.defaultsKey) private var instructions = ""
     @AppStorage(KaiAgentEffort.defaultsKey) private var effort = KaiAgentEffort.default.rawValue
     @AppStorage(KaiAgentController.modelKey) private var sidekickModel = ""
+    @AppStorage(KaiClaudeCode.consentKey) private var claudeConsent = false
+    @State private var claudePath: String?
+    @State private var claudeChecked = false
     @EnvironmentObject var appState: AppState
 
     var body: some View {
@@ -94,16 +97,19 @@ struct KaiSidekickSettingsView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Model for computer tasks").fontWeight(.medium)
-                            Text("A model that reads images and runs on this Mac. A bigger one clicks more accurately and is slower. “Same as chat” uses your chat model if it can read images.")
+                            Text("A model that reads images and runs on this Mac, or Claude in the cloud. A bigger model clicks more accurately and is slower. “Same as chat” uses your chat model if it can read images.")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer()
                         Picker("", selection: $sidekickModel) {
                             Text("Same as chat").tag("")
                             ForEach(appState.modelInfo.filter(\.supportsVision), id: \.name) { Text($0.name).tag($0.name) }
+                            Divider()
+                            ForEach(KaiClaudeCode.models, id: \.alias) { Text($0.title + " (cloud)").tag(KaiClaudeCode.modelPrefix + $0.alias) }
                         }
-                        .labelsHidden().frame(width: 200)
+                        .labelsHidden().frame(width: 220)
                     }
+                    if KaiClaudeCode.isClaudeChoice(sidekickModel) { claudeCard }
                 }
                 .padding(20)
                 .kaiGlassSurface(radius: 16)
@@ -113,6 +119,38 @@ struct KaiSidekickSettingsView: View {
         }
     }
 
+    /// What using Claude means, said plainly, and the one switch that allows it.
+    private var claudeCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Claude uses your Claude subscription through the Claude Code tool on this Mac. Kai never sees your sign-in.")
+                .font(.callout)
+            Label("At every step, a screenshot of your screen is sent to Anthropic. Anything open can be in it. Kai won't send the screen while a password app or System Settings is in front, but that is the only check.", systemImage: "exclamationmark.triangle.fill")
+                .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            Toggle("I understand, and I want Sidekick to use Claude", isOn: $claudeConsent).toggleStyle(.switch).tint(.green)
+            HStack(spacing: 8) {
+                if !claudeChecked {
+                    ProgressView().controlSize(.small)
+                    Text("Looking for Claude Code…").font(.caption).foregroundStyle(.secondary)
+                } else if let claudePath {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Text("Found: \(claudePath)").font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                } else {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+                    Text(KaiClaudeCodeError.notFound.localizedDescription).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Check again") { claudeChecked = false; Task { await findClaude() } }.controlSize(.small)
+            }
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.05)))
+        .task { await findClaude() }
+    }
+
+    private func findClaude() async {
+        claudePath = await KaiClaudeCode.locate(custom: UserDefaults.standard.string(forKey: KaiClaudeCode.pathKey))
+        claudeChecked = true
+    }
 
     /// A row in a grouped card: a title and a description on the left, the control on the right.
     private func settingRow<Control: View>(_ title: String, _ detail: String, @ViewBuilder _ control: () -> Control) -> some View {

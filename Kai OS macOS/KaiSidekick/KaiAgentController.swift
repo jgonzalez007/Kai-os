@@ -69,16 +69,41 @@ final class KaiAgentController: ObservableObject {
         runEvents = []
         runTask = trimmed
         Task {
+            let picked = UserDefaults.standard.string(forKey: Self.modelKey) ?? ""
+            if KaiClaudeCode.isClaudeChoice(picked) {
+                await startWithClaude(task: trimmed, choice: picked, appState: appState)
+                return
+            }
             guard let model = await chooseModel(appState: appState) else {
                 isRunning = false
                 message = "Sidekick needs a local Ollama model that can read images. Start Ollama and run: ollama pull gemma4:e4b"
                 return
             }
-            begin(task: trimmed, model: model)
+            begin(task: trimmed, model: model, brain: KaiOllamaAgentBrain(client: KaiOllamaClient(), model: model))
         }
     }
 
-    private func begin(task: String, model: String) {
+    /// Runs the task on Claude through the person's Claude Code sign-in. Only after they agreed that screenshots leave this Mac.
+    private func startWithClaude(task: String, choice: String, appState: AppState) async {
+        guard UserDefaults.standard.bool(forKey: KaiClaudeCode.consentKey) else {
+            isRunning = false
+            message = "Sidekick on Claude sends a screenshot to Anthropic at every step. Turn on “I understand” under Sidekick → Model for computer tasks, or pick a local model."
+            return
+        }
+        guard let path = await KaiClaudeCode.locate(custom: UserDefaults.standard.string(forKey: KaiClaudeCode.pathKey)) else {
+            isRunning = false
+            message = KaiClaudeCodeError.notFound.localizedDescription
+            return
+        }
+        // Lessons are still written up by a local model, if there is one. Claude never sees that log.
+        let local = await chooseModel(appState: appState) ?? ""
+        let brain = KaiClaudeCodeBrain(executable: path, alias: KaiClaudeCode.alias(from: choice)) {
+            await MainActor.run { KaiClaudeCode.sensitiveAppName(bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) }
+        }
+        begin(task: task, model: local, brain: brain)
+    }
+
+    private func begin(task: String, model: String, brain: KaiAgentBrain) {
         stopSwitch = KaiAgentStopSwitch()
         let overlay = KaiAgentOverlay(controller: self)
         self.overlay = overlay
@@ -90,7 +115,7 @@ final class KaiAgentController: ObservableObject {
         let runner = KaiAgentRunner(
             screen: KaiSystemScreen(),
             input: input,
-            brain: KaiOllamaAgentBrain(client: KaiOllamaClient(), model: model),
+            brain: brain,
             approver: KaiControllerApprover(controller: self),
             observer: KaiCombinedObserver(observers: [KaiControllerObserver(controller: self), KaiAgentAuditLog()]),
             policy: KaiAgentPolicy(mode: mode, ownBundleIdentifier: Bundle.main.bundleIdentifier),
@@ -102,7 +127,7 @@ final class KaiAgentController: ObservableObject {
         )
         runModel = model
         // Load the model into memory while Kai steps aside, so the first step doesn't wait for it.
-        Task.detached { await KaiOllamaClient().warm(model: model) }
+        if !model.isEmpty, brain is KaiOllamaAgentBrain { Task.detached { await KaiOllamaClient().warm(model: model) } }
         Task {
             // Step aside so the app you were using is in front: the agent never acts while Kai is.
             NSApp.hide(nil)
