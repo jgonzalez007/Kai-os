@@ -105,7 +105,7 @@ final class KaiScreenTaskController: ObservableObject {
         focused = nil
         running = Task {
             // A menu may have just closed: give the app you were in a moment to take the keyboard back.
-            if prompt != nil { try? await Task.sleep(for: .milliseconds(180)) }
+            if prompt != nil { try? await Task.sleep(for: .milliseconds(250)) }
             // Read what the person is writing first, while their app still has the keyboard: the field's text,
             // or the text they selected. Kai's card takes the keyboard when it opens.
             if task == .proofread, let found = await KaiFocusedText.capture() {

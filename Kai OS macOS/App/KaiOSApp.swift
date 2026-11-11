@@ -823,6 +823,7 @@ final class KaiAppDelegate: NSObject, NSApplicationDelegate {
             Task { @MainActor in await KaiNightShiftRunner.runUnattended(appState: AppState.shared) }
             return
         }
+        KaiFocusedText.startTracking()
         KaiNotchWindowController.shared.start(appState: AppState.shared)
         KaiAppIcon.apply()
         KaiStatusModel.shared.start(appState: AppState.shared)

@@ -45,6 +45,34 @@ public final class KaiFocusedText {
         self.element = element
     }
 
+    // MARK: Which app the person was writing in
+
+    private static var lastExternal: NSRunningApplication?
+    private static var observer: NSObjectProtocol?
+
+    /// Remembers the last app in front that isn't Kai. Opening Kai's notch or a menu can make Kai the front app for a
+    /// moment, and the text to read or replace is in the app the person was in before that.
+    public static func startTracking() {
+        guard observer == nil else { return }
+        remember(NSWorkspace.shared.frontmostApplication)
+        observer = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            MainActor.assumeIsolated { remember(app) }
+        }
+    }
+
+    private static func remember(_ app: NSRunningApplication?) {
+        guard let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier, app.activationPolicy == .regular else { return }
+        lastExternal = app
+    }
+
+    /// The app in front, or if that is Kai, the one the person was in just before.
+    private static func targetApp() -> NSRunningApplication? {
+        if let front = NSWorkspace.shared.frontmostApplication, front.processIdentifier != ProcessInfo.processInfo.processIdentifier { return front }
+        if let last = lastExternal, !last.isTerminated { return last }
+        return nil
+    }
+
     /// Reads the focused text field of the frontmost app (never Kai's own windows). Nil when there is
     /// no Accessibility permission, no text field in focus, or nothing written in it.
     public static func capture(maxLength: Int = 12_000) async -> KaiFocusedText? {
@@ -55,8 +83,13 @@ public final class KaiFocusedText {
     /// Many apps (Chrome, Slack, Teams, Notion) don't give out the text of a field through Accessibility. If the
     /// person selected text there, it is read the way they would: copy. The clipboard is put back right after.
     private static func captureBySelection(maxLength: Int) async -> KaiFocusedText? {
-        guard AXIsProcessTrusted(), let app = NSWorkspace.shared.frontmostApplication,
-              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
+        guard AXIsProcessTrusted(), let app = targetApp() else { return nil }
+        // If Kai got the keyboard (a menu just closed), give it back so the copy goes to the right app.
+        if NSWorkspace.shared.frontmostApplication?.processIdentifier != app.processIdentifier {
+            app.activate()
+            try? await Task.sleep(for: .milliseconds(300))
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier else { return nil }
+        }
         let board = NSPasteboard.general
         let saved = KaiPasteboardSnapshot(board)
         let before = board.changeCount
@@ -76,8 +109,7 @@ public final class KaiFocusedText {
     }
 
     private static func captureFromField(maxLength: Int) -> KaiFocusedText? {
-        guard AXIsProcessTrusted(), let app = NSWorkspace.shared.frontmostApplication,
-              app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
+        guard AXIsProcessTrusted(), let app = targetApp() else { return nil }
         let appElement = AXUIElementCreateApplication(app.processIdentifier)
         AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         var focused: CFTypeRef?
