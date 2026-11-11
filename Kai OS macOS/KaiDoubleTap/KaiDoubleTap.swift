@@ -110,6 +110,13 @@ final class KaiDoubleTapController: ObservableObject {
     @Published private(set) var destination = KaiReplyDestination.awaitingCursor
     /// Why this draft was held back instead of being written automatically.
     @Published private(set) var factWarning: String?
+    /// What was used besides the message itself, in words for the person ("your calendar, 3 earlier messages").
+    @Published private(set) var backgroundSummary: String?
+    /// The draft still has a decision in brackets, so it waits for the person.
+    @Published private(set) var needsDecision = false
+    /// What the person chose to say with a button.
+    @Published private(set) var intent: KaiReplyIntent?
+    private var background: KaiReplyBackground?
     #if DEBUG
     /// Used by the self-test in place of the model, to force a specific draft.
     var scriptedDrafts: [String] = []
@@ -166,6 +173,11 @@ final class KaiDoubleTapController: ObservableObject {
                 let context = try await provider.currentContext()
                 guard !Task.isCancelled else { return }
                 self.context = context
+                // Read the person's own notes, calendar and earlier messages, so the reply can be specific.
+                let found = await KaiReplyBackgroundBuilder.build(for: context, appState: appState)
+                guard !Task.isCancelled else { return }
+                background = found
+                backgroundSummary = found.isEmpty ? nil : found.summary
                 if focus == .multiline {
                     destination = .cursor
                 } else if case .mail = context {
@@ -191,7 +203,22 @@ final class KaiDoubleTapController: ObservableObject {
         task = Task { await generate(from: context, previousDraft: previous) }
     }
 
+    /// One of the buttons: the person decides what the reply says, and Kai writes it fresh.
+    func choose(_ chosen: KaiReplyIntent) {
+        guard let context, phase != .reading else { return }
+        intent = chosen
+        instruction = ""
+        writesAutomatically = false
+        task?.cancel()
+        phase = .drafting
+        task = Task { await generate(from: context, previousDraft: nil) }
+    }
+
     func cancel() {
+        background = nil
+        backgroundSummary = nil
+        needsDecision = false
+        intent = nil
         task?.cancel()
         task = nil
         closeTask?.cancel()
@@ -214,13 +241,13 @@ final class KaiDoubleTapController: ObservableObject {
         let messages: [KaiOllamaMessage]
         switch context {
         case .mail(_, let source):
-            messages = KaiReplyPrompt.messages(source: source, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle))
+            messages = KaiReplyPrompt.messages(source: source, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle), background: background, intent: intent)
         case .screen(let jpeg):
-            messages = KaiReplyPrompt.messages(screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle))
+            messages = KaiReplyPrompt.messages(screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle), intent: intent)
         case .chat(let app, let text):
-            messages = KaiReplyPrompt.chatMessages(app: app, conversation: text, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle))
+            messages = KaiReplyPrompt.chatMessages(app: app, conversation: text, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle), background: background, intent: intent)
         case .chatScreen(let app, let jpeg):
-            messages = KaiReplyPrompt.chatMessages(app: app, screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle))
+            messages = KaiReplyPrompt.chatMessages(app: app, screenshot: jpeg, instruction: instruction, previousDraft: previousDraft, style: KaiAnswerStyle.drafting(base: appState.writingStyle.activeStyle), intent: intent)
         }
         do {
             if !appState.chatModels.contains(appState.selectedModel) { try await appState.refreshChatModels() }
@@ -240,6 +267,9 @@ final class KaiDoubleTapController: ObservableObject {
             if await !passesFactCheck(context: context, messages: messages) { writesAutomatically = false }
             if Task.isCancelled { return }
             draft = KaiReplyPrompt.removingPlaceholderSignature(draft)
+            // A decision left in brackets means the draft can't be written as it is: it waits for the person.
+            needsDecision = KaiReplyBackground.hasPlaceholder(draft)
+            if needsDecision { writesAutomatically = false }
             if draft.isEmpty {
                 phase = .failed("The model returned an empty draft. Try again.")
             } else {
@@ -278,8 +308,8 @@ final class KaiDoubleTapController: ObservableObject {
     private func passesFactCheck(context: KaiReplyContext, messages: [KaiOllamaMessage]) async -> Bool {
         let sources: [String]
         switch context {
-        case .mail(_, let source): sources = [source.subject, source.body, instruction]
-        case .chat(_, let text): sources = [text, instruction]
+        case .mail(_, let source): sources = [source.subject, source.body, instruction, intent?.title ?? ""] + (background?.factSources ?? [])
+        case .chat(_, let text): sources = [text, instruction, intent?.title ?? ""] + (background?.factSources ?? [])
         default: return true
         }
         let added = KaiReplyFactCheck.addedTimeWords(draft: draft, sources: sources)

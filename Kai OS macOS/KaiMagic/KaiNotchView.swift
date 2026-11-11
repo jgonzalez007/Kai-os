@@ -6,6 +6,7 @@
 //  conversation with the main window.
 //
 
+import KaiActions
 import KaiNotchCore
 import SwiftUI
 import KaiShared
@@ -213,7 +214,7 @@ private struct KaiNotchReplyContent: View {
             if let warning = doubleTap.factWarning {
                 Label(warning, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
             }
-            if doubleTap.context != nil { instructionRow }
+            if doubleTap.context != nil { intentRow; instructionRow }
             actionRow
         }
         .padding(.top, topInset + 8)
@@ -252,6 +253,32 @@ private struct KaiNotchReplyContent: View {
                 if doubleTap.draft.isEmpty && doubleTap.phase != .ready {
                     ProgressView().controlSize(.small).padding(14)
                 }
+            }
+        }
+    }
+
+    /// What the reply should do, in one tap. Kai can't know whether the answer is yes or no.
+    private var intentRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if doubleTap.needsDecision {
+                Label("This reply needs your decision. Pick what to say, or type it below.", systemImage: "hand.point.down.fill")
+                    .font(.caption).foregroundStyle(.yellow)
+            }
+            HStack(spacing: 6) {
+                ForEach(KaiReplyIntent.allCases) { choice in
+                    Button { doubleTap.choose(choice) } label: {
+                        Text(choice.title).font(.system(size: 11, weight: .medium))
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(Capsule().fill(doubleTap.intent == choice ? Color.accentColor.opacity(0.55) : Color.white.opacity(0.09)))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(doubleTap.phase == .drafting || doubleTap.phase == .reading)
+                }
+                Spacer()
+            }
+            if let used = doubleTap.backgroundSummary {
+                Text("Written using \(used), read on this Mac.").font(.caption2).foregroundStyle(.secondary)
             }
         }
     }
