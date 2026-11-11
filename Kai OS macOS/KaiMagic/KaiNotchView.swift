@@ -595,7 +595,7 @@ private struct KaiNotchBarContent: View {
                 } else if appState.isProcessing {
                     working
                 } else {
-                    VStack(spacing: 8) {
+                    VStack(spacing: 12) {
                         input
                         chips
                     }
@@ -638,40 +638,63 @@ private struct KaiNotchBarContent: View {
         .padding(.horizontal, 20)
     }
 
-    /// Quick actions on what is showing on the screen, then the shortcuts to the other tabs.
+    /// Quick actions on what is showing on the screen, then the shortcuts to the other tabs. If the bar is too narrow for
+    /// all of them, the shortcuts fold into one menu so nothing is squeezed.
     private var chips: some View {
-        HStack(spacing: 8) {
-            chip("Summarize", "Summarize what is showing on your screen") { KaiScreenTaskController.shared.run(.summarize, appState: appState) }
-            chip("Proofread", "Proofread the main text on your screen") { KaiScreenTaskController.shared.run(.proofread, appState: appState) }
-            Menu {
-                ForEach(KaiQuickPrompts.stored()) { prompt in
-                    Button(prompt.name) { KaiScreenTaskController.shared.runPrompt(prompt, appState: appState) }
-                }
-                Divider()
-                Button("Edit prompts…") { appState.openPreferences(.ai); controller.openMainWindow() }
-            } label: {
-                Text("Rewrite ▾").font(.system(size: 11, weight: .medium))
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .kaiChip()
-                    .foregroundStyle(.white.opacity(0.85))
-            }
-            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-            .help("Run one of your saved prompts on the text you selected")
-            chip("Today", "What needs you today") { KaiTodayController.shared.show(appState: appState) }
-            Spacer()
-            shortcut("tray", "Shelf") { desk.tab = .shelf }
-            shortcut("doc.on.clipboard", "Clipboard history") { desk.tab = .clipboard }
-            shortcut("terminal", "Claude Code") { desk.tab = .claude }
-            shortcut("gauge.with.dots.needle.33percent", "Stats") { desk.tab = .stats }
-            shortcut("rectangle.expand.vertical", "Open the full conversation") { controller.setFullConversation(true) }
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) { actionChips; Spacer(minLength: 8); shortcutButtons }
+            HStack(spacing: 6) { actionChips; Spacer(minLength: 8); shortcutMenu }
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 10)
+        .padding(.bottom, 14)
+    }
+
+    @ViewBuilder private var actionChips: some View {
+        chip("Summarize", "Summarize what is showing on your screen") { KaiScreenTaskController.shared.run(.summarize, appState: appState) }
+        chip("Proofread", "Proofread the main text on your screen") { KaiScreenTaskController.shared.run(.proofread, appState: appState) }
+        Menu {
+            ForEach(KaiQuickPrompts.stored()) { prompt in
+                Button(prompt.name) { KaiScreenTaskController.shared.runPrompt(prompt, appState: appState) }
+            }
+            Divider()
+            Button("Edit prompts…") { appState.openPreferences(.ai); controller.openMainWindow() }
+        } label: {
+            Text("Rewrite ▾").font(.system(size: 11, weight: .medium)).lineLimit(1).fixedSize()
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .kaiChip()
+                .foregroundStyle(.white.opacity(0.85))
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .help("Run one of your saved prompts on the text you selected")
+        chip("Today", "What needs you today") { KaiTodayController.shared.show(appState: appState) }
+    }
+
+    @ViewBuilder private var shortcutButtons: some View {
+        shortcut("tray", "Shelf") { desk.tab = .shelf }
+        shortcut("doc.on.clipboard", "Clipboard history") { desk.tab = .clipboard }
+        shortcut("terminal", "Claude Code") { desk.tab = .claude }
+        shortcut("gauge.with.dots.needle.33percent", "Stats") { desk.tab = .stats }
+        shortcut("rectangle.expand.vertical", "Open the full conversation") { controller.setFullConversation(true) }
+    }
+
+    private var shortcutMenu: some View {
+        Menu {
+            Button("Shelf") { desk.tab = .shelf }
+            Button("Clipboard history") { desk.tab = .clipboard }
+            Button("Claude Code") { desk.tab = .claude }
+            Button("Stats") { desk.tab = .stats }
+            Divider()
+            Button("Open the full conversation") { controller.setFullConversation(true) }
+        } label: {
+            Image(systemName: "ellipsis").font(.system(size: 13)).foregroundStyle(.white.opacity(0.7)).frame(width: 28, height: 24)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .help("Shelf, clipboard, Claude Code, stats and the full conversation")
     }
 
     private func chip(_ title: String, _ help: String, _ action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title).font(.system(size: 11, weight: .medium))
+            Text(title).font(.system(size: 11, weight: .medium)).lineLimit(1).fixedSize()
                 .padding(.horizontal, 10).padding(.vertical, 4)
                 .kaiChip()
                 .foregroundStyle(.white.opacity(0.85))
@@ -718,7 +741,7 @@ private struct KaiNotchBarContent: View {
     @ViewBuilder
     private func shortcut(_ symbol: String, _ help: String, _ action: @escaping () -> Void) -> some View {
         if KaiTheme.isCobalt {
-            KaiStatusIconButton(symbol: symbol, help: help, action: action)
+            KaiStatusIconButton(symbol: symbol, help: help, size: 28, action: action)
         } else {
             Button(action: action) { Image(systemName: symbol).font(.system(size: 12)) }
                 .buttonStyle(.plain)

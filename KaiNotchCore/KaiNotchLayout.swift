@@ -36,8 +36,8 @@ public struct KaiNotchLayout: Equatable, Sendable {
     public static let canvasSlack = CGSize(width: 140, height: 90)
     public static let expandedSize = CGSize(width: 560, height: 480)
     /// The slim bar: this wide, and this much taller than the notch itself.
-    public static let barWidth: CGFloat = 464
-    public static let barExtraHeight: CGFloat = 68
+    public static let barWidth: CGFloat = 540
+    public static let barExtraHeight: CGFloat = 82
     private static let pillWidth: CGFloat = 120
     private static let fallbackHeight: CGFloat = 24
 

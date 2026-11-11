@@ -198,13 +198,14 @@ struct KaiStatusIconButton: View {
     let symbol: String
     var help: String = ""
     var active = false
+    var size: CGFloat = 32
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 13, weight: .medium))
                 .foregroundStyle(active ? KaiCobalt.plasmaCyan : KaiCobalt.textSecondary)
-                .frame(width: 32, height: 32)
+                .frame(width: size, height: size)
                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(KaiCobalt.panelFill))
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .strokeBorder(active ? KaiCobalt.plasmaCyan : KaiCobalt.textSecondary.opacity(0.3), lineWidth: active ? 1.5 : 1))
