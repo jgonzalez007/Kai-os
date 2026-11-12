@@ -17,6 +17,7 @@ import KaiLocalAI
 import KaiLocalData
 import KaiKnowledge
 import KaiSlack
+import KaiAgent
 
 // MARK: - Models
 
@@ -30,6 +31,8 @@ struct Message: Identifiable, Equatable {
         case error
         /// A proposed action waiting for the user's decision.
         case action
+        /// A task on the Mac's screen that Claude asked for, waiting for the person to press Start.
+        case screenTask
     }
 
     let id: String
@@ -42,6 +45,7 @@ struct Message: Identifiable, Equatable {
     /// A JPEG the user attached to this message.
     var imageData: Data?
     var actionCard: KaiActionCard?
+    var screenTask: KaiScreenTaskCard?
 
     init(id: String = UUID().uuidString, text: String = "", isUser: Bool = false, timestamp: Date = Date(), kind: Kind = .chat, imageData: Data? = nil) {
         self.id = id
@@ -135,8 +139,8 @@ final class AppState: ObservableObject {
     private static let maxToolRounds = 8
 
     private let ollama = KaiOllamaClient()
-    private var replyTask: Task<Void, Never>?
-    private var activeReplyID: String?
+    var replyTask: Task<Void, Never>?
+    var activeReplyID: String?
     private var workspaceObserver: NSObjectProtocol?
 
     /// The unified chat service for local + cloud LLM backends.
@@ -158,7 +162,9 @@ final class AppState: ObservableObject {
     }
     @Published var selectedCloudModel: String = ""
 
-    @Published var messages: [Message] = []
+    @Published var messages: [Message] = [] { didSet { scheduleConversationSave() } }
+    var conversationSaveTask: Task<Void, Never>?
+    var screenTaskDecisions: [String: CheckedContinuation<Bool, Never>] = [:]
     @Published var chatDraft = ""
     @Published var chatModels: [String] = []
     @Published var modelInfo: [KaiOllamaModelInfo] = []
@@ -248,7 +254,12 @@ final class AppState: ObservableObject {
     /// The look is dark only: black window, faint cards, pill rows.
     var preferredColorScheme: ColorScheme? { .dark }
 
-    private init() { messages = [Self.welcomeMessage()] }
+    private init() {
+        let kept = KaiConversationLog.standard.load()
+        messages = kept.isEmpty ? [Self.welcomeMessage()] : kept.map {
+            Message(id: $0.id, text: $0.text, isUser: $0.isUser, timestamp: $0.timestamp, kind: $0.kind == "error" ? .error : .chat)
+        }
+    }
 
     private static func welcomeMessage() -> Message {
         Message(
@@ -487,7 +498,7 @@ final class AppState: ObservableObject {
             } catch { /* Provider unavailable */ }
         }
         
-        let allModels = ollamaModels + cloudModels
+        let allModels = ollamaModels + cloudModels + (await claudeChatModels())
         chatModels = allModels
         if !allModels.contains(selectedModel) {
             selectedModel = ollamaModels.first ?? cloudModels.first ?? ""
@@ -545,11 +556,13 @@ final class AppState: ObservableObject {
         messages.append(reply)
         isProcessing = true
         activeReplyID = reply.id
-        replyTask = Task { await streamReply(replyID: reply.id, history: history) }
+        let useClaude = KaiClaudeCode.isClaudeChoice(selectedModel)
+        replyTask = Task { if useClaude { await streamClaudeReply(replyID: reply.id, history: history) } else { await streamReply(replyID: reply.id, history: history) } }
     }
 
     func cancelReply() {
         replyTask?.cancel()
+        cancelPendingScreenTasks()
     }
 
     /// Opens Preferences on one page, from anywhere in the app.
@@ -560,6 +573,8 @@ final class AppState: ObservableObject {
 
     func startNewChat() {
         replyTask?.cancel()
+        cancelPendingScreenTasks()
+        KaiConversationLog.standard.erase()
         activeReplyID = nil
         isProcessing = false
         messages = [Self.welcomeMessage()]
@@ -643,7 +658,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func conversationForModel() -> [KaiOllamaMessage] {
+    func conversationForModel() -> [KaiOllamaMessage] {
         let system = KaiOllamaMessage(
             role: "system",
             content: """
@@ -750,12 +765,12 @@ final class AppState: ObservableObject {
         }
     }
 
-    private func updateMessage(id: String, _ change: (inout Message) -> Void) {
+    func updateMessage(id: String, _ change: (inout Message) -> Void) {
         guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
         change(&messages[index])
     }
 
-    private func removeMessageIfEmpty(id: String) {
+    func removeMessageIfEmpty(id: String) {
         messages.removeAll { $0.id == id && $0.text.isEmpty }
     }
 }

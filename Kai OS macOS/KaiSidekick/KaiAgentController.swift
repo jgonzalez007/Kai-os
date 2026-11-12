@@ -52,6 +52,9 @@ final class KaiAgentController: ObservableObject {
     @Published private(set) var canSaveRecipe = false
     @Published var recipeName = ""
     private var runTemplate = ""
+    /// Set while the chat asked for this task: it gets the result as the answer to its tool call, and the chat already shows the task.
+    private var chatCompletion: ((String) -> Void)?
+    private var chatApp: AppState?
 
     private var runEvents: [KaiAgentEvent] = []
     private var runTask = ""
@@ -80,14 +83,18 @@ final class KaiAgentController: ObservableObject {
             return
         }
         runTemplate = trimmed
+        chatApp = appState
         guard AXIsProcessTrusted() else {
             message = "Sidekick needs Accessibility permission to use the mouse and keyboard. Turn it on in System Settings → Privacy & Security → Accessibility, then try again."
+            completeChat(message)
             return
         }
         guard KaiScreenGrabber.hasPermission else {
             message = "Sidekick needs Screen Recording permission to see the screen. Turn it on in System Settings → Privacy & Security → Screen Recording, then reopen Kai OS."
+            completeChat(message)
             return
         }
+        if chatCompletion == nil { appState.postSidekickTask(KaiAgentRecipes.filled(trimmed, with: blankValues)) }
         isRunning = true
         lines = []
         outcome = nil
@@ -101,8 +108,7 @@ final class KaiAgentController: ObservableObject {
                 return
             }
             guard let model = await chooseModel(appState: appState) else {
-                isRunning = false
-                message = "Sidekick needs a local Ollama model that can read images. Start Ollama and run: ollama pull gemma4:e4b"
+                abort("Sidekick needs a local Ollama model that can read images. Start Ollama and run: ollama pull gemma4:e4b", appState: appState)
                 return
             }
             begin(task: filledTask, model: model, brain: KaiOllamaAgentBrain(client: KaiOllamaClient(), model: model), appState: appState)
@@ -112,13 +118,11 @@ final class KaiAgentController: ObservableObject {
     /// Runs the task on Claude through the person's Claude Code sign-in. Only after they agreed that screenshots leave this Mac.
     private func startWithClaude(task: String, choice: String, appState: AppState) async {
         guard UserDefaults.standard.bool(forKey: KaiClaudeCode.consentKey) else {
-            isRunning = false
-            message = "Sidekick on Claude sends a screenshot to Anthropic at every step. Turn on “I understand” under Sidekick → Model for computer tasks, or pick a local model."
+            abort("Sidekick on Claude sends a screenshot to Anthropic at every step. Turn on “I understand” under Sidekick → Model for computer tasks, or pick a local model.", appState: appState)
             return
         }
         guard let path = await KaiClaudeCode.locate(custom: UserDefaults.standard.string(forKey: KaiClaudeCode.pathKey)) else {
-            isRunning = false
-            message = KaiClaudeCodeError.notFound.localizedDescription
+            abort(KaiClaudeCodeError.notFound.localizedDescription, appState: appState)
             return
         }
         // Lessons are still written up by a local model, if there is one. Claude never sees that log.
@@ -165,6 +169,32 @@ final class KaiAgentController: ObservableObject {
         }
     }
 
+    /// Runs a task the chat asked for and returns what happened, as the answer to Claude's tool call.
+    func runForChat(task: String, appState: AppState) async -> String {
+        guard !isRunning else { return "Sidekick is already doing a task." }
+        self.task = task
+        clearRecipe()
+        return await withCheckedContinuation { (continuation: CheckedContinuation<String, Never>) in
+            chatCompletion = { continuation.resume(returning: $0) }
+            start(appState: appState)
+            if !isRunning { completeChat(message ?? "The task could not start.") }
+        }
+    }
+
+    private func completeChat(_ text: String?) {
+        guard let done = chatCompletion else { return }
+        chatCompletion = nil
+        done(text ?? "The task could not start.")
+    }
+
+    /// A task that could not start after it was accepted.
+    private func abort(_ text: String, appState: AppState) {
+        isRunning = false
+        message = text
+        if chatCompletion == nil { appState.postSidekickResult(text) }
+        completeChat(text)
+    }
+
     func stop() {
         guard isRunning else { return }
         stopSwitch.stop()
@@ -185,6 +215,8 @@ final class KaiAgentController: ObservableObject {
         outcome = result
         message = nil
         lines.append(Line(kind: .outcome, text: result.summary))
+        if chatCompletion == nil { chatApp?.postSidekickResult(result.summary) }
+        completeChat(result.summary)
         input.stopMonitoring()
         overlay?.hide()
         overlay = nil

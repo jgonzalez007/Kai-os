@@ -128,3 +128,18 @@ Use "Ask me before every action" first.
 - [ ] Press **Use**: the task loads, with the recipe's steps guiding the run. Edit the wording to add a `{blank}`, such as `{person}`, press **Keep this wording**, and a box for it appears.
 - [ ] Run it again with a different value in the blank. It follows the same path faster.
 - [ ] Saved steps never contain what you typed, or a web address's search part.
+
+## 15. Chat on Claude: research and one conversation
+
+You need Claude Code installed and signed in (Settings → Sidekick shows where it was found).
+- [ ] Settings → Sidekick → **Claude chat research**: turn on "I understand", then turn on **Mail** only.
+- [ ] Open a chat, pick **Claude Sonnet (research)** in the model menu (it shows once the chat has a message).
+- [ ] Ask: "Who emailed me about <a real topic in your inbox>, and what do they want?" The status line shows Kai searching and reading mail. The answer names the sender and quotes what the message asks for.
+- [ ] Turn Mail off and ask again: Claude says Mail is switched off in Settings and does not read it.
+- [ ] Ask "What's on my calendar this week?" with Calendar off: same refusal. Turn it on: it answers.
+- [ ] Ask "Open Notes and make a note called Test". A card appears in the chat: **Do this on your screen**, with **Start** and **Not now**. Nothing happens until you press Start.
+- [ ] Press **Not now**: the card says "Not started" and Claude tells you nothing was done.
+- [ ] Ask again, press **Start**: Sidekick does it (asking before each step in "Ask me before every action" mode) and the card shows the result when it finishes.
+- [ ] On the Sidekick page run any task: its task and result appear in the chat as well.
+- [ ] Quit and reopen Kai OS: the conversation is still there. **New chat** clears it.
+- If it fails: send the step, the message shown, and whether Mail access (Settings → Mailbox access) allows reading whole mailboxes.

@@ -5,3 +5,4 @@ build/
 xcuserdata/
 graphify-out/
 dist/
+.claude/settings.local.json

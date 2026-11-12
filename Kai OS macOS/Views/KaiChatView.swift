@@ -95,7 +95,7 @@ struct KaiChatView: View {
             } else {
                 Picker("Model", selection: $appState.selectedModel) {
                     ForEach(appState.chatModels, id: \.self) { model in
-                        Text(model).tag(model)
+                        Text(AppState.modelLabel(model)).tag(model)
                     }
                 }
                 .labelsHidden()

@@ -114,6 +114,8 @@ struct KaiSidekickSettingsView: View {
                 .kaiGlassSurface(radius: 16)
             }
 
+            KaiResearchCard()
+
             KaiLessonsCard(agent: appState.agent)
         }
     }

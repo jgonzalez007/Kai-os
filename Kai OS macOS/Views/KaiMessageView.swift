@@ -24,6 +24,8 @@ struct MessageBubbleView: View {
     var body: some View {
         if let card = message.actionCard {
             KaiActionCardView(messageID: message.id, card: card)
+        } else if let task = message.screenTask {
+            KaiScreenTaskCardView(messageID: message.id, card: task)
         } else if message.kind == .notice {
             noticeBubble
         } else if message.kind == .error {
