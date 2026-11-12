@@ -18,6 +18,42 @@ public enum KaiHookEventName: String, Sendable {
     case stopFailure = "StopFailure"
 }
 
+/// A permission rule Claude Code offers with a request ("always allow this"), kept exactly as sent so
+/// that it can be handed back unchanged. Only plain "allow these tools" rules are ever kept.
+public struct KaiHookRule: Equatable, Sendable {
+    /// One permission update, as JSON, exactly as Claude Code offered it.
+    public let json: Data
+    /// What it would allow, for the button: `Bash(npm test:*)`.
+    public let summary: String
+    /// Where Claude Code would save it: this session, or a settings file.
+    public let destination: String
+
+    static let destinations: Set<String> = ["session", "localSettings", "projectSettings", "userSettings"]
+
+    /// Picks the first suggestion that only adds allow rules. A Bash rule without a command pattern would
+    /// allow every command, so it is never offered; neither are mode changes.
+    static func pick(from suggestions: [[String: Any]]?) -> KaiHookRule? {
+        for item in suggestions ?? [] {
+            guard item["type"] as? String == "addRules",
+                  item["behavior"] as? String == "allow",
+                  let destination = item["destination"] as? String, destinations.contains(destination),
+                  let rules = item["rules"] as? [[String: Any]], !rules.isEmpty, rules.count <= 5 else { continue }
+            var names: [String] = []
+            var ok = true
+            for rule in rules {
+                guard let tool = rule["toolName"] as? String, !tool.isEmpty else { ok = false; break }
+                let content = (rule["ruleContent"] as? String) ?? ""
+                if tool == "Bash" && content.isEmpty { ok = false; break }
+                names.append(content.isEmpty ? tool : "\(tool)(\(content))")
+            }
+            guard ok, let data = try? JSONSerialization.data(withJSONObject: item, options: [.sortedKeys]) else { continue }
+            let text = names.joined(separator: ", ")
+            return KaiHookRule(json: data, summary: text.count > 160 ? String(text.prefix(160)) + "…" : text, destination: destination)
+        }
+        return nil
+    }
+}
+
 public struct KaiHookEvent: Equatable, Sendable {
     public static let maxSummary = 2_000
 
@@ -29,9 +65,12 @@ public struct KaiHookEvent: Equatable, Sendable {
     public let toolSummary: String?
     public let agentID: String?
     public let agentType: String?
+    /// The "always allow" rule Claude Code offered with this request, if it is a safe one.
+    public let rule: KaiHookRule?
 
     public init(name: KaiHookEventName, sessionID: String = "", cwd: String = "", toolName: String? = nil,
-                toolSummary: String? = nil, agentID: String? = nil, agentType: String? = nil) {
+                toolSummary: String? = nil, agentID: String? = nil, agentType: String? = nil, rule: KaiHookRule? = nil) {
+        self.rule = rule
         self.name = name
         self.sessionID = sessionID
         self.cwd = cwd
@@ -61,7 +100,8 @@ public struct KaiHookEvent: Equatable, Sendable {
             toolName: tool,
             toolSummary: name == .permissionRequest ? summary(tool: tool, input: input) : nil,
             agentID: object["agent_id"] as? String,
-            agentType: object["agent_type"] as? String
+            agentType: object["agent_type"] as? String,
+            rule: name == .permissionRequest ? KaiHookRule.pick(from: object["permission_suggestions"] as? [[String: Any]]) : nil
         )
     }
 
@@ -92,13 +132,20 @@ public struct KaiHookEvent: Equatable, Sendable {
 
 public enum KaiHookDecision: Equatable, Sendable {
     case allow
+    /// Allow, and also save the rule Claude Code offered so it does not ask again.
+    case alwaysAllow(KaiHookRule)
     case deny
 
-    /// The JSON Claude Code expects. Allow carries no changed input and no new permission rules.
+    /// The JSON Claude Code expects. Plain allow carries no changed input and no new permission rules;
+    /// only `alwaysAllow` adds the one rule Claude Code itself offered.
     public var outputJSON: Data {
         let decision: [String: Any]
         switch self {
         case .allow: decision = ["behavior": "allow"]
+        case .alwaysAllow(let rule):
+            var update: Any = [String: Any]()
+            if let parsed = try? JSONSerialization.jsonObject(with: rule.json) { update = parsed }
+            decision = ["behavior": "allow", "updatedPermissions": [update]]
         case .deny: decision = ["behavior": "deny", "message": "Denied by the user from Kai OS."]
         }
         let object: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": decision]]

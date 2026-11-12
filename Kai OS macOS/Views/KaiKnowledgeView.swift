@@ -13,10 +13,11 @@ import SwiftUI
 struct KaiKnowledgeView: View {
     @EnvironmentObject var appState: AppState
 
-    private enum Mode: String, CaseIterable { case about = "About you", graph = "Graph", notes = "Notes" }
+    private enum Mode: String, CaseIterable { case about = "About you", linked = "Linked notes", graph = "Graph", notes = "Notes" }
 
     /// Set by the snapshot harness, to draw the graph face.
     static var startInGraph = false
+    static var startInLinked = false
     @State private var mode = Mode.about
     @State private var scale: CGFloat = 1
     @State private var pan: CGSize = .zero
@@ -40,6 +41,8 @@ struct KaiKnowledgeView: View {
                 ProgressView("Reading your knowledge base…").frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if mode == .about {
                 KaiAboutYouView(cards: appState.morningCards, documentCount: documents.count)
+            } else if mode == .linked {
+                KaiLinkedNotesView()
             } else if documents.isEmpty {
                 emptyState
             } else {
@@ -50,7 +53,7 @@ struct KaiKnowledgeView: View {
             }
         }
         .padding(.horizontal, 28).padding(.bottom, 24)
-        .task { if Self.startInGraph { mode = .graph }; await load() }
+        .task { if Self.startInGraph { mode = .graph }; if Self.startInLinked { mode = .linked }; await load() }
         // A file or folder added in setup, or a fresh Index now, shows up here without leaving the page.
         .onChange(of: appState.knowledgeCounts) { _, _ in Task { await load() } }
     }
@@ -66,7 +69,7 @@ struct KaiKnowledgeView: View {
             }
             Spacer()
             Picker("", selection: $mode) { ForEach(Mode.allCases, id: \.self) { Text($0.rawValue).tag($0) } }
-                .pickerStyle(.segmented).labelsHidden().frame(width: 250)
+                .pickerStyle(.segmented).labelsHidden().frame(width: 360)
             TextField("Search what Kai knows", text: $query)
                 .textFieldStyle(.plain)
                 .padding(.horizontal, 12).padding(.vertical, 7)

@@ -164,6 +164,12 @@ final class AppState: ObservableObject {
 
     @Published var messages: [Message] = [] { didSet { scheduleConversationSave() } }
     var conversationSaveTask: Task<Void, Never>?
+    @Published var summaryCounts = KaiSummaryCounts()
+    @Published var knowledgeWorkMessage: String?
+    @Published var isTriaging = false
+    @Published var isBuildingNotes = false
+    @Published var notesRevision = 0
+    var knowledgeWorkTask: Task<Void, Never>?
     var conversationSummary = KaiConversationSummaryStore.standard.load()
     var isSummarizing = false
     var screenTaskDecisions: [String: CheckedContinuation<Bool, Never>] = [:]

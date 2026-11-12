@@ -44,6 +44,11 @@ extension AppState {
             parameters: [.init(name: "query", type: "string", description: "A few words to search for", required: true)]
         ),
         KaiOllamaTool(
+            name: "read_knowledge_note",
+            description: "Read one linked note in full. Kai writes these notes about the user's people, projects, commitments and topics from their own sources. Find titles with search_knowledge first.",
+            parameters: [.init(name: "title", type: "string", description: "The note's title, as search_knowledge shows it", required: true)]
+        ),
+        KaiOllamaTool(
             name: "slack_recent",
             description: "Read what was said in the user's Slack channels recently, newest first, grouped by channel and day. Use this for summaries and questions like what happened in Slack yesterday or this week. Read-only. It can take up to a minute.",
             parameters: [
@@ -121,6 +126,7 @@ extension AppState {
         case "list_recent_mail": return "Checking your mail…"
         case "search_notes": return "Reading your notes…"
         case "search_knowledge": return "Searching your knowledge base…"
+        case "read_knowledge_note": return "Reading a note…"
         case "mail_overview": return "Looking through your mailboxes…"
         case "search_mail": return "Searching your mail…"
         case "read_mail_message": return "Reading an email…"
@@ -157,6 +163,8 @@ extension AppState {
                 output = await readSlackScreenTool()
             case "search_knowledge":
                 output = await knowledgeToolAsync(query: call.arguments["query"]?.stringValue)
+            case "read_knowledge_note":
+                output = readKnowledgeNoteTool(call.arguments["title"]?.stringValue ?? "")
             case "search_notes":
                 output = try await notesTool(query: call.arguments["query"]?.stringValue)
             case "remember":

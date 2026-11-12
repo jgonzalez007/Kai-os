@@ -207,7 +207,8 @@ extension AppState {
         guard ((try? store.count()) ?? 0) > 0 else {
             return "The knowledge base is empty. Tell the user to click Index now under Knowledge base in Settings."
         }
-        return knowledgeAnswer(hits: await searchKnowledge(query, limit: 8), query: query)
+        // The linked notes come first: they are what Kai worked out from the sources, so they say more than a raw match.
+        return linkedNotesAnswer(query: query) + knowledgeAnswer(hits: await searchKnowledge(query, limit: 8), query: query)
     }
 
     private func knowledgeAnswer(hits: [KaiKnowledgeHit], query: String) -> String {

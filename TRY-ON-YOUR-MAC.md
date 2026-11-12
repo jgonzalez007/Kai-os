@@ -153,3 +153,18 @@ You need Claude Code installed and signed in (Settings → Sidekick shows where 
 - [ ] Keep one chat going past about 40 messages (or lots of long answers) on a local model, then ask about something from the start: it still knows the gist. (The summary is written on this Mac by the local model; with only Claude available, older messages are just cut.)
 - [ ] With a **local** chat model, say "open Notes and make a note called Test": the same Start / Not now card appears, and Start runs it.
 - [ ] After a screen task started from chat, ask "what did you just do?": the answer lists the steps.
+
+## 17. Linked notes (Knowledge → Linked notes)
+
+Needs Ollama running with a local model (gemma4:e4b works). First index your sources on the Knowledge setup page.
+- [ ] Knowledge → **Linked notes**: the status line shows how many items are waiting. Press **Read new items**. The line counts through "Reading 12 of 150…". It takes a few seconds per item, so start with a few dozen.
+- [ ] When it finishes, the line says how many were kept and how many skipped. Newsletters, receipts and anything private (medical, account numbers) should be in the skipped count.
+- [ ] Press **Write notes**. A folder `~/Kai OS - Linked Notes` appears with People, Projects, Commitments, Topics and an Overview.
+- [ ] The constellation shows a dot per note and a thread per link. Click a dot: the note opens. Click a blue link inside it: you go to that note. The arrow goes back.
+- [ ] Press **Edit** on a note, change a line, **Save**. Then press **Update notes** again: your edited note is not rewritten (the status line says "kept as you edited them").
+- [ ] **New note** makes a note of your own in Topics. **Trash** moves one to the Trash.
+- [ ] Open the folder in Obsidian or any editor: they are plain Markdown files.
+- [ ] In chat: ask "who is <a person in your notes> and what are they working on?" The answer uses the linked notes (and says so), then you can ask it to open the full note.
+- [ ] With Claude as the chat model and **Knowledge base** switched on under Claude chat research, the same question works; with it off, Claude is told knowledge is switched off.
+- [ ] Night Shift (if enabled) now also reads new items and updates the notes before the portrait. "About you" is written from the summaries once there are 20 or more.
+- If something fails: the step number and the message on the status line.

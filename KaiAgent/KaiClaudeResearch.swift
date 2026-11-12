@@ -64,7 +64,7 @@ public enum KaiResearch {
         switch name {
         case "list_recent_mail", "mail_overview", "search_mail", "read_mail_message": return .mail
         case "search_notes": return .notes
-        case "search_knowledge": return .knowledge
+        case "search_knowledge", "read_knowledge_note": return .knowledge
         case "list_calendar_events": return .calendar
         case "slack_recent", "search_slack", "read_slack_screen": return .slack
         case "search_files": return .files

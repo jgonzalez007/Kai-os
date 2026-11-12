@@ -61,6 +61,11 @@ enum KaiNightShiftRunner {
         let result = await appState.indexKnowledgeNow(sources: chosen)
         let indexed = appState.knowledgeDocumentCount
 
+        // New items are read into summaries and the linked notes updated, both with the local model. If there is none
+        // running, this is skipped and the rest of the night goes on.
+        await appState.summarizeKnowledgeNow(limit: 150)
+        await appState.buildLinkedNotesNow()
+
         // The portrait comes before the briefing, so today's cards are about what matters to this person.
         // If it can't be built (no local model running, say), the briefing is made without it.
         await appState.rebuildProfileNow()

@@ -93,6 +93,8 @@ public enum KaiHookClient {
 
 /// Used by the app. Calls `handler` for each event. For a permission request the connection stays
 /// open until the handler answers, or until `permissionTimeout` passes (then it closes with no decision).
+/// If the helper goes away first (Claude Code ends it when the question is answered in the terminal),
+/// the connection closes and `onAbandon` is called with the event, so its card can be taken down.
 public final class KaiHookServer: @unchecked Sendable {
     public typealias Handler = @Sendable (KaiHookEvent, @escaping @Sendable (KaiHookDecision?) -> Void) -> Void
 
@@ -101,15 +103,18 @@ public final class KaiHookServer: @unchecked Sendable {
     private let path: String
     private let permissionTimeout: TimeInterval
     private let handler: Handler
+    private let onAbandon: (@Sendable (KaiHookEvent) -> Void)?
     private let queue = DispatchQueue(label: "ai.kai.hook-server", attributes: .concurrent)
     private var listenFD: Int32 = -1
     private var source: DispatchSourceRead?
 
     public init(path: String = KaiHookSocket.defaultPath,
                 permissionTimeout: TimeInterval = KaiHookServer.permissionTimeout,
+                onAbandon: (@Sendable (KaiHookEvent) -> Void)? = nil,
                 handler: @escaping Handler) {
         self.path = path
         self.permissionTimeout = permissionTimeout
+        self.onAbandon = onAbandon
         self.handler = handler
     }
 
@@ -196,6 +201,27 @@ public final class KaiHookServer: @unchecked Sendable {
         }
         handler(event, finish)
         queue.asyncAfter(deadline: .now() + permissionTimeout) { finish(nil) }
+        watch(client, event: event, once: once)
+    }
+
+    /// The helper half-closed after sending, so the socket is always readable and reading cannot tell that
+    /// it left. Asking whether it is writable can: once the helper process is gone, macOS adds a hang-up.
+    /// Checked a few times a second, without holding a thread, until the request is answered or times out.
+    private func watch(_ client: Int32, event: KaiHookEvent, once: Once) {
+        queue.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self, !once.isDone else { return }
+            var pfd = pollfd(fd: client, events: Int16(POLLOUT), revents: 0)
+            if poll(&pfd, 1, 0) > 0, (pfd.revents & Int16(POLLHUP | POLLERR | POLLNVAL)) != 0 {
+                // Claiming first means a request that was just answered is not also reported as abandoned,
+                // and the descriptor is still ours when it is closed here.
+                if once.claim() {
+                    close(client)
+                    self.onAbandon?(event)
+                }
+                return
+            }
+            self.watch(client, event: event, once: once)
+        }
     }
 }
 
@@ -203,6 +229,12 @@ public final class KaiHookServer: @unchecked Sendable {
 private final class Once: @unchecked Sendable {
     private let lock = NSLock()
     private var used = false
+
+    var isDone: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return used
+    }
 
     func claim() -> Bool {
         lock.lock()

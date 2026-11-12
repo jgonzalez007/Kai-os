@@ -19,7 +19,10 @@ extension AppState {
         isBuildingProfile = true
         profileMessage = nil
         defer { isBuildingProfile = false }
-        guard let store = openKnowledgeStore(), let documents = try? store.balancedDocuments(perSource: 80, maxText: 4_000), !documents.isEmpty else {
+        // Once enough items have been read into summaries, the portrait is written from those: shorter, and already filtered.
+        let summaries = (openKnowledgeStore().flatMap { try? $0.survivorSummaries(perSource: 80) } ?? [])
+        let summarized = summaries.count >= 20 ? KaiTriage.documents(from: summaries) : []
+        guard let store = openKnowledgeStore(), let documents = summarized.isEmpty ? try? store.balancedDocuments(perSource: 80, maxText: 4_000) : summarized, !documents.isEmpty else {
             profileMessage = "Nothing to learn from yet. Add a note on the Knowledge setup page, or index your sources."
             return false
         }

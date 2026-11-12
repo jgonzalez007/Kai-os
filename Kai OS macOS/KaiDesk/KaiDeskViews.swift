@@ -268,6 +268,10 @@ struct KaiApprovalCard: View {
                     .padding(10)
             }
             .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            if let rule = approval.event.rule {
+                Text("Always allow saves \(rule.summary) \(rule.destination == "session" ? "for this session" : "to your Claude Code settings").")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
             HStack {
                 if desk.keyboardShortcutsWork {
                     Text("⌃⌥Y allow · ⌃⌥N deny").font(.caption).foregroundStyle(.secondary)
@@ -276,6 +280,10 @@ struct KaiApprovalCard: View {
                 }
                 Spacer()
                 Button("Deny") { desk.decide(approval, .deny) }
+                if let rule = approval.event.rule {
+                    Button("Always") { desk.decide(approval, .alwaysAllow(rule)) }
+                        .help("Allow this and save the rule: \(rule.summary)")
+                }
                 Button("Allow") { desk.decide(approval, .allow) }.kaiProminent()
             }
         }

@@ -67,6 +67,26 @@ enum KaiPageSnapshots {
                 }
                 window.orderOut(nil)
             }
+            // Made-up linked notes, in a temporary folder, so that face can be seen.
+            let sampleVault = FileManager.default.temporaryDirectory.appendingPathComponent("kai-sample-notes-\(UUID().uuidString)", isDirectory: true)
+            setenv("KAI_NOTES_VAULT_DIR", sampleVault.path, 1)
+            let sample: [(String, String)] = [
+                ("People/Priya Raman", "# Priya Raman\n\nLeads the [[Q1 Offsite]] planning and works with [[Maria Lopez]] on the budget.\n\n- Prefers mornings for meetings\n- Waiting on the venue quote, due [[Venue Contract]]"),
+                ("People/Maria Lopez", "# Maria Lopez\n\nManager. Reviews the [[Q1 Offsite]] budget and the [[Venue Contract]]."),
+                ("Projects/Q1 Offsite", "# Q1 Offsite\n\nTeam offsite planned for March 14. Owner: [[Priya Raman]].\n\n- Budget approval pending with [[Maria Lopez]]\n- See [[Venue Contract]]"),
+                ("Projects/Kai OS", "# Kai OS\n\nThe personal AI for the Mac that the user builds in the evenings. Next: [[Update 1.2]]."),
+                ("Commitments/Venue Contract", "# Venue Contract\n\nSign the venue contract before March 1. Depends on budget approval from [[Maria Lopez]]."),
+                ("Commitments/Update 1.2", "# Update 1.2\n\nShip Kai OS 1.2 this week. Part of [[Kai OS]]."),
+                ("Topics/Austin Trip", "# Austin Trip\n\nTravel in November. Related: [[Q1 Offsite]]."),
+            ]
+            for (path, body) in sample {
+                let url = sampleVault.appendingPathComponent(path + ".md")
+                try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try? Data(body.utf8).write(to: url)
+            }
+            try? Data("# Overview\n\nSample.\n".utf8).write(to: sampleVault.appendingPathComponent("Overview.md"))
+            var counts = KaiSummaryCounts(); counts.survivors = 42; counts.junk = 17; counts.sensitive = 3; counts.pending = 12
+            AppState.shared.summaryCounts = counts
             // A made-up portrait, in memory only, so the About you face can be seen.
             AppState.shared.profile = KaiProfile(markdown: """
             ## Who you are
@@ -92,6 +112,7 @@ enum KaiPageSnapshots {
                 ("home", AnyView(KaiMainViewForSnapshot())),
                 ("knowledge-page", AnyView(KaiMainViewForSnapshot(page: "Knowledge"))),
                 ("knowledge-graph", AnyView(KaiMainViewForSnapshot(page: "Knowledge", graph: true))),
+                ("knowledge-linked", AnyView(KaiMainViewForSnapshot(page: "Knowledge", linked: true))),
                 ("mail-cleanup", AnyView(KaiMailCleanupSnapshot())),
                 ("mail-page", AnyView(KaiMainViewForSnapshot(page: "Mail"))),
                 ("calendar-page", AnyView(KaiMainViewForSnapshot(page: "Calendar"))),
@@ -130,9 +151,11 @@ enum KaiPageSnapshots {
 private struct KaiMainViewForSnapshot: View {
     var page = "Chat"
     var graph = false
+    var linked = false
     var body: some View {
         KaiMainView().environmentObject(AppState.shared).onAppear {
             KaiKnowledgeView.startInGraph = graph
+            KaiKnowledgeView.startInLinked = linked
             AppState.shared.activeSidebar = page
         }
     }

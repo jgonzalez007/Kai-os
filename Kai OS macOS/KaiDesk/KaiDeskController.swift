@@ -293,7 +293,9 @@ final class KaiDeskController: ObservableObject {
         clones = []
         guard hooksEnabled else { hooksMessage = "Off"; return }
 
-        let server = KaiHookServer { [weak self] event, reply in
+        let server = KaiHookServer(onAbandon: { [weak self] event in
+            Task { @MainActor in self?.abandon(event) }
+        }) { [weak self] event, reply in
             Task { @MainActor in self?.receive(event, reply: reply) }
         }
         do {
@@ -333,6 +335,13 @@ final class KaiDeskController: ObservableObject {
             try? await Task.sleep(for: .seconds(KaiHookServer.permissionTimeout))
             self?.dropApproval(approval.id, decision: nil)
         }
+    }
+
+    /// Claude Code ended the helper before Kai answered (you answered in the terminal, or stopped the turn),
+    /// so the card no longer has anything to answer. Takes down the oldest card for that request.
+    private func abandon(_ event: KaiHookEvent) {
+        guard let approval = approvals.first(where: { $0.event == event }) else { return }
+        dropApproval(approval.id, decision: nil)
     }
 
     func decide(_ approval: Approval, _ decision: KaiHookDecision) {

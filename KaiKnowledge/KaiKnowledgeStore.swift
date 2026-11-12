@@ -66,6 +66,8 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
         // One vector per chunk, for searching by meaning. Made by a local embedding model, and optional.
         try execute("CREATE TABLE IF NOT EXISTS embeddings(chunk_id INTEGER PRIMARY KEY, doc_id INTEGER NOT NULL, model TEXT NOT NULL, vector BLOB NOT NULL)")
         try execute("CREATE INDEX IF NOT EXISTS embeddings_doc ON embeddings(doc_id)")
+        // What the local model made of each document (see KaiTriage): a summary, or the verdict that it is junk or private.
+        try execute("CREATE TABLE IF NOT EXISTS summaries(doc_id INTEGER PRIMARY KEY, fingerprint TEXT NOT NULL, verdict TEXT NOT NULL, title TEXT NOT NULL, summary TEXT NOT NULL, model TEXT NOT NULL, created REAL NOT NULL)")
     }
 
     deinit { sqlite3_close(db) }
@@ -91,6 +93,7 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
             if let existing {
                 try run("DELETE FROM chunks WHERE doc_id = ?", [existing.0])
                 try run("DELETE FROM embeddings WHERE doc_id = ?", [existing.0])
+                try run("DELETE FROM summaries WHERE doc_id = ?", [existing.0])
                 try run("UPDATE documents SET title = ?, modified = ?, fingerprint = ? WHERE id = ?",
                         [document.title, document.modified?.timeIntervalSince1970 as Any, document.fingerprint, existing.0])
             } else {
@@ -125,6 +128,7 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
         for (id, _) in gone {
             try run("DELETE FROM chunks WHERE doc_id = ?", [id])
             try run("DELETE FROM embeddings WHERE doc_id = ?", [id])
+            try run("DELETE FROM summaries WHERE doc_id = ?", [id])
             try run("DELETE FROM documents WHERE id = ?", [id])
         }
         return gone.count
@@ -134,6 +138,7 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         try execute("DELETE FROM chunks")
         try execute("DELETE FROM embeddings")
+        try execute("DELETE FROM summaries")
         try execute("DELETE FROM documents")
     }
 
@@ -347,6 +352,81 @@ public final class KaiKnowledgeStore: @unchecked Sendable {
         func int(_ column: Int32) -> Int { Int(sqlite3_column_int64(statement, column)) }
         func double(_ column: Int32) -> Double { sqlite3_column_double(statement, column) }
         func isNull(_ column: Int32) -> Bool { sqlite3_column_type(statement, column) == SQLITE_NULL }
+    }
+}
+
+
+// MARK: - Summaries
+
+extension KaiKnowledgeStore {
+    /// Documents that have no summary yet, or whose content changed since it was made. Newest first. Reference material
+    /// is left out: it is searched, never used to describe the person.
+    public func documentsNeedingSummary(limit: Int, maxText: Int = KaiTriage.maxInputCharacters) throws -> [KaiKnowledgeDocument] {
+        lock.lock(); defer { lock.unlock() }
+        let heads = try rows("""
+            SELECT d.id, d.source, d.source_id, d.title, d.modified, d.fingerprint FROM documents d
+            LEFT JOIN summaries s ON s.doc_id = d.id
+            WHERE d.source != ? AND (s.doc_id IS NULL OR s.fingerprint != d.fingerprint)
+            ORDER BY COALESCE(d.modified, 0) DESC, d.id DESC LIMIT ?
+            """, [KaiKnowledgeIndexer.referenceSource, max(limit, 1)]) { row in
+            (id: row.int(0), source: row.text(1), sourceID: row.text(2), title: row.text(3),
+             modified: row.isNull(4) ? nil : Date(timeIntervalSince1970: row.double(4)), fingerprint: row.text(5))
+        }
+        return try heads.map { head in
+            let parts = try rows("SELECT text FROM chunks WHERE doc_id = ? ORDER BY rowid", [head.id]) { $0.text(0) }
+            return KaiKnowledgeDocument(source: head.source, sourceID: head.sourceID, title: head.title,
+                                        text: String(parts.joined(separator: "\n").prefix(maxText)), modified: head.modified, fingerprint: head.fingerprint)
+        }
+    }
+
+    /// Keeps the verdict for a document. Only a survivor keeps any text. The document must still have this fingerprint.
+    public func saveSummary(for document: KaiKnowledgeDocument, outcome: KaiTriageOutcome, model: String) throws {
+        lock.lock(); defer { lock.unlock() }
+        guard let id = try rows("SELECT id FROM documents WHERE source = ? AND source_id = ? AND fingerprint = ?",
+                                [document.source, document.sourceID, document.fingerprint], { $0.int(0) }).first else { return }
+        let keep = outcome.verdict == .survivor
+        try run("INSERT OR REPLACE INTO summaries(doc_id, fingerprint, verdict, title, summary, model, created) VALUES(?,?,?,?,?,?,?)",
+                [id, document.fingerprint, outcome.verdict.rawValue, keep ? outcome.title : "", keep ? outcome.summary : "", model, Date().timeIntervalSince1970])
+    }
+
+    /// The summaries that survived, newest first, some of every source in turn so one chatty source can't crowd out the rest.
+    public func survivorSummaries(perSource: Int = 80) throws -> [KaiSummaryRecord] {
+        lock.lock(); defer { lock.unlock() }
+        let names = try rows("SELECT DISTINCT d.source FROM documents d JOIN summaries s ON s.doc_id = d.id WHERE s.verdict = 'survivor'", []) { $0.text(0) }.sorted()
+        let lists = try names.map { name in
+            try rows("""
+                SELECT d.source, d.source_id, d.title, s.title, s.summary, d.modified, d.fingerprint FROM documents d
+                JOIN summaries s ON s.doc_id = d.id AND s.fingerprint = d.fingerprint
+                WHERE s.verdict = 'survivor' AND d.source = ?
+                ORDER BY COALESCE(d.modified, 0) DESC, d.id DESC LIMIT ?
+                """, [name, max(perSource, 1)]) { row in
+                KaiSummaryRecord(source: row.text(0), sourceID: row.text(1), documentTitle: row.text(2), title: row.text(3), summary: row.text(4),
+                                 modified: row.isNull(5) ? nil : Date(timeIntervalSince1970: row.double(5)), fingerprint: row.text(6))
+            }
+        }
+        var out: [KaiSummaryRecord] = []
+        for index in 0..<(lists.map(\.count).max() ?? 0) {
+            for list in lists where index < list.count { out.append(list[index]) }
+        }
+        return out
+    }
+
+    public func summaryCounts() throws -> KaiSummaryCounts {
+        lock.lock(); defer { lock.unlock() }
+        var counts = KaiSummaryCounts()
+        for (verdict, number) in try rows("SELECT s.verdict, COUNT(*) FROM summaries s JOIN documents d ON d.id = s.doc_id AND d.fingerprint = s.fingerprint GROUP BY s.verdict", [], { ($0.text(0), $0.int(1)) }) {
+            switch verdict {
+            case "survivor": counts.survivors = number
+            case "junk": counts.junk = number
+            case "sensitive": counts.sensitive = number
+            default: break
+            }
+        }
+        counts.pending = try rows("""
+            SELECT COUNT(*) FROM documents d LEFT JOIN summaries s ON s.doc_id = d.id
+            WHERE d.source != ? AND (s.doc_id IS NULL OR s.fingerprint != d.fingerprint)
+            """, [KaiKnowledgeIndexer.referenceSource]) { $0.int(0) }.first ?? 0
+        return counts
     }
 }
 
