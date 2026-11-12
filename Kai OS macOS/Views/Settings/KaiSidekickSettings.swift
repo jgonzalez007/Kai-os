@@ -116,6 +116,8 @@ struct KaiSidekickSettingsView: View {
 
             KaiResearchCard()
 
+            KaiMemoryCard()
+
             KaiLessonsCard(agent: appState.agent)
         }
     }

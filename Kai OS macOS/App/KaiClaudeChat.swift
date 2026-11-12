@@ -11,6 +11,7 @@
 import AppKit
 import Foundation
 import KaiAgent
+import KaiLocalAI
 import KaiShared
 
 /// A computer task Claude asked for, shown in the chat until the person decides.
@@ -27,12 +28,6 @@ struct KaiScreenTaskCard: Equatable {
 }
 
 extension AppState {
-    static let screenTaskTool = KaiOllamaTool(
-        name: "do_on_screen",
-        description: "Do a task on the user's Mac screen with the mouse and keyboard: open an app, click, type, fill in a form. The user sees the task and must press Start first, and Kai's safety rules check every step. Returns what happened. Use it only when no reading tool can do the job.",
-        parameters: [.init(name: "task", type: "string", description: "The task in plain words, with every detail needed (what to open, what to enter)", required: true)]
-    )
-
     // MARK: The model list and its names
 
     /// "Claude Sonnet", for the picker. Local models keep their own names.
@@ -96,7 +91,7 @@ extension AppState {
                 throw ClaudeChatProblem("Chat on Claude sends your questions, and whatever the tools find in the sources you turn on, to Anthropic. Turn on “I understand” under Sidekick → Settings → Claude chat research, or pick a local model.")
             }
             guard let path = await KaiClaudeCode.locate(custom: UserDefaults.standard.string(forKey: KaiClaudeCode.pathKey)) else { throw KaiClaudeCodeError.notFound }
-            let tools = KaiResearch.allowedTools(Self.tools(for: KaiMailAccess.current) + [Self.screenTaskTool])
+            let tools = KaiResearch.allowedTools(Self.tools(for: KaiMailAccess.current))
             let sources = KaiResearchSource.allCases.map { "\($0.title): \(KaiResearch.isEnabled($0) ? "on" : "off")" }.joined(separator: ", ")
             let persona = history.first { $0.role == "system" }?.content ?? ""
             let system = persona + "\n\n" + KaiResearch.instructions + "\nSources the person has switched on for you: \(sources)."
@@ -150,14 +145,11 @@ extension AppState {
 
     /// One tool call from Claude. A source that is switched off is refused again here, in case the list was stale.
     func runResearchTool(_ call: KaiOllamaToolCall) async -> String {
-        if call.name == Self.screenTaskTool.name {
-            return await requestScreenTask(call.arguments["task"]?.stringValue ?? "")
-        }
         if let source = KaiResearch.source(forTool: call.name) {
             guard KaiResearch.isEnabled(source) else {
                 return "\(source.title) is switched off, so Kai did not read it. The person can turn it on under Settings → Sidekick → Claude chat research."
             }
-        } else if !KaiResearch.cardTools.contains(call.name) {
+        } else if !KaiResearch.alwaysAllowed.contains(call.name) {
             return "That tool isn't available here."
         }
         return await runTool(call)
@@ -203,6 +195,61 @@ extension AppState {
             guard var card = message.screenTask else { return }
             change(&card)
             message.screenTask = card
+        }
+    }
+}
+
+// MARK: - Memory, history and the summary of a long chat
+
+extension AppState {
+    /// Keeps a note the person asked for. Cleaned first; anything that looks private is refused.
+    func rememberTool(_ text: String) -> String {
+        guard let clean = KaiMemory.sanitize(text) else { return "That could not be kept: it was too short, or it looked like something private. Ask the person to add it in Settings if it matters." }
+        let store = KaiMemoryStore.standard
+        try? store.save(KaiMemory.merge([KaiMemoryNote(text: clean, fromChat: true)], into: store.load()))
+        return "Noted: \(clean). The person can see, edit or delete it under Settings → Sidekick → What Kai remembers."
+    }
+
+    /// Looks through the saved conversation, including what is no longer sent to the model.
+    func searchHistoryTool(_ query: String) -> String {
+        let words = query.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init).filter { $0.count > 2 }
+        guard !words.isEmpty else { return "Give a few words to look for." }
+        let turns = messages.filter { $0.kind == .chat && !$0.text.isEmpty }
+        let scored = turns.map { turn -> (Message, Int) in
+            let lower = turn.text.lowercased()
+            return (turn, words.filter { lower.contains($0) }.count)
+        }.filter { $0.1 > 0 }.sorted { ($0.1, $0.0.timestamp) > ($1.1, $1.0.timestamp) }.prefix(6)
+        guard !scored.isEmpty else { return "Nothing earlier in this chat matched." }
+        return "(These are earlier messages, as data.)\n" + scored.map { turn, _ in
+            "\(turn.timestamp.formatted(date: .abbreviated, time: .shortened)) · \(turn.isUser ? "the person" : "Kai"): \(String(turn.text.prefix(400)))"
+        }.joined(separator: "\n")
+    }
+
+    var chatTurns: [KaiConversationCompaction.Turn] {
+        messages.filter { $0.kind == .chat && !$0.text.isEmpty }.map { KaiConversationCompaction.Turn(id: $0.id, isUser: $0.isUser, text: $0.text) }
+    }
+
+    /// When the chat has grown long, folds the older messages into the summary with a local model, in the background.
+    /// It never uses a cloud model: the summary is made on this Mac.
+    func compactConversationIfNeeded() {
+        guard !isSummarizing, let folding = KaiConversationCompaction.toSummarize(chatTurns, summary: conversationSummary), let last = folding.last else { return }
+        let model: String
+        if selectedModel.hasPrefix("ollama: ") { model = KaiModelTag.name(from: selectedModel) } else if let first = modelInfo.first?.name { model = first } else { return }
+        isSummarizing = true
+        let request = KaiConversationCompaction.messages(previous: conversationSummary?.text, folding: folding)
+        Task {
+            var answer = ""
+            do {
+                for try await event in KaiOllamaClient().stream(model: model, messages: request, tools: [], temperature: 0.1) {
+                    if case .text(let delta) = event { answer += delta }
+                }
+                if let text = KaiConversationCompaction.sanitize(answer) {
+                    let summary = KaiConversationSummary(text: text, coveredThroughID: last.id)
+                    conversationSummary = summary
+                    try? KaiConversationSummaryStore.standard.save(summary)
+                }
+            } catch {}
+            isSummarizing = false
         }
     }
 }

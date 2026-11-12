@@ -164,6 +164,8 @@ final class AppState: ObservableObject {
 
     @Published var messages: [Message] = [] { didSet { scheduleConversationSave() } }
     var conversationSaveTask: Task<Void, Never>?
+    var conversationSummary = KaiConversationSummaryStore.standard.load()
+    var isSummarizing = false
     var screenTaskDecisions: [String: CheckedContinuation<Bool, Never>] = [:]
     @Published var chatDraft = ""
     @Published var chatModels: [String] = []
@@ -556,6 +558,7 @@ final class AppState: ObservableObject {
         messages.append(reply)
         isProcessing = true
         activeReplyID = reply.id
+        compactConversationIfNeeded()
         let useClaude = KaiClaudeCode.isClaudeChoice(selectedModel)
         replyTask = Task { if useClaude { await streamClaudeReply(replyID: reply.id, history: history) } else { await streamReply(replyID: reply.id, history: history) } }
     }
@@ -575,6 +578,8 @@ final class AppState: ObservableObject {
         replyTask?.cancel()
         cancelPendingScreenTasks()
         KaiConversationLog.standard.erase()
+        KaiConversationSummaryStore.standard.erase()
+        conversationSummary = nil
         activeReplyID = nil
         isProcessing = false
         messages = [Self.welcomeMessage()]
@@ -674,11 +679,18 @@ final class AppState: ObservableObject {
             App context: \(appCategory). \
             Adaptive mode: \(appAwarenessMode). \
             Available actions: \(suggestions.isEmpty ? "general" : suggestions.joined(separator: ", ")).
-            """ + (KaiProfilePrompt.promptSection(profile).map { "\n\n" + $0 } ?? "") + (KaiAnswerStyle.promptSection(for: .chat).map { "\n\n" + $0 } ?? "")
+            """ + (KaiProfilePrompt.promptSection(profile).map { "\n\n" + $0 } ?? "") + (KaiMemory.promptSection(KaiMemoryStore.standard.load()).map { "\n\n" + $0 } ?? "") + (KaiAnswerStyle.promptSection(for: .chat).map { "\n\n" + $0 } ?? "")
         )
-        let turns = messages
+        // Messages the summary already covers are not sent again; the summary goes in their place.
+        var recent = messages[...]
+        var summaryNote: [KaiOllamaMessage] = []
+        if let summary = conversationSummary, let covered = messages.firstIndex(where: { $0.id == summary.coveredThroughID }) {
+            recent = messages[(covered + 1)...]
+            summaryNote = [KaiOllamaMessage(role: "system", content: KaiConversationCompaction.note(summary))]
+        }
+        let turns = recent
             .filter { ($0.kind == .chat && !$0.text.isEmpty) || $0.kind == .action }
-        return [system] + turns.map { message in
+        return [system] + summaryNote + turns.map { message in
             if let card = message.actionCard {
                 return KaiOllamaMessage(role: "system", content: Self.modelNote(for: card))
             }

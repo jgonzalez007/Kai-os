@@ -143,3 +143,13 @@ You need Claude Code installed and signed in (Settings → Sidekick shows where 
 - [ ] On the Sidekick page run any task: its task and result appear in the chat as well.
 - [ ] Quit and reopen Kai OS: the conversation is still there. **New chat** clears it.
 - If it fails: send the step, the message shown, and whether Mail access (Settings → Mailbox access) allows reading whole mailboxes.
+
+## 16. Memory, long chats and screen tasks from any chat model
+
+- [ ] Settings → Sidekick → **What Kai remembers**: add "I prefer short answers in bullet points". Open a chat and ask something: the answer is in bullets.
+- [ ] Try adding a note with a password or a web address: it is refused with a reason.
+- [ ] In a chat say "remember that my manager is Maria". The note appears in the list marked "Added from a chat". Turn it off: a new chat no longer uses it. Delete it.
+- [ ] Ask "what did we say earlier about the budget?" in a long chat: Kai searches this chat's history and quotes it.
+- [ ] Keep one chat going past about 40 messages (or lots of long answers) on a local model, then ask about something from the start: it still knows the gist. (The summary is written on this Mac by the local model; with only Claude available, older messages are just cut.)
+- [ ] With a **local** chat model, say "open Notes and make a note called Test": the same Start / Not now card appears, and Start runs it.
+- [ ] After a screen task started from chat, ask "what did you just do?": the answer lists the steps.
