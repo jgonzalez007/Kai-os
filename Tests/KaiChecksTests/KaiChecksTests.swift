@@ -3395,6 +3395,60 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testMailViews() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        func ago(_ days: Double) -> Date { now.addingTimeInterval(-days * 86_400) }
+        check("a view matches on sender, subject, unread, flagged and age, all together") {
+            let view = KaiMailSavedView(name: "Old flagged from Dana", senderContains: "dana", subjectContains: "budget", flaggedOnly: true, olderThanDays: 7)
+            let hit = view.matches(sender: "Dana Reyes <dana@x.com>", subject: "Q3 Budget", isRead: true, isFlagged: true, date: ago(10), now: now)
+            return hit
+                && !view.matches(sender: "Dana Reyes <dana@x.com>", subject: "Q3 Budget", isRead: true, isFlagged: false, date: ago(10), now: now)
+                && !view.matches(sender: "Dana Reyes <dana@x.com>", subject: "Q3 Budget", isRead: true, isFlagged: true, date: ago(2), now: now)
+                && !view.matches(sender: "Sal <sal@x.com>", subject: "Q3 Budget", isRead: true, isFlagged: true, date: ago(10), now: now)
+                && !view.matches(sender: "Dana <d@x.com>", subject: "Lunch", isRead: true, isFlagged: true, date: ago(10), now: now)
+        }
+        check("recent and unread limits work, and a window that can't hold anything is refused") {
+            let recent = KaiMailSavedView(name: "New unread", unreadOnly: true, withinDays: 3)
+            return recent.matches(sender: "a", subject: "b", isRead: false, isFlagged: false, date: ago(1), now: now)
+                && !recent.matches(sender: "a", subject: "b", isRead: false, isFlagged: false, date: ago(5), now: now)
+                && !recent.matches(sender: "a", subject: "b", isRead: true, isFlagged: false, date: ago(1), now: now)
+                && KaiMailSavedView(name: "x", olderThanDays: 10, withinDays: 5).cleaned() == nil
+                && KaiMailSavedView(name: "x", olderThanDays: 5, withinDays: 10).cleaned() != nil
+        }
+        check("a view needs a name and a condition, and its text is cleaned and cut") {
+            let long = String(repeating: "n", count: 200)
+            let cleaned = KaiMailSavedView(name: "  Dana\nmail  ", senderContains: long).cleaned()
+            return KaiMailSavedView(name: "", unreadOnly: true).cleaned() == nil && KaiMailSavedView(name: "Everything").cleaned() == nil
+                && cleaned?.name == "Dana mail" && cleaned?.senderContains.count == KaiMailSavedView.maxTextLength
+        }
+        check("views are saved, replaced by name, removed by name or id, and limited in number") {
+            let suite = UserDefaults(suiteName: "kai-views-\(UUID().uuidString)")!
+            let store = KaiMailSavedViewStore(defaults: suite)
+            _ = try? store.add(KaiMailSavedView(name: "Unread", unreadOnly: true))
+            _ = try? store.add(KaiMailSavedView(name: "unread", flaggedOnly: true))
+            let replaced = store.load()
+            let removedByName = store.remove(idOrName: "UNREAD")
+            for i in 1...KaiMailSavedView.maxViews { _ = try? store.add(KaiMailSavedView(name: "v\(i)", unreadOnly: true)) }
+            let overflow: Bool
+            do { _ = try store.add(KaiMailSavedView(name: "one more", unreadOnly: true)); overflow = false } catch { overflow = (error as? KaiMailSavedViewStore.Problem) == .tooMany }
+            let id = store.load()[0].id
+            return replaced.count == 1 && replaced[0].flaggedOnly && !replaced[0].unreadOnly && removedByName.isEmpty
+                && overflow && store.load().count == KaiMailSavedView.maxViews && store.remove(idOrName: id).count == KaiMailSavedView.maxViews - 1
+        }
+        check("the view and rule tools are not given to Claude, whose mail tools stay read-only") {
+            let suite = UserDefaults(suiteName: "kai-views-claude-\(UUID().uuidString)")!
+            suite.set(true, forKey: KaiResearch.consentKey)
+            for source in KaiResearchSource.allCases { KaiResearch.setEnabled(source, true, suite) }
+            let tools = ["save_mail_view", "list_mail_views", "remove_mail_view", "propose_mail_rule", "propose_mail_move"].map { KaiOllamaTool(name: $0, description: "", parameters: []) }
+            return KaiResearch.allowedTools(tools, suite).isEmpty
+        }
+        check("a rule from the chat is the same plan as one made on the Mail page, and can be undone") {
+            let plan = KaiMailCleanupPlan(operation: .moveRule(to: "Archive"), senderKey: "marketplace.aws", senderName: "AWS", items: [.init(id: "1", position: 4, subject: "Hi")])
+            let undo = plan.undo
+            return plan.change.contains("always goes to “Archive”") && undo?.operation == .removeRule(named: KaiMailCleanup.moveRuleName(for: "marketplace.aws", folder: "Archive"))
+        }
+    }
+
     func testReplyRichness() throws {
         let source = KaiEmailDraftSource(sender: "Dana <dana@example.com>", subject: "Q3 budget", body: "Can you send the numbers?")
         check("voice examples go in as examples only, are cut to size, and a hostile one can't close the block") {

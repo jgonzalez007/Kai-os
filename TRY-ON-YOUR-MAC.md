@@ -176,3 +176,10 @@ Needs Ollama running with a local model (gemma4:e4b works). First index your sou
 3. Open an email from someone you have history with, double tap. The line under the draft lists what was used (profile, files, earlier messages, voice examples). The draft should name the real project or earlier promise, not be generic.
 4. Settings → Sidekick → Claude chat research: turn on "I understand", then "Write email and Slack replies with Claude". Draft again: the line ends with "written by Claude", and the draft should be clearly more specific. Screenshots never go to Claude.
 5. Turn Claude off (or sign out of Claude Code): the local model writes it and the line says so.
+
+## 19. Mail views and rules in plain words
+
+1. Mail page → sidebar → My views → New view. Make "Unread from <a person>" and save. It appears under My views with a count; click it and the list shows only those messages. Right-click it → Remove view.
+2. In chat (any model): "show me unread mail from Dana" or "make a view of flagged mail older than a week". Kai saves it and says how many messages match; it appears in the sidebar at once. "What views do I have?" lists them, "remove the Dana view" removes it. None of this changes Mail.
+3. Settings → Mailbox access must be "Read and organize" for rules. In chat: "make a rule so mail from marketplace.aws is marked read" or "always move mail from <sender> to Archive". Kai checks there is a recent message from that sender, then shows an approval card. Nothing is made until you approve. Afterwards the rule is in Mail → Settings → Rules, named "Kai: …".
+4. Claude chat never gets the view or rule tools (its mail tools stay read-only).

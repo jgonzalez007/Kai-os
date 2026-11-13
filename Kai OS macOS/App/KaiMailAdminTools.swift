@@ -67,7 +67,7 @@ extension AppState {
 
     /// The tools offered for the current access level.
     static func tools(for access: KaiMailAccess) -> [KaiOllamaTool] {
-        assistantTools + (KaiWebPreferences.enabled ? webTools : []) + (access.allowsWholeMailbox ? mailReadTools : []) + (access.allowsChanges ? mailChangeTools : [])
+        assistantTools + mailViewTools + (KaiWebPreferences.enabled ? webTools : []) + (access.allowsWholeMailbox ? mailReadTools : []) + (access.allowsChanges ? mailChangeTools + mailRuleTools : [])
     }
 
     /// Nil when the call isn't a mailbox tool.

@@ -43,6 +43,9 @@ struct KaiMailView: View {
     }
 
     @State private var view = Smart.all
+    /// A view the person saved, when one is open instead of one of the built-in views.
+    @State private var customID: String?
+    @State private var composingView = false
     @State private var selectedID: String?
     @State private var bodyState = BodyState.idle
     @State private var assist = Assist.none
@@ -95,10 +98,19 @@ struct KaiMailView: View {
         smart == .cleanUp ? groups.filter { !$0.isMuted && $0.unread > 0 }.count : messages.filter { matches($0, smart) }.count
     }
 
+    private var activeCustom: KaiMailSavedView? { customID.flatMap { id in appState.mailViews.first { $0.id == id } } }
+
+    private func matchesCurrent(_ message: MailMessage) -> Bool {
+        if let custom = activeCustom {
+            return custom.matches(sender: message.sender.isEmpty ? message.from : message.sender, subject: message.subject, isRead: message.isRead, isFlagged: message.starred, date: message.date)
+        }
+        return matches(message, view)
+    }
+
     private var visible: [MailMessage] {
         let query = appState.mailQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         return messages.filter { message in
-            matches(message, view) && (query.isEmpty || message.subject.localizedCaseInsensitiveContains(query)
+            matchesCurrent(message) && (query.isEmpty || message.subject.localizedCaseInsensitiveContains(query)
                                        || message.sender.localizedCaseInsensitiveContains(query))
         }
     }
@@ -199,7 +211,7 @@ struct KaiMailView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text("Inbox").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.bottom, 4)
             ForEach(Smart.allCases) { smart in
-                Button { view = smart } label: {
+                Button { customID = nil; view = smart } label: {
                     HStack(spacing: 10) {
                         Image(systemName: smart.symbol).frame(width: 18)
                             .foregroundStyle(smart == .needsYou ? KaiColor.magenta : smart == .unread ? KaiColor.cyan : .secondary)
@@ -210,15 +222,16 @@ struct KaiMailView: View {
                         if n > 0 && smart != .all { Text("\(n)").font(.caption).foregroundStyle(.secondary) }
                     }
                     .padding(.horizontal, 10).padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(view == smart ? Color.white.opacity(0.12) : .clear))
+                    .background(RoundedRectangle(cornerRadius: 10).fill(view == smart && activeCustom == nil ? Color.white.opacity(0.12) : .clear))
                 }
                 .buttonStyle(.plain)
             }
-            if view == .cleanUp {
+            myViews
+            if view == .cleanUp && activeCustom == nil {
                 Text("Mail grouped by sender. Mark a whole group read, move it to a folder, make a rule in Mail for what comes next, or mute the sender in Kai. Flagged messages are never touched.")
                     .font(.caption2).foregroundStyle(.secondary).padding(10)
             }
-            if view == .needsYou {
+            if view == .needsYou && activeCustom == nil {
                 Text("A guess from the sender and the subject: unread messages from a person that ask for something, and anything you flagged.")
                     .font(.caption2).foregroundStyle(.secondary).padding(10)
             }
@@ -229,10 +242,58 @@ struct KaiMailView: View {
         .kaiLiquidGlass(KaiColor.violet, radius: 18, glow: 0.06)
     }
 
+    /// The views the person saved, below the built-in ones, with a way to make another.
+    private var myViews: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("My views").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 2)
+            ForEach(appState.mailViews) { saved in
+                Button { view = .all; customID = saved.id } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "line.3.horizontal.decrease.circle").frame(width: 18).foregroundStyle(.secondary).font(.system(size: 13))
+                        Text(saved.name).lineLimit(1)
+                        Spacer()
+                        let n = appState.matchCount(saved)
+                        if n > 0 { Text("\(n)").font(.caption).foregroundStyle(.secondary) }
+                    }
+                    .padding(.horizontal, 10).padding(.vertical, 8)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(customID == saved.id ? Color.white.opacity(0.12) : .clear))
+                }
+                .buttonStyle(.plain)
+                .help(saved.summary)
+                .contextMenu {
+                    Button("Remove view", role: .destructive) {
+                        if customID == saved.id { customID = nil }
+                        appState.removeMailView(saved.id)
+                    }
+                }
+            }
+            Button { composingView = true } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus").frame(width: 18).font(.system(size: 12))
+                    Text("New view")
+                    Spacer()
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 10).padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+            .sheet(isPresented: $composingView) {
+                KaiMailViewEditor(onSave: { saved in
+                    try appState.saveMailView(saved)
+                    if let made = appState.mailViews.first(where: { $0.name.caseInsensitiveCompare(saved.name.trimmingCharacters(in: .whitespaces)) == .orderedSame }) { view = .all; customID = made.id }
+                    composingView = false
+                }, onCancel: { composingView = false })
+            }
+            if appState.mailViews.isEmpty {
+                Text("Or ask in chat: “show me unread mail from Dana”.").font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 10)
+            }
+        }
+    }
+
     // MARK: List
 
     private var list: some View {
-        Group { if view == .cleanUp { cleanupList } else { messageList } }
+        Group { if view == .cleanUp && activeCustom == nil { cleanupList } else { messageList } }
     }
 
     private var messageList: some View {
@@ -266,6 +327,7 @@ struct KaiMailView: View {
 
     private var emptyText: String {
         if !appState.mailQuery.isEmpty { return "Nothing matched" }
+        if activeCustom != nil { return "Nothing matches this view" }
         switch view {
         case .all: return "No messages"
         case .unread: return "Nothing unread"

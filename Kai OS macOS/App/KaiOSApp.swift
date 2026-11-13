@@ -200,6 +200,8 @@ final class AppState: ObservableObject {
     @Published var calendarEvents: [CalendarEvent] = []
     @Published var selectedEventId: String?
     @Published var mailMessages: [MailMessage] = []
+    /// Mail views the person (or the assistant, in chat) saved: filters over the inbox, shown in the Mail sidebar.
+    @Published var mailViews: [KaiMailSavedView] = KaiMailSavedViewStore.standard.load()
     @Published var selectedMailId: String?
     @Published var mailFolder = "Inbox"
     @Published var starredCount = 0

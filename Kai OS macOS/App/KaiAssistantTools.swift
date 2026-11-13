@@ -131,6 +131,8 @@ extension AppState {
         case "search_mail": return "Searching your mail…"
         case "read_mail_message": return "Reading an email…"
         case "propose_mail_move", "propose_mail_mark_read": return "Checking which messages match…"
+        case "save_mail_view", "list_mail_views", "remove_mail_view": return "Updating your mail views…"
+        case "propose_mail_rule": return "Preparing a Mail rule…"
         case "do_on_screen": return "Waiting for you to start a task…"
         case "remember": return "Noting that down…"
         case "search_chat_history": return "Looking back through this chat…"
@@ -195,7 +197,8 @@ extension AppState {
                     at: call.arguments["at"]?.stringValue
                 ))
             default:
-                if let admin = try await mailAdminTool(call) { output = admin } else { output = "Unknown tool: \(call.name)" }
+                if let views = try await mailViewTool(call) { output = views }
+                else if let admin = try await mailAdminTool(call) { output = admin } else { output = "Unknown tool: \(call.name)" }
             }
             return String(output.prefix(Self.toolOutputLimit))
         } catch {
