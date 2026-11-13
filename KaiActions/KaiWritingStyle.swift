@@ -94,3 +94,45 @@ public struct KaiWritingStyleStore: Sendable {
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 }
+
+/// A few of the user's own sent messages, kept as examples of their voice for drafting. Only their own words (quoted
+/// text from other people is removed first). The file is readable only by this user, and Clear removes it.
+public struct KaiWritingSamplesStore: Sendable {
+    public static let maxSamples = 8
+    public static let minimumLength = 25
+    public static let maxLength = 700
+
+    public let url: URL
+    public init(url: URL) { self.url = url }
+
+    public static var standard: KaiWritingSamplesStore {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return KaiWritingSamplesStore(url: support.appendingPathComponent("Kai OS/writing-samples.json"))
+    }
+
+    /// Picks varied examples: skips near-empty and repeated ones, and takes short, medium and long ones in turn.
+    public static func select(from samples: [String]) -> [String] {
+        var seen = Set<String>()
+        let usable = samples.map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxLength)) }
+            .filter { $0.count >= minimumLength && seen.insert($0.lowercased()).inserted }
+        guard usable.count > maxSamples else { return usable }
+        let byLength = usable.sorted { $0.count < $1.count }
+        // Evenly spaced through the lengths, so the examples show both quick answers and longer ones.
+        return (0..<maxSamples).map { byLength[$0 * (byLength.count - 1) / (maxSamples - 1)] }
+    }
+
+    public func load() -> [String] {
+        guard let data = try? Data(contentsOf: url), let list = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return Array(list.prefix(Self.maxSamples))
+    }
+
+    public func save(_ samples: [String]) throws {
+        let chosen = Self.select(from: samples)
+        if chosen.isEmpty { clear(); return }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONEncoder().encode(chosen).write(to: url, options: [.atomic])
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+    }
+
+    public func clear() { try? FileManager.default.removeItem(at: url) }
+}

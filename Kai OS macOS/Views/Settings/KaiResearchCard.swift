@@ -11,6 +11,7 @@ import KaiAgent
 
 struct KaiResearchCard: View {
     @AppStorage(KaiResearch.consentKey) private var consent = false
+    @AppStorage(KaiResearch.repliesKey) private var replies = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -21,6 +22,18 @@ struct KaiResearchCard: View {
                 Label("Your questions, and whatever the tools find in the sources you turn on, are sent to Anthropic. A local model keeps everything on this Mac.", systemImage: "exclamationmark.triangle.fill")
                     .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                 Toggle("I understand, and I want chat on Claude to use these sources", isOn: $consent).kaiSwitch().tint(.green)
+                Divider().overlay(Color.white.opacity(0.08))
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Write email and Slack replies with Claude").fontWeight(.medium)
+                            Text("Replies from double tap and the reply buttons use Claude for better, more specific drafts. Sent to Anthropic: the message and its thread, your profile, your linked notes, and a few of your own sent messages as examples of your voice. Screenshots always stay on this Mac. If Claude can't be reached, your local model writes the reply.")
+                                .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Toggle("", isOn: $replies).labelsHidden().kaiSwitch().tint(.green).disabled(!consent)
+                    }
+                }
                 Divider().overlay(Color.white.opacity(0.08))
                 ForEach(KaiResearchSource.allCases, id: \.rawValue) { SourceRow(source: $0).disabled(!consent) }
                 Text("Each source starts off. If one is off, Claude is told so and carries on with the others. Mail also needs your Mailbox access setting to allow reading whole mailboxes.")

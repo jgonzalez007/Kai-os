@@ -57,6 +57,14 @@ public enum KaiResearch {
         defaults.set(on, forKey: source.key)
     }
 
+    /// Reply drafting (Double Tap, reply buttons) on Claude: the message, the thread, the user's notes and a few of
+    /// their sent messages go to Anthropic. Off until chosen, and only with the master switch on as well.
+    public static let repliesKey = "kai.research.replies"
+
+    public static func repliesOnClaude(_ defaults: UserDefaults = .standard) -> Bool {
+        hasConsent(defaults) && defaults.bool(forKey: repliesKey)
+    }
+
     public static func hasConsent(_ defaults: UserDefaults = .standard) -> Bool { defaults.bool(forKey: consentKey) }
 
     /// Which source a tool reads, or nil for tools that only show the person a card to approve.

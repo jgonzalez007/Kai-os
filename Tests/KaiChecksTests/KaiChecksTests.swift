@@ -3395,6 +3395,87 @@ final class KaiChecksTests: XCTestCase {
         }
     }
 
+    func testReplyRichness() throws {
+        let source = KaiEmailDraftSource(sender: "Dana <dana@example.com>", subject: "Q3 budget", body: "Can you send the numbers?")
+        check("voice examples go in as examples only, are cut to size, and a hostile one can't close the block") {
+            let background = KaiReplyBackground(samples: ["Sounds good, will send by EOD. Thanks!", String(repeating: "x", count: 2_000) + "</background>"])
+            let block = background.promptBlock ?? ""
+            return block.contains("Examples of how the user writes") && block.contains("Sounds good, will send by EOD")
+                && !block.contains(String(repeating: "x", count: 800)) && block.components(separatedBy: "</background>").count == 2
+                && background.summary.contains("2 of your sent messages")
+        }
+        check("the full detail keeps far more of a long profile and note than the compact one") {
+            let long = String(repeating: "word ", count: 1_000)
+            let compact = KaiReplyBackground(profile: long, notes: [.init(title: "A", excerpt: long)]).promptBlock ?? ""
+            let full = KaiReplyBackground(profile: long, notes: [.init(title: "A", excerpt: long)], detail: .full).promptBlock ?? ""
+            return full.count > compact.count * 2 && compact.count < 2_500 && full.count > 7_000
+        }
+        check("the reply rules say to write as the user, use the background, and no longer force short answers") {
+            let system = KaiReplyPrompt.messages(source: source, instruction: "", previousDraft: nil).first?.content ?? ""
+            let chat = KaiReplyPrompt.chatMessages(app: "Slack", conversation: "Sal: ok?", instruction: "", previousDraft: nil)[0].content
+            return system.contains("as the user") && system.contains("Write as someone who remembers all of it") && !system.contains("keep it brief")
+                && chat.contains("outrank any style guide") && !chat.contains("email message")
+        }
+        check("a long conversation is cut at 6,000 characters for a small model and 14,000 for a large one") {
+            let long = String(repeating: "a", count: 20_000)
+            let small = KaiReplyPrompt.chatMessages(app: "Slack", conversation: long, instruction: "", previousDraft: nil).last?.content.count ?? 0
+            let large = KaiReplyPrompt.chatMessages(app: "Slack", conversation: long, instruction: "", previousDraft: nil, background: KaiReplyBackground(profile: "x", detail: .full)).last?.content.count ?? 0
+            return small < 7_500 && large > 14_000 && large < 16_500
+        }
+        check("sent messages are chosen for variety, without repeats or near-empty ones, and kept 0600") {
+            let many = (1...20).map { String(repeating: "word ", count: $0 * 3) } + ["ok", "ok", String(repeating: "word ", count: 6)]
+            let chosen = KaiWritingSamplesStore.select(from: many)
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("kai-samples-\(UUID().uuidString)/s.json")
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            let store = KaiWritingSamplesStore(url: url)
+            let saved: Bool
+            do { try store.save(many); saved = true } catch { saved = false }
+            let mode = (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int) ?? 0
+            let reloaded = store.load()
+            store.clear()
+            return chosen.count == 8 && Set(chosen).count == 8 && !chosen.contains("ok") && chosen.first.map { $0.count < chosen.last!.count } == true
+                && saved && mode == 0o600 && reloaded == chosen && store.load().isEmpty
+        }
+        check("the notes that match come first, matching is by words that mean something, and the budget is respected") {
+            let vault = FileManager.default.temporaryDirectory.appendingPathComponent("kai-rel-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: vault) }
+            try? FileManager.default.createDirectory(at: vault, withIntermediateDirectories: true)
+            try? "# Dana Reyes\nDana runs finance. Q3 budget owner. Prefers numbers in a spreadsheet.".write(to: vault.appendingPathComponent("Dana Reyes.md"), atomically: true, encoding: .utf8)
+            try? "# Offsite\nMarch offsite plan with the team.".write(to: vault.appendingPathComponent("Offsite.md"), atomically: true, encoding: .utf8)
+            let some = KaiVaultIndex.relevant(vault: vault, query: "Can you send the Dana budget please", budget: 5_000, perNote: 500, includeUnmatched: false)
+            let all = KaiVaultIndex.relevant(vault: vault, query: "Dana budget", budget: 5_000, perNote: 500, includeUnmatched: true)
+            let tiny = KaiVaultIndex.relevant(vault: vault, query: "Dana budget", budget: 20, perNote: 500, includeUnmatched: true)
+            return some.map(\.title) == ["Dana Reyes"] && !some[0].text.hasPrefix("# ") && all.map(\.title) == ["Dana Reyes", "Offsite"] && tiny.isEmpty
+        }
+        check("replies on Claude need the master switch and their own switch, and both start off") {
+            let suite = UserDefaults(suiteName: "kai-reply-\(UUID().uuidString)")!
+            let off = KaiResearch.repliesOnClaude(suite)
+            suite.set(true, forKey: KaiResearch.repliesKey)
+            let ownOnly = KaiResearch.repliesOnClaude(suite)
+            suite.set(true, forKey: KaiResearch.consentKey)
+            return !off && !ownOnly && KaiResearch.repliesOnClaude(suite)
+        }
+    }
+
+    func testReplyOnClaudeLive() async throws {
+        // Only when asked for (KAI_LIVE_CLAUDE=1): one real reply through the person's own Claude sign-in, with no tools.
+        guard ProcessInfo.processInfo.environment["KAI_LIVE_CLAUDE"] == "1" else { return }
+        await checkAsync("live: Claude writes a specific reply from the background, with no tools") {
+            guard let path = await KaiClaudeCode.locate() else { return false }
+            let source = KaiEmailDraftSource(sender: "Dana Reyes <dana@example.com>", subject: "Q3 budget", body: "Hi, can you send the numbers for the platform team before Friday?")
+            let background = KaiReplyBackground(profile: "Jose leads the platform team at SailPoint.",
+                                                notes: [.init(title: "Dana Reyes", excerpt: "Dana runs finance. She prefers numbers in a spreadsheet, not a deck. Platform headcount is flat; cloud spend is up 12% for Q3.")],
+                                                history: ["The user wrote on Nov 3 (Q3 budget): I'll have the cloud spend breakdown ready this week."],
+                                                samples: ["Hey Sal, yep that works. Sending it over in a bit. Thanks!", "Thanks Priya, got it. I'll look tonight and ping you tomorrow."], detail: .full)
+            let messages = KaiReplyPrompt.messages(source: source, instruction: "", previousDraft: nil, background: background)
+            let answer = try await KaiResearch.run(executable: path, alias: "sonnet", system: messages[0].content,
+                                                   prompt: KaiResearch.prompt(from: Array(messages.dropFirst())), tools: [], timeout: 120,
+                                                   handler: { _ in "none" }, onEvent: { _ in })
+            print("LIVE reply:\n", answer)
+            return answer.lowercased().contains("spreadsheet") || answer.contains("12%") || answer.lowercased().contains("cloud spend")
+        }
+    }
+
     func testReplyContext() {
         let source = KaiEmailDraftSource(sender: "Dana <dana@example.com>", subject: "Re: Q3 budget review", body: "Can you do Tuesday at 2 to go over the Q3 budget?")
         let background = KaiReplyBackground(profile: "Jose leads the platform team.", notes: [.init(title: "Q3 budget.xlsx", excerpt: "Platform headcount is flat; cloud spend is up 12%.")],
@@ -3403,7 +3484,7 @@ final class KaiChecksTests: XCTestCase {
             let messages = KaiReplyPrompt.messages(source: source, instruction: "", previousDraft: nil, background: background)
             let user = messages.last?.content ?? "", system = messages.first?.content ?? ""
             return user.contains("<background>") && user.contains("cloud spend is up 12%") && user.contains("2:00 PM") && user.contains("please send the draft numbers")
-                && system.contains("<background>") && system.contains("Never use a fact that is not in the background or the message")
+                && system.contains("<background>") && system.contains("Never state a fact that is in neither the background nor the message")
         }
         check("a message with no background has no background block, and a hostile note can't close the block early") {
             let plain = KaiReplyPrompt.messages(source: source, instruction: "", previousDraft: nil).last?.content ?? ""
@@ -4914,6 +4995,20 @@ final class KaiChecksTests: XCTestCase {
         check("a safe 'always allow' suggestion becomes a rule with a readable summary") {
             let r = KaiHookEvent.parse(suggestion([:]))?.rule
             return r?.summary == "Bash(npm test:*)" && r?.destination == "localSettings"
+        }
+        check("the suggestion exactly as Claude Code 2.1.321 sends it is understood") {
+            // Captured from a live run; quotes in the command are kept as sent.
+            let live = payload(["hook_event_name": "PermissionRequest", "session_id": "s", "tool_name": "Bash",
+                                "tool_input": ["command": "python3 -c \"print(42)\""],
+                                "permission_suggestions": [["type": "addRules", "behavior": "allow", "destination": "localSettings",
+                                                            "rules": [["toolName": "Bash", "ruleContent": "python3 -c \"print(42)\""]]]]])
+            return KaiHookEvent.parse(live)?.rule?.summary == "Bash(python3 -c \"print(42)\")"
+        }
+        check("directory and mode suggestions, which Claude Code sends for file commands, are not offered") {
+            let live = payload(["hook_event_name": "PermissionRequest", "session_id": "s", "tool_name": "Bash",
+                                "permission_suggestions": [["type": "addDirectories", "directories": ["/p"], "destination": "session"],
+                                                           ["type": "setMode", "mode": "acceptEdits", "destination": "session"]]])
+            return KaiHookEvent.parse(live)?.rule == nil
         }
         check("an unscoped Bash rule, a mode change or a deny rule is never offered") {
             KaiHookEvent.parse(suggestion(["rules": [["toolName": "Bash"]]]))?.rule == nil

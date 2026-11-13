@@ -32,6 +32,7 @@ final class KaiWritingStyleController: ObservableObject {
     /// These are replaced by the self-test, so it never touches real mail or the saved style.
     var mailProvider: any KaiSentMailProviding = KaiSystemSentMailProvider()
     var store = KaiWritingStyleStore.standard
+    var samplesStore = KaiWritingSamplesStore.standard
 
     private let appState: AppState
     private let ollama = KaiOllamaClient()
@@ -63,6 +64,7 @@ final class KaiWritingStyleController: ObservableObject {
     func clear() {
         style = ""
         sampleCount = nil
+        samplesStore.clear()
         save()
     }
 
@@ -92,6 +94,7 @@ final class KaiWritingStyleController: ObservableObject {
                 }
                 style = learned
                 sampleCount = samples.count
+                try? samplesStore.save(samples)
                 save()
             } catch {
                 errorMessage = error.localizedDescription

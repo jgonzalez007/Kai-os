@@ -168,3 +168,11 @@ Needs Ollama running with a local model (gemma4:e4b works). First index your sou
 - [ ] With Claude as the chat model and **Knowledge base** switched on under Claude chat research, the same question works; with it off, Claude is told knowledge is switched off.
 - [ ] Night Shift (if enabled) now also reads new items and updates the notes before the portrait. "About you" is written from the summaries once there are 20 or more.
 - If something fails: the step number and the message on the status line.
+
+## 18. Smarter replies (email and Slack)
+
+1. Settings → Double Tap → Writing style: press Learn again. Kai now keeps up to 8 of your own sent messages as voice examples (Clear removes them).
+2. Build the Linked notes first (Knowledge → Linked notes → Build), so replies can use the notes about the person and project.
+3. Open an email from someone you have history with, double tap. The line under the draft lists what was used (profile, files, earlier messages, voice examples). The draft should name the real project or earlier promise, not be generic.
+4. Settings → Sidekick → Claude chat research: turn on "I understand", then "Write email and Slack replies with Claude". Draft again: the line ends with "written by Claude", and the draft should be clearly more specific. Screenshots never go to Claude.
+5. Turn Claude off (or sign out of Claude Code): the local model writes it and the line says so.

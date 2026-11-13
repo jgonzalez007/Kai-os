@@ -90,4 +90,29 @@ public enum KaiVaultIndex {
         guard !key.isEmpty, let note = contents(of: vault).first(where: { KaiVault.normalized($0.title) == key }) else { return nil }
         return String(note.text.prefix(maxReadCharacters))
     }
+
+    /// The notes most likely to help with a message, best first, up to a size budget. A word in a note's title counts
+    /// more than one in its text; notes that match nothing come last, and only when `includeUnmatched` is set.
+    public static func relevant(vault: URL, query: String, budget: Int, perNote: Int, includeUnmatched: Bool) -> [(title: String, text: String)] {
+        // Common words match every note, so they carry no information.
+        let common: Set<String> = ["the", "and", "for", "you", "your", "are", "was", "with", "have", "has", "this", "that", "from", "can", "will", "would", "could", "please", "thanks", "thank", "hi", "hello", "regards", "best", "just", "not", "but", "about", "when", "what", "how", "any", "all", "our", "out", "get", "let", "know"]
+        let words = KaiSearchQuery.words(query).filter { $0.count >= 3 && !common.contains($0) }
+        var scored: [(score: Int, title: String, text: String)] = []
+        for note in contents(of: vault) where note.path != KaiVault.overviewName {
+            let lowerText = note.text.lowercased(), lowerTitle = note.title.lowercased()
+            let score = words.reduce(0) { $0 + (lowerTitle.contains($1) ? 5 : 0) + min(lowerText.components(separatedBy: $1).count - 1, 4) }
+            if score > 0 || includeUnmatched { scored.append((score, note.title, note.text)) }
+        }
+        var used = 0
+        var out: [(title: String, text: String)] = []
+        for note in scored.sorted(by: { ($0.score, $1.title) > ($1.score, $0.title) }) {
+            // The first line is the note's own title heading, which the title already gives.
+            let body = note.text.split(separator: "\n", omittingEmptySubsequences: true).drop { $0.hasPrefix("# ") }.joined(separator: "\n")
+            let text = String(body.prefix(perNote))
+            guard !text.isEmpty, used + text.count <= budget else { continue }
+            used += text.count
+            out.append((note.title, text))
+        }
+        return out
+    }
 }

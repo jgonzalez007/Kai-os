@@ -9,6 +9,7 @@
 //
 
 import AppKit
+import KaiAgent
 import KaiShared
 import KaiActions
 import KaiCapture
@@ -117,6 +118,7 @@ final class KaiDoubleTapController: ObservableObject {
     /// What the person chose to say with a button.
     @Published private(set) var intent: KaiReplyIntent?
     private var background: KaiReplyBackground?
+    private var baseSummary: String?
     /// The draft as Kai wrote it, to see later what the person changed.
     private var originalDraft = ""
     private var learnedFromThisDraft = false
@@ -177,10 +179,11 @@ final class KaiDoubleTapController: ObservableObject {
                 guard !Task.isCancelled else { return }
                 self.context = context
                 // Read the person's own notes, calendar and earlier messages, so the reply can be specific.
-                let found = await KaiReplyBackgroundBuilder.build(for: context, appState: appState)
+                let found = await KaiReplyBackgroundBuilder.build(for: context, appState: appState, full: usesClaude(for: context))
                 guard !Task.isCancelled else { return }
                 background = found
-                backgroundSummary = found.isEmpty ? nil : found.summary
+                baseSummary = found.isEmpty ? nil : found.summary
+                showSummary(engine: nil)
                 if focus == .multiline {
                     destination = .cursor
                 } else if case .mail = context {
@@ -219,6 +222,7 @@ final class KaiDoubleTapController: ObservableObject {
 
     func cancel() {
         background = nil
+        baseSummary = nil
         backgroundSummary = nil
         needsDecision = false
         intent = nil
@@ -297,6 +301,19 @@ final class KaiDoubleTapController: ObservableObject {
             return
         }
         #endif
+        if let context, usesClaude(for: context) {
+            do {
+                try await streamDraftWithClaude(messages)
+                showSummary(engine: "written by Claude")
+                return
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                if Task.isCancelled { return }
+                // Claude couldn't be reached (not signed in, offline, timed out): the local model writes it instead.
+                showSummary(engine: "Claude wasn't available, so your local model wrote this")
+            }
+        }
         var text = ""
         // No tools are offered here: drafting from an untrusted email can't trigger anything.
         for try await event in ollama.stream(model: KaiModelTag.name(from: appState.selectedModel), messages: messages, tools: []) {
@@ -305,6 +322,32 @@ final class KaiDoubleTapController: ObservableObject {
             text += delta
             draft = text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
+    }
+
+    /// Replies on Claude need the person's switch, and text to send: a screenshot always stays on this Mac.
+    private func usesClaude(for context: KaiReplyContext) -> Bool {
+        switch context {
+        case .mail, .chat: return KaiResearch.repliesOnClaude()
+        case .screen, .chatScreen: return false
+        }
+    }
+
+    private func showSummary(engine: String?) {
+        let text = [baseSummary, engine].compactMap { $0 }.joined(separator: " · ")
+        backgroundSummary = text.isEmpty ? nil : text
+    }
+
+    /// One question to the person's own Claude sign-in with no tools at all: the draft is the answer.
+    private func streamDraftWithClaude(_ messages: [KaiOllamaMessage]) async throws {
+        guard let path = await KaiClaudeCode.locate(custom: UserDefaults.standard.string(forKey: KaiClaudeCode.pathKey)) else { throw KaiClaudeCodeError.notFound }
+        let system = messages.first { $0.role == "system" }?.content ?? ""
+        let prompt = KaiResearch.prompt(from: messages.filter { $0.role != "system" })
+        let alias = KaiClaudeCode.isClaudeChoice(appState.selectedModel) ? KaiClaudeCode.alias(from: appState.selectedModel) : "sonnet"
+        let answer = try await KaiResearch.run(executable: path, alias: alias, system: system, prompt: prompt, tools: [], timeout: 120,
+                                               handler: { _ in "No tools are available." }, onEvent: { _ in })
+        let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { throw KaiClaudeCodeError.failed("empty") }
+        draft = text
     }
 
     /// Redrafts once if the draft adds a day or time the email doesn't state. If it still does,

@@ -84,7 +84,7 @@ public enum KaiMailHistory {
         .sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
     }
 
-    static func displayName(_ sender: String) -> String {
+    public static func displayName(_ sender: String) -> String {
         if let open = sender.firstIndex(of: "<") {
             let name = sender[..<open].trimmingCharacters(in: CharacterSet.whitespaces.union(CharacterSet(charactersIn: "\"")))
             if !name.isEmpty { return name }
