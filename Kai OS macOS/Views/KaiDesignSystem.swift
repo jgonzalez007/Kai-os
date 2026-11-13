@@ -28,8 +28,8 @@ struct KaiColor {
 
     static let card = Color.white.opacity(0.7)
     static let cardDark = Color.black.opacity(0.3)
-    static var border: Color { cobalt ? KaiCobalt.plasmaCyan.opacity(0.28) : Color.white.opacity(0.18) }
-    static let textPrimary = Color(nsColor: .textColor)
+    static var border: Color { cobalt ? KaiCobalt.line : Color.white.opacity(0.18) }
+    static var textPrimary: Color { cobalt ? KaiCobalt.text : Color(nsColor: .textColor) }
     static var textSecondary: Color { cobalt ? KaiCobalt.textSecondary : Color(nsColor: .secondaryLabelColor) }
     static var textTertiary: Color { cobalt ? KaiCobalt.textSecondary.opacity(0.75) : Color(nsColor: .tertiaryLabelColor) }
     static let success = Color(red: 0.0, green: 0.722, blue: 0.580)
@@ -40,8 +40,8 @@ struct KaiColor {
     static let surfaceLight = Color(nsColor: .textBackgroundColor)
 
     // Kai OS is always dark: cards are a faint lift on the near-black window (Classic) or deep blue glass on the sheet (Cobalt Plasma).
-    static var cardBg: Color { cobalt ? KaiCobalt.panelFill : Color.white.opacity(0.05) }
-    static var surfaceBg: Color { cobalt ? KaiCobalt.panelFill : Color.white.opacity(0.05) }
+    static var cardBg: Color { cobalt ? KaiCobalt.ink1 : Color.white.opacity(0.05) }
+    static var surfaceBg: Color { cobalt ? KaiCobalt.text.opacity(0.05) : Color.white.opacity(0.05) }
     static var windowBg: Color { cobalt ? KaiCobalt.sheet : Color(red: 0.016, green: 0.016, blue: 0.027) }      // #050B14 | #040407
     static var panelBg: Color { cobalt ? KaiCobalt.panel : Color(red: 0.176, green: 0.227, blue: 0.310) }       // #0D1B2A | #2D3A4F
     static let textBase = Color(red: 0.878, green: 0.878, blue: 0.878)   // #E0E0E0
@@ -66,20 +66,24 @@ extension Color {
 // MARK: - Typography
 
 enum KaiFont {
-    static let title1 = Font.system(size: 28, weight: .bold, design: .rounded)
-    static let title2 = Font.system(size: 22, weight: .semibold, design: .rounded)
-    static let title3 = Font.system(size: 18, weight: .semibold, design: .rounded)
-    static let headline = Font.system(size: 15, weight: .semibold, design: .rounded)
-    static let body = Font.system(size: 14, weight: .regular, design: .rounded)
-    static let bodyStrong = Font.system(size: 14, weight: .medium, design: .rounded)
-    static let caption = Font.system(size: 12, weight: .regular, design: .rounded)
-    static let captionStrong = Font.system(size: 12, weight: .semibold, design: .rounded)
-    static let caption2 = Font.system(size: 11, weight: .medium, design: .rounded)
-    static let caption2Strong = Font.system(size: 11, weight: .semibold, design: .rounded)
-    static let caption3 = Font.system(size: 10, weight: .medium, design: .rounded)
+    /// SF in Hypr (like the site), rounded in Classic.
+    private static var design: Font.Design { KaiTheme.isCobalt ? .default : .rounded }
+    /// Keycaps, shortcuts and small labels: the site's mono face.
+    static var mono: Font { .system(size: 11, weight: .medium, design: .monospaced) }
+    static var title1: Font { Font.system(size: 28, weight: .bold, design: design) }
+    static var title2: Font { Font.system(size: 22, weight: .semibold, design: design) }
+    static var title3: Font { Font.system(size: 18, weight: .semibold, design: design) }
+    static var headline: Font { Font.system(size: 15, weight: .semibold, design: design) }
+    static var body: Font { Font.system(size: 14, weight: .regular, design: design) }
+    static var bodyStrong: Font { Font.system(size: 14, weight: .medium, design: design) }
+    static var caption: Font { Font.system(size: 12, weight: .regular, design: design) }
+    static var captionStrong: Font { Font.system(size: 12, weight: .semibold, design: design) }
+    static var caption2: Font { Font.system(size: 11, weight: .medium, design: design) }
+    static var caption2Strong: Font { Font.system(size: 11, weight: .semibold, design: design) }
+    static var caption3: Font { Font.system(size: 10, weight: .medium, design: design) }
     
-    static let label = Font.system(size: 13, weight: .medium, design: .rounded)
-    static let labelStrong = Font.system(size: 13, weight: .semibold, design: .rounded)
+    static var label: Font { Font.system(size: 13, weight: .medium, design: design) }
+    static var labelStrong: Font { Font.system(size: 13, weight: .semibold, design: design) }
 }
 
 // MARK: - Spacing
@@ -160,9 +164,10 @@ struct KaiInputStyle: ViewModifier {
 struct KaiSectionHeaderStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .font(KaiFont.caption2Strong)
+            .font(KaiTheme.isCobalt ? KaiFont.mono : KaiFont.caption2Strong)
             .foregroundStyle(KaiColor.textTertiary)
             .textCase(.uppercase)
+            .tracking(KaiTheme.isCobalt ? 0.8 : 0)
             .padding(.horizontal, KaiSpacing.regular)
             .padding(.top, KaiSpacing.large)
     }
@@ -209,7 +214,7 @@ extension View {
     }
     
     func kaiGlow(opacity: Double = 0.5) -> some View {
-        self.shadow(color: KaiColor.primary.opacity(opacity), radius: 12, x: 0, y: 0)
+        self.shadow(color: KaiColor.primary.opacity(KaiTheme.isCobalt ? opacity * 0.25 : opacity), radius: KaiTheme.isCobalt ? 8 : 12, x: 0, y: 0)
     }
 }
 
@@ -492,16 +497,15 @@ struct KaiAmbientBackground: View {
         if KaiTheme.isCobalt { cobaltBody } else { classicBody }
     }
 
-    /// Cobalt Plasma: the deep sheet blue with cobalt light from the top left, a cyan spark at the right and a low blue glow.
+    /// Hypr: flat ink 0 with one faint cyan light at the top, like the site's hero, and a trace of magenta far off.
     private var cobaltBody: some View {
         ZStack {
             KaiCobalt.sheet
             GeometryReader { geo in
                 let w = geo.size.width, h = geo.size.height
                 ZStack {
-                    glow(KaiCobalt.primary, opacity: 0.38, diameter: w * 0.95).position(x: w * 0.12, y: -h * 0.08)
-                    glow(KaiCobalt.plasmaCyan, opacity: 0.20, diameter: w * 0.55).position(x: w * 0.92, y: -h * 0.06)
-                    glow(KaiCobalt.electricBlue, opacity: 0.14, diameter: w * 0.8).position(x: w * 0.55, y: h * 1.12)
+                    glow(KaiCobalt.plasmaCyan, opacity: 0.10, diameter: w * 0.9).position(x: w * 0.5, y: -h * 0.12)
+                    glow(KaiCobalt.magenta, opacity: 0.035, diameter: w * 0.6).position(x: w * 1.0, y: h * 1.05)
                 }
             }
         }

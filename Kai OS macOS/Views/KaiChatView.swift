@@ -49,13 +49,11 @@ struct KaiChatView: View {
             VStack(spacing: 16) {
                 ZStack {
                     if KaiTheme.isCobalt {
-                        // Plasma light behind the mark: a cobalt halo and a thin cyan ring.
-                        Circle().fill(RadialGradient(colors: [KaiCobalt.primary.opacity(0.55), KaiCobalt.plasmaCyan.opacity(0.12), .clear], center: .center, startRadius: 4, endRadius: 100))
-                            .frame(width: 200, height: 200)
-                        Circle().strokeBorder(LinearGradient(colors: [KaiCobalt.plasmaCyan.opacity(0.7), KaiCobalt.primary.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1.5)
-                            .frame(width: 124, height: 124).shadow(color: KaiCobalt.plasmaCyan.opacity(0.5), radius: 10)
+                        // The site's split-flap lettering: one tile per letter, a hairline across the middle.
+                        KaiFlapWord("KAI")
+                    } else {
+                        KaiLogoMark(size: 88)
                     }
-                    KaiLogoMark(size: 88)
                 }
                 .padding(.bottom, 6)
                 Text("What can I do for you?").font(.system(size: 28, weight: .semibold))
@@ -81,7 +79,7 @@ struct KaiChatView: View {
                 .font(.system(size: 13, weight: .medium))
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .kaiChip()
-                .foregroundStyle(.white.opacity(0.88))
+                .foregroundStyle(KaiTheme.isCobalt ? KaiCobalt.text.opacity(0.85) : .white.opacity(0.88))
         }
         .buttonStyle(.plain)
     }
@@ -172,13 +170,14 @@ struct KaiChatView: View {
                 }
             }
             .padding(.horizontal, 18).padding(.vertical, 14)
-            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(KaiTheme.isCobalt ? KaiCobalt.panelFill : Color.black.opacity(0.55)))
-            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(
+            .background(RoundedRectangle(cornerRadius: KaiTheme.isCobalt ? 16 : 24, style: .continuous).fill(KaiTheme.isCobalt ? KaiCobalt.ink1 : Color.black.opacity(0.55)))
+            .overlay(RoundedRectangle(cornerRadius: KaiTheme.isCobalt ? 16 : 24, style: .continuous).strokeBorder(
                 KaiTheme.isCobalt
-                    ? LinearGradient(colors: [KaiCobalt.plasmaCyan.opacity(0.7), KaiCobalt.primary.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    ? LinearGradient(colors: [inputFocused ? KaiCobalt.plasmaCyan.opacity(0.55) : Color.white.opacity(0.18), inputFocused ? KaiCobalt.plasmaCyan.opacity(0.25) : KaiCobalt.lineSoft], startPoint: .top, endPoint: .bottom)
                     : LinearGradient(colors: [Color.white.opacity(0.22), Color.white.opacity(0.07)], startPoint: .top, endPoint: .bottom),
-                lineWidth: KaiTheme.isCobalt ? 1.5 : 1))
-            .shadow(color: KaiTheme.isCobalt ? KaiCobalt.primary.opacity(0.4) : .clear, radius: 14)
+                lineWidth: 1))
+            .shadow(color: KaiTheme.isCobalt ? .black.opacity(0.4) : .clear, radius: 16, y: 8)
+            .animation(KaiTheme.isCobalt ? KaiCobalt.glide : nil, value: inputFocused)
             .frame(maxWidth: 820)
 
             Text("Private by default. Local first.").font(.system(size: 10)).foregroundStyle(.white.opacity(0.35))

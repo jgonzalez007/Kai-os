@@ -21,11 +21,11 @@ enum KaiTheme: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String { self == .cobalt ? "Cobalt Plasma" : "Classic" }
+    var title: String { self == .cobalt ? "Hypr" : "Classic" }
 
     var detail: String {
         self == .cobalt
-            ? "Deep blue glass with cyan plasma light, glowing borders, toggles and sliders."
+            ? "Near-black ink with one cyan accent, hairline borders, keycap chips and flat controls."
             : "The look from before: near black with cyan, violet and magenta light."
     }
 }
@@ -33,19 +33,35 @@ enum KaiTheme: String, CaseIterable, Identifiable {
 // MARK: - Cobalt Plasma tokens
 
 enum KaiCobalt {
-    static let primary = Color(hex: "0066FF")
-    static let plasmaCyan = Color(hex: "00E0FF")
-    static let electricBlue = Color(hex: "1A8CFF")
-    static let panel = Color(hex: "0D1B2A")
-    static let sheet = Color(hex: "050B14")
-    static let textSecondary = Color(hex: "8A99AD")
+    // The HyprMac palette (hyprmac.app): ink 0 to 3, one cyan accent, a hairline made from the text color.
+    static let primary = Color(hex: "56D8F0")        // --cyan
+    static let plasmaCyan = Color(hex: "56D8F0")     // --cyan
+    static let electricBlue = Color(hex: "3BA9C0")   // a quieter cyan for tracks
+    static let panel = Color(hex: "181A20")          // --ink-2
+    static let sheet = Color(hex: "0A0C12")          // --ink-0
+    static let ink1 = Color(hex: "101218")           // --ink-1
+    static let cyanInk = Color(hex: "0B1417")        // dark text on a cyan fill
+    static let magenta = Color(hex: "E84BCB")        // --magenta, the second accent
+    static let text = Color(hex: "ECECF1")           // --text
+    static let textSecondary = Color(hex: "9A9BA3")  // --text-soft on ink
 
-    static let panelOpacity = 0.80
-    static let sheetOpacity = 0.90
-    static let borderWidth: CGFloat = 1.5
-    static let glowRadius: CGFloat = 16
-    static let cardRadius: CGFloat = 16
+    static let panelOpacity = 0.72
+    static let sheetOpacity = 0.92
+    static let borderWidth: CGFloat = 1
+    static let glowRadius: CGFloat = 0
+    static let cardRadius: CGFloat = 14              // --r-hud
     static let buttonRadius: CGFloat = 10
+
+    /// --line: the text color at 12%, the border of everything.
+    static var line: Color { text.opacity(0.12) }
+    /// --line-soft: the text color at 7%.
+    static var lineSoft: Color { text.opacity(0.07) }
+    /// --cyan-dim: the cyan at 14%, the fill of a keycap.
+    static var cyanDim: Color { plasmaCyan.opacity(0.14) }
+
+    /// The press curve from the design notes: strong ease-out, quick.
+    static let snap = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.14)
+    static let glide = Animation.timingCurve(0.23, 1, 0.32, 1, duration: 0.2)
 
     static var panelFill: Color { panel.opacity(panelOpacity) }
     static var sheetFill: Color { sheet.opacity(sheetOpacity) }
@@ -75,11 +91,10 @@ struct CobaltPlasmaGlassCard: ViewModifier {
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .stroke(LinearGradient(colors: [borderColor.opacity(0.8), glowColor.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    .stroke(LinearGradient(colors: [Color.white.opacity(0.16), KaiCobalt.line, KaiCobalt.lineSoft], startPoint: .top, endPoint: .bottom),
                             lineWidth: KaiCobalt.borderWidth)
             )
-            .shadow(color: glowColor.opacity(0.4), radius: 14, x: 0, y: 0)
-            .shadow(color: borderColor.opacity(0.2), radius: 6, x: 0, y: 0)
+            .shadow(color: .black.opacity(0.5), radius: 16, x: 0, y: 10)
     }
 }
 
@@ -110,11 +125,10 @@ struct KaiPanelChrome: ViewModifier {
     func body(content: Content) -> some View {
         if KaiTheme.isCobalt {
             content
-                .background(RoundedRectangle(cornerRadius: radius, style: .continuous).fill(KaiCobalt.sheet.opacity(0.97)))
+                .background(RoundedRectangle(cornerRadius: radius, style: .continuous).fill(Color(hex: "181818").opacity(0.96)))
                 .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(LinearGradient(colors: [KaiCobalt.plasmaCyan.opacity(0.7), KaiCobalt.primary.opacity(0.35)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                                  lineWidth: KaiCobalt.borderWidth))
-                .shadow(color: KaiCobalt.primary.opacity(0.45), radius: KaiCobalt.glowRadius)
+                    .strokeBorder(Color.white.opacity(0.14), lineWidth: KaiCobalt.borderWidth))
+                .shadow(color: .black.opacity(0.55), radius: 22, x: 0, y: 14)
         } else {
             content
                 .background(RoundedRectangle(cornerRadius: radius).fill(Color.black))
@@ -139,26 +153,25 @@ struct KaiThemeRootModifier: ViewModifier {
 
 // MARK: - Buttons
 
-/// The action button: a cobalt to cyan wash, a cyan edge and a glow that grows under the pointer.
+/// The action button, like the site's Install: a solid cyan fill, dark ink text, a quick press scale.
 struct KaiPlasmaButtonStyle: ButtonStyle {
     @State private var hovering = false
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
-        let strong = configuration.isPressed || hovering
-        return configuration.label
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
             .padding(.horizontal, 14).padding(.vertical, 7)
-            .foregroundStyle(.white)
+            .foregroundStyle(KaiCobalt.cyanInk)
             .background(
                 RoundedRectangle(cornerRadius: KaiCobalt.buttonRadius, style: .continuous)
-                    .fill(LinearGradient(colors: [KaiCobalt.primary.opacity(strong ? 0.45 : 0.25), KaiCobalt.plasmaCyan.opacity(strong ? 0.30 : 0.15)],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .fill(KaiCobalt.plasmaCyan.opacity(configuration.isPressed ? 0.82 : (hovering ? 0.92 : 1)))
             )
-            .overlay(RoundedRectangle(cornerRadius: KaiCobalt.buttonRadius, style: .continuous).strokeBorder(KaiCobalt.plasmaCyan, lineWidth: 1))
-            .shadow(color: KaiCobalt.plasmaCyan.opacity(strong ? 0.6 : 0.3), radius: strong ? 9 : 6)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(isEnabled ? 1 : 0.4)
             .onHover { hovering = $0 }
-            .animation(.easeInOut(duration: 0.2), value: strong)
+            .animation(KaiCobalt.snap, value: configuration.isPressed)
+            .animation(KaiCobalt.snap, value: hovering)
     }
 }
 
@@ -177,10 +190,11 @@ struct KaiChipBackground: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if KaiTheme.isCobalt {
+            // A keycap, like the site's `hypr` chip: a faint cyan fill, cyan text, a thin cyan edge.
             content
-                .background(Capsule().fill(LinearGradient(colors: [KaiCobalt.primary.opacity(selected ? 0.55 : 0.25), KaiCobalt.plasmaCyan.opacity(selected ? 0.35 : 0.12)],
-                                                          startPoint: .topLeading, endPoint: .bottomTrailing)))
-                .overlay(Capsule().strokeBorder(KaiCobalt.plasmaCyan.opacity(selected ? 0.9 : 0.5), lineWidth: 0.75))
+                .foregroundStyle(selected ? KaiCobalt.plasmaCyan : KaiCobalt.text.opacity(0.78))
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(selected ? KaiCobalt.plasmaCyan.opacity(0.16) : KaiCobalt.lineSoft))
+                .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(selected ? KaiCobalt.plasmaCyan.opacity(0.45) : KaiCobalt.line, lineWidth: 1))
         } else {
             content
                 .background(Capsule().fill(Color.white.opacity(selected ? 0.16 : 0.09)))
@@ -206,10 +220,9 @@ struct KaiStatusIconButton: View {
             Image(systemName: symbol).font(.system(size: 13, weight: .medium))
                 .foregroundStyle(active ? KaiCobalt.plasmaCyan : KaiCobalt.textSecondary)
                 .frame(width: size, height: size)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(KaiCobalt.panelFill))
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(active ? KaiCobalt.cyanDim : KaiCobalt.lineSoft))
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(active ? KaiCobalt.plasmaCyan : KaiCobalt.textSecondary.opacity(0.3), lineWidth: active ? 1.5 : 1))
-                .shadow(color: active ? KaiCobalt.plasmaCyan.opacity(0.5) : .clear, radius: 6)
+                    .strokeBorder(active ? KaiCobalt.plasmaCyan.opacity(0.5) : KaiCobalt.line, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .help(help)
@@ -218,7 +231,7 @@ struct KaiStatusIconButton: View {
 
 // MARK: - Toggle
 
-/// A neon switch: a glowing cobalt track and a cyan thumb when on, a dim track and a grey thumb when off.
+/// A flat switch: a cyan track with a dark thumb when on, a hairline track with a light thumb when off.
 struct KaiPlasmaToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 10) {
@@ -227,19 +240,15 @@ struct KaiPlasmaToggleStyle: ToggleStyle {
             Button { configuration.isOn.toggle() } label: {
                 ZStack(alignment: configuration.isOn ? .trailing : .leading) {
                     Capsule()
-                        .fill(configuration.isOn
-                              ? AnyShapeStyle(LinearGradient(colors: [KaiCobalt.primary.opacity(0.75), KaiCobalt.electricBlue.opacity(0.55)], startPoint: .leading, endPoint: .trailing))
-                              : AnyShapeStyle(KaiCobalt.panelFill))
-                        .overlay(Capsule().strokeBorder(configuration.isOn ? KaiCobalt.plasmaCyan : KaiCobalt.textSecondary.opacity(0.45), lineWidth: 1))
-                        .shadow(color: configuration.isOn ? KaiCobalt.plasmaCyan.opacity(0.45) : .clear, radius: 6)
+                        .fill(configuration.isOn ? KaiCobalt.plasmaCyan : KaiCobalt.text.opacity(0.10))
+                        .overlay(Capsule().strokeBorder(configuration.isOn ? Color.clear : KaiCobalt.line, lineWidth: 1))
                     Circle()
-                        .fill(configuration.isOn ? KaiCobalt.plasmaCyan : KaiCobalt.textSecondary)
+                        .fill(configuration.isOn ? KaiCobalt.cyanInk : KaiCobalt.text.opacity(0.85))
                         .frame(width: 16, height: 16)
-                        .shadow(color: configuration.isOn ? KaiCobalt.plasmaCyan.opacity(0.9) : .clear, radius: 5)
                         .padding(3)
                 }
                 .frame(width: 42, height: 22)
-                .animation(.easeInOut(duration: 0.18), value: configuration.isOn)
+                .animation(KaiCobalt.glide, value: configuration.isOn)
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text("Switch"))
@@ -266,12 +275,11 @@ struct KaiPlasmaSlider: View {
             let width = max(geo.size.width, 1)
             let x = width * fraction()
             ZStack(alignment: .leading) {
-                Capsule().fill(KaiCobalt.electricBlue.opacity(0.25)).frame(height: 4)
-                Capsule().fill(LinearGradient(colors: [KaiCobalt.primary, KaiCobalt.plasmaCyan], startPoint: .leading, endPoint: .trailing))
+                Capsule().fill(KaiCobalt.text.opacity(0.12)).frame(height: 4)
+                Capsule().fill(KaiCobalt.plasmaCyan)
                     .frame(width: x, height: 4)
-                    .shadow(color: KaiCobalt.plasmaCyan.opacity(0.6), radius: 5)
-                Circle().fill(KaiCobalt.plasmaCyan).frame(width: 14, height: 14)
-                    .shadow(color: KaiCobalt.plasmaCyan.opacity(0.9), radius: 6)
+                Circle().fill(KaiCobalt.text).frame(width: 14, height: 14)
+                    .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
                     .offset(x: min(max(x - 7, 0), width - 14))
             }
             .frame(height: geo.size.height)
@@ -326,20 +334,19 @@ struct KaiThemePicker: View {
         return VStack(alignment: .leading, spacing: 8) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10).fill(cobalt ? KaiCobalt.sheet : Color(red: 0.016, green: 0.016, blue: 0.027))
-                Circle().fill(RadialGradient(colors: [(cobalt ? KaiCobalt.primary : Color(red: 0.439, green: 0, blue: 1)).opacity(0.5), .clear], center: .center, startRadius: 0, endRadius: 50))
+                Circle().fill(RadialGradient(colors: [(cobalt ? KaiCobalt.plasmaCyan : Color(red: 0.439, green: 0, blue: 1)).opacity(cobalt ? 0.18 : 0.5), .clear], center: .center, startRadius: 0, endRadius: 50))
                     .frame(width: 90, height: 90).offset(x: -40, y: -20)
                 Circle().fill(RadialGradient(colors: [(cobalt ? KaiCobalt.plasmaCyan : KaiColor.cyan).opacity(0.35), .clear], center: .center, startRadius: 0, endRadius: 40))
                     .frame(width: 70, height: 70).offset(x: 45, y: -25)
                 RoundedRectangle(cornerRadius: 8)
                     .fill(cobalt ? KaiCobalt.panelFill : Color.white.opacity(0.07))
-                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(cobalt ? KaiCobalt.plasmaCyan.opacity(0.7) : Color.white.opacity(0.25), lineWidth: cobalt ? 1.5 : 1))
-                    .shadow(color: cobalt ? KaiCobalt.primary.opacity(0.6) : .clear, radius: 8)
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(cobalt ? KaiCobalt.line : Color.white.opacity(0.25), lineWidth: 1))
                     .frame(width: 92, height: 38)
             }
             .frame(height: 84)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 2) {
-                Text(option.title + (option == .cobalt ? " (new)" : "")).fontWeight(.semibold)
+                Text(option.title).fontWeight(.semibold)
                 Text(option.detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -359,28 +366,24 @@ struct KaiThemedSegmented<Value: Hashable>: View {
 
     var body: some View {
         if KaiTheme.isCobalt {
-            HStack(spacing: 4) {
+            HStack(spacing: 2) {
                 ForEach(options.indices, id: \.self) { index in
                     let option = options[index]
                     let selected = option.value == selection
                     Button { selection = option.value } label: {
                         Text(option.title).font(.system(size: 12, weight: selected ? .semibold : .regular))
                             .lineLimit(1).fixedSize()
-                            .padding(.horizontal, 14).padding(.vertical, 6)
-                            .foregroundStyle(selected ? Color.white : KaiCobalt.textSecondary)
-                            .background(Capsule().fill(selected
-                                ? AnyShapeStyle(LinearGradient(colors: [KaiCobalt.primary.opacity(0.6), KaiCobalt.plasmaCyan.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                : AnyShapeStyle(Color.clear)))
-                            .overlay(Capsule().strokeBorder(selected ? KaiCobalt.plasmaCyan : Color.clear, lineWidth: 1))
-                            .shadow(color: selected ? KaiCobalt.plasmaCyan.opacity(0.35) : .clear, radius: 5)
+                            .padding(.horizontal, 12).padding(.vertical, 5)
+                            .foregroundStyle(selected ? KaiCobalt.plasmaCyan : KaiCobalt.textSecondary)
+                            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(selected ? KaiCobalt.cyanDim : Color.clear))
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(3)
-            .background(Capsule().fill(KaiCobalt.panelFill))
-            .overlay(Capsule().strokeBorder(KaiCobalt.plasmaCyan.opacity(0.25), lineWidth: 1))
-            .animation(.easeInOut(duration: 0.15), value: selection)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(KaiCobalt.lineSoft))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(KaiCobalt.line, lineWidth: 1))
+            .animation(KaiCobalt.snap, value: selection)
         } else {
             Picker("", selection: $selection) {
                 ForEach(options.indices, id: \.self) { Text(options[$0].title).tag(options[$0].value) }
@@ -398,7 +401,7 @@ struct KaiTextBoxStyle: ViewModifier {
             content
                 .scrollContentBackground(.hidden)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(KaiCobalt.panelFill))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(KaiCobalt.plasmaCyan.opacity(0.35), lineWidth: 1))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(KaiCobalt.line, lineWidth: 1))
         } else {
             content.background(KaiColor.surfaceBg, in: RoundedRectangle(cornerRadius: 8))
         }
@@ -407,4 +410,35 @@ struct KaiTextBoxStyle: ViewModifier {
 
 extension View {
     func kaiTextBox() -> some View { modifier(KaiTextBoxStyle()) }
+}
+
+
+// MARK: - Split-flap word
+
+/// A word as split-flap tiles, like the HYPRMAC lettering on the site: ink tiles, a hairline rim and a seam across the middle.
+struct KaiFlapWord: View {
+    let word: String
+    var tile: CGFloat = 64
+
+    init(_ word: String, tile: CGFloat = 64) { self.word = word; self.tile = tile }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(word.enumerated()), id: \.offset) { _, letter in
+                Text(String(letter))
+                    .font(.system(size: tile * 0.62, weight: .bold, design: .default))
+                    .foregroundStyle(KaiCobalt.text)
+                    .frame(width: tile * 0.82, height: tile)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(LinearGradient(colors: [Color(hex: "262830"), Color(hex: "16181E")], startPoint: .top, endPoint: .bottom))
+                    )
+                    .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
+                    .overlay(Rectangle().fill(Color.black.opacity(0.55)).frame(height: 1.5))
+                    .shadow(color: .black.opacity(0.5), radius: 10, y: 6)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text(word))
+    }
 }
